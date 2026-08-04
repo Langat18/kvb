@@ -1,0 +1,212 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../../config/constants.php';
+require_once __DIR__ . '/../../config/database.php';
+
+use VetBoard\Auth;
+use VetBoard\Event;
+
+Auth::startSession();
+Auth::requireLogin();
+
+$user = Auth::user();
+
+$error    = $_SESSION['error']     ?? null;
+$formData = $_SESSION['form_data'] ?? [];
+unset($_SESSION['error'], $_SESSION['form_data']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    if (!Auth::validateCsrf($_POST['csrf_token'] ?? '')) {
+        http_response_code(403);
+        die('Invalid security token. Please refresh and try again.');
+    }
+
+    $data = [
+        'title'             => $_POST['title']             ?? '',
+        'event_code'        => $_POST['event_code']        ?? '',
+        'event_mode'        => $_POST['event_mode']        ?? '',
+        'venue'             => $_POST['venue']              ?? '',
+        'department'        => $_POST['department']        ?? '',
+        'coordinator'       => $_POST['coordinator']        ?? '',
+        'program_assistant' => $_POST['program_assistant'] ?? '',
+        'start_date'        => $_POST['start_date']        ?? '',
+        'end_date'          => $_POST['end_date']           ?? '',
+        'geo_lat'           => $_POST['geo_lat']    !== '' ? (float) $_POST['geo_lat']    : null,
+        'geo_lng'           => $_POST['geo_lng']    !== '' ? (float) $_POST['geo_lng']    : null,
+        'geo_radius_m'      => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
+        'created_by'        => $user['id'],
+    ];
+
+    try {
+        $eventModel = new Event();
+        $eventId    = $eventModel->create($data);
+        $created    = $eventModel->findById($eventId);
+
+        $_SESSION['success'] = 'Event created successfully.';
+        header('Location: /events/view.php?token=' . urlencode($created['view_token']));
+        exit;
+
+    } catch (\InvalidArgumentException $e) {
+        $_SESSION['error']     = $e->getMessage();
+        $_SESSION['form_data'] = $data;
+        header('Location: /events/create.php');
+        exit;
+
+    } catch (\Throwable $e) {
+        $_SESSION['error']     = 'A system error occurred. Please try again.';
+        $_SESSION['form_data'] = $data;
+        error_log('Event creation error: ' . $e->getMessage());
+        header('Location: /events/create.php');
+        exit;
+    }
+}
+
+$v = $formData;
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Event — Vet Board</title>
+<style>
+body { font-family: Arial, sans-serif; background: #f5f4f0; padding: 2rem; }
+.container { max-width: 640px; margin: 0 auto; }
+.card { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group.full { grid-column: 1 / -1; }
+label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: .3rem; color: #333; }
+input, select { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; box-sizing: border-box; }
+.required { color: #c0392b; }
+.alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+.alert-danger { background: #f8d7da; color: #842029; }
+#geo-fields { display: none; }
+#geo-fields.active { display: grid; }
+button[type="submit"] { padding: .6rem 1.5rem; background: #2a3f54; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1 style="font-size:1.2rem;margin-bottom:1rem;">New Event</h1>
+
+    <?php if ($error): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
+
+    <div class="card">
+        <form method="POST" action="/events/create.php" id="event-form">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+
+            <div class="form-grid">
+                <div class="form-group full">
+                    <label for="title">Event Title <span class="required">*</span></label>
+                    <input type="text" id="title" name="title" required
+                           value="<?= htmlspecialchars($v['title'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="event_code">Event Code</label>
+                    <input type="text" id="event_code" name="event_code"
+                           value="<?= htmlspecialchars($v['event_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="event_mode">Mode <span class="required">*</span></label>
+                    <select id="event_mode" name="event_mode" required>
+                        <option value="">-- Select --</option>
+                        <?php foreach (EVENT_MODES as $key => $label): ?>
+                            <option value="<?= $key ?>" <?= ($v['event_mode'] ?? '') === $key ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="start_date">Start Date <span class="required">*</span></label>
+                    <input type="date" id="start_date" name="start_date" required
+                           value="<?= htmlspecialchars($v['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="end_date">End Date <span class="required">*</span></label>
+                    <input type="date" id="end_date" name="end_date" required
+                           value="<?= htmlspecialchars($v['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="venue">Venue</label>
+                    <input type="text" id="venue" name="venue"
+                           value="<?= htmlspecialchars($v['venue'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="coordinator">Coordinator</label>
+                    <input type="text" id="coordinator" name="coordinator"
+                           value="<?= htmlspecialchars($v['coordinator'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="program_assistant">Program Assistant</label>
+                    <input type="text" id="program_assistant" name="program_assistant"
+                           value="<?= htmlspecialchars($v['program_assistant'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="department">Department</label>
+                    <input type="text" id="department" name="department"
+                           value="<?= htmlspecialchars($v['department'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+            </div>
+
+            <div class="form-grid" id="geo-fields">
+                <div class="form-group full">
+                    <label>Location <span class="required">*</span> <span style="font-weight:normal;color:#888;">(required for on-site/hybrid events)</span></label>
+                </div>
+                <div class="form-group">
+                    <label for="geo_lat">Latitude</label>
+                    <input type="number" step="any" id="geo_lat" name="geo_lat"
+                           value="<?= htmlspecialchars((string) ($v['geo_lat'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group">
+                    <label for="geo_lng">Longitude</label>
+                    <input type="number" step="any" id="geo_lng" name="geo_lng"
+                           value="<?= htmlspecialchars((string) ($v['geo_lng'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group">
+                    <label for="geo_radius_m">Radius (meters)</label>
+                    <input type="number" id="geo_radius_m" name="geo_radius_m"
+                           value="<?= htmlspecialchars((string) ($v['geo_radius_m'] ?? DEFAULT_GEOFENCE_RADIUS_M), ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+            </div>
+
+            <div style="margin-top:1.5rem;">
+                <button type="submit">Create Event</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const modeSelect = document.getElementById('event_mode');
+const geoFields  = document.getElementById('geo-fields');
+
+function toggleGeoFields() {
+    const mode = modeSelect.value;
+    if (mode === 'onsite' || mode === 'hybrid') {
+        geoFields.classList.add('active');
+    } else {
+        geoFields.classList.remove('active');
+    }
+}
+
+modeSelect.addEventListener('change', toggleGeoFields);
+toggleGeoFields();
+</script>
+</body>
+</html>
