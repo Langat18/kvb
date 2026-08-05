@@ -48,30 +48,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login — Vet Board</title>
+<title>Login — Kenya Veterinary Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+<style>
+body { display: flex; align-items: center; justify-content: center; }
+.login-card { max-width: 380px; width: 100%; }
+.login-card h1 { font-size: 1.15rem; font-weight: 700; margin-bottom: .3rem; color: var(--kvb-green-dark); }
+.login-card p.sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 1.5rem; }
+.form-group { margin-bottom: 1rem; }
+</style>
 </head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,sans-serif;background:#f5f4f0;">
-<div style="max-width:360px;width:100%;padding:2rem;background:#fff;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.1);">
-    <h1 style="font-size:1.1rem;margin-bottom:1rem;">Staff Login</h1>
+<body>
+<div class="card login-card">
+    <h1>Staff Login</h1>
+    <p class="sub">Kenya Veterinary Board — Event Attendance System</p>
 
     <?php if ($error): ?>
-        <p style="color:#c0392b;font-size:.85rem;margin-bottom:1rem;"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
+        <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
     <form method="POST" action="/login.php">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 
-        <div style="margin-bottom:1rem;">
-            <label style="display:block;font-size:.85rem;margin-bottom:.3rem;">Email</label>
-            <input type="email" name="email" required style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;">
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" required>
         </div>
 
-        <div style="margin-bottom:1.25rem;">
-            <label style="display:block;font-size:.85rem;margin-bottom:.3rem;">Password</label>
-            <input type="password" name="password" required style="width:100%;padding:.5rem;border:1px solid #ccc;border-radius:4px;">
+        <div class="form-group" style="margin-bottom:1.5rem;">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
         </div>
 
-        <button type="submit" style="width:100%;padding:.6rem;background:#2a3f54;color:#fff;border:none;border-radius:4px;cursor:pointer;">Log In</button>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Log In</button>
     </form>
 </div>
 </body>
