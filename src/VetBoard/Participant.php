@@ -44,6 +44,10 @@ class Participant
             throw new \InvalidArgumentException('This registration number is already recorded.');
         }
 
+        if ($this->findByEmail($data['email'])) {
+            throw new \InvalidArgumentException('This email address is already registered under a different RegNo.');
+        }
+
         $stmt = $this->pdo->prepare(
             'INSERT INTO participants (reg_no, name, id_number, email, phone)
              VALUES (:reg_no, :name, :id_number, :email, :phone)'
