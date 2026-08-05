@@ -72,27 +72,24 @@ $v = $formData;
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>New Event — Vet Board</title>
+<title>New Event — Kenya Veterinary Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { font-family: Arial, sans-serif; background: #f5f4f0; padding: 2rem; }
-.container { max-width: 640px; margin: 0 auto; }
-.card { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+body { display: block; padding: 2.5rem; }
+.container { max-width: 680px; margin: 0 auto; }
+.container h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .form-group { margin-bottom: 1rem; }
 .form-group.full { grid-column: 1 / -1; }
-label { display: block; font-size: .82rem; font-weight: 600; margin-bottom: .3rem; color: #333; }
-input, select { width: 100%; padding: .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; box-sizing: border-box; }
-.required { color: #c0392b; }
-.alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
-.alert-danger { background: #f8d7da; color: #842029; }
 #geo-fields { display: none; }
 #geo-fields.active { display: grid; }
-button[type="submit"] { padding: .6rem 1.5rem; background: #2a3f54; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: .9rem; }
 </style>
 </head>
 <body>
 <div class="container">
-    <h1 style="font-size:1.2rem;margin-bottom:1rem;">New Event</h1>
+    <h1>New Event</h1>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
@@ -166,7 +163,7 @@ button[type="submit"] { padding: .6rem 1.5rem; background: #2a3f54; color: #fff;
 
             <div class="form-grid" id="geo-fields">
                 <div class="form-group full">
-                    <label>Location <span class="required">*</span> <span style="font-weight:normal;color:#888;">(required for on-site/hybrid events)</span></label>
+                    <label>Location <span class="required">*</span> <span style="font-weight:normal;color:var(--text-muted);">(required for on-site/hybrid events)</span></label>
                 </div>
                 <div class="form-group">
                     <label for="geo_lat">Latitude</label>
@@ -186,7 +183,7 @@ button[type="submit"] { padding: .6rem 1.5rem; background: #2a3f54; color: #fff;
             </div>
 
             <div style="margin-top:1.5rem;">
-                <button type="submit">Create Event</button>
+                <button type="submit" class="btn btn-primary">Create Event</button>
             </div>
         </form>
     </div>
@@ -206,6 +203,7 @@ function toggleGeoFields() {
 }
 
 modeSelect.addEventListener('change', toggleGeoFields);
+window.addEventListener('pageshow', toggleGeoFields);
 toggleGeoFields();
 </script>
 </body>
