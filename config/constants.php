@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+date_default_timezone_set('Africa/Nairobi');
+
 define('MORNING_SESSION_START', '08:00');
 define('MORNING_SESSION_END', '10:30');
 define('MID_MORNING_SESSION_START', '11:00');
