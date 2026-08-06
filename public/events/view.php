@@ -140,7 +140,8 @@ h2.section-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color
         <?php endif; ?>
     </div>
 
-    <div style="margin-top:1.5rem;">
+    <div style="margin-top:1.5rem;display:flex;gap:.75rem;">
+        <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-primary" target="_blank">Nominal Roll</a>
         <a href="/events/index.php" class="btn btn-secondary">&larr; Back to Events</a>
     </div>
 </div>
