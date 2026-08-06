@@ -188,7 +188,7 @@ body { display: block; padding: 1.5rem; }
 
     <div class="card">
         <p class="notice-box">
-            Please fill in your official details as they should appear on your certificate.
+            Please fill in your official details as they appear in official CPD directory and records.
         </p>
 
         <?php if ($isOnsite): ?>
