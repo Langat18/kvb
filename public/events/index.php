@@ -66,7 +66,10 @@ body { display: block; padding: 2.5rem; }
 <div class="container">
     <div class="page-header">
         <h1>Events</h1>
-        <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
+        <div style="display:flex;gap:.6rem;">
+            <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
+            <a href="/logout.php" class="btn btn-secondary">Log Out</a>
+        </div>
     </div>
 
     <?php if ($success): ?>

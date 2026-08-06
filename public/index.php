@@ -41,6 +41,10 @@ body { display: block; padding: 2.5rem; }
         <div style="margin-top:1.5rem;display:flex;gap:.75rem;">
             <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
             <a href="/events/index.php" class="btn btn-secondary">All Events</a>
+            <?php if ($user['role'] === 'admin'): ?>
+                <a href="/staff/index.php" class="btn btn-secondary">Manage Staff</a>
+            <?php endif; ?>
+            <a href="/logout.php" class="btn btn-secondary" style="margin-left:auto;">Log Out</a>
         </div>
     </div>
 </div>
