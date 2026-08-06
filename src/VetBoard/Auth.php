@@ -21,6 +21,17 @@ class Auth
         }
     }
 
+    public static function requireRole(string ...$roles): void
+    {
+        self::requireLogin();
+        $user = self::user();
+
+        if (!in_array($user['role'], $roles, true)) {
+            http_response_code(403);
+            die('Access denied.');
+        }
+    }
+
     public static function user(): ?array
     {
         if (empty($_SESSION['user_id'])) {
@@ -42,6 +53,10 @@ class Auth
         $_SESSION['user_name']  = $staff['name'];
         $_SESSION['user_email'] = $staff['email'];
         $_SESSION['user_role']  = $staff['role'];
+
+        $pdo  = Database::getInstance()->getPdo();
+        $stmt = $pdo->prepare('UPDATE staff SET last_login_at = now() WHERE id = :id');
+        $stmt->execute([':id' => $staff['id']]);
     }
 
     public static function logout(): void

@@ -63,12 +63,63 @@ class Staff
     {
         $staff = $this->findByEmail($email);
 
-        if (!$staff || !password_verify($password, $staff['password_hash'])) {
+        if (!$staff || !$staff['is_active'] || !password_verify($password, $staff['password_hash'])) {
             return null;
         }
 
         unset($staff['password_hash']);
 
         return $staff;
+    }
+
+    public function list(): array
+    {
+        $stmt = $this->pdo->query(
+            'SELECT id, name, email, role, is_active, last_login_at, created_at FROM staff ORDER BY name ASC'
+        );
+
+        return $stmt->fetchAll();
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT id, name, email, role, is_active, last_login_at FROM staff WHERE id = :id');
+        $stmt->execute([':id' => $id]);
+
+        $result = $stmt->fetch();
+
+        return $result ?: null;
+    }
+
+    public function updateRole(int $id, string $role): bool
+    {
+        if (!in_array($role, ['admin', 'staff', 'ceo'], true)) {
+            throw new \InvalidArgumentException('Invalid role.');
+        }
+
+        $stmt = $this->pdo->prepare('UPDATE staff SET role = :role WHERE id = :id');
+
+        return $stmt->execute([':id' => $id, ':role' => $role]);
+    }
+
+    public function setActive(int $id, bool $active): bool
+    {
+        $stmt = $this->pdo->prepare('UPDATE staff SET is_active = :active WHERE id = :id');
+
+        return $stmt->execute([':id' => $id, ':active' => $active]);
+    }
+
+    public function resetPassword(int $id, string $newPassword): bool
+    {
+        if (strlen($newPassword) < 8) {
+            throw new \InvalidArgumentException('Password must be at least 8 characters.');
+        }
+
+        $stmt = $this->pdo->prepare('UPDATE staff SET password_hash = :hash WHERE id = :id');
+
+        return $stmt->execute([
+            ':id'   => $id,
+            ':hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+        ]);
     }
 }
