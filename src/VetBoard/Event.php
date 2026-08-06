@@ -150,6 +150,11 @@ class Event
             $params[':event_mode'] = $filters['event_mode'];
         }
 
+        if (!empty($filters['date'])) {
+            $where[]          = ':date BETWEEN start_date AND end_date';
+            $params[':date']  = $filters['date'];
+        }
+
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         $stmt = $this->pdo->prepare(
@@ -181,12 +186,44 @@ class Event
             $params[':event_mode'] = $filters['event_mode'];
         }
 
+        if (!empty($filters['date'])) {
+            $where[]          = ':date BETWEEN start_date AND end_date';
+            $params[':date']  = $filters['date'];
+        }
+
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM events {$whereSql}");
         $stmt->execute($params);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    public function getParticipants(int $eventId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT r.id AS registration_id, p.reg_no, p.name, p.cadre, p.email, p.phone, r.registered_at
+             FROM registrations r
+             JOIN participants p ON p.reg_no = r.reg_no
+             WHERE r.event_id = :event_id
+             ORDER BY p.name ASC'
+        );
+        $stmt->execute([':event_id' => $eventId]);
+        $participants = $stmt->fetchAll();
+
+        foreach ($participants as &$participant) {
+            $attStmt = $this->pdo->prepare(
+                'SELECT session, attendance_date, method, flagged, distance_m, flag_reason
+                 FROM attendance
+                 WHERE registration_id = :registration_id
+                 ORDER BY attendance_date ASC, session ASC'
+            );
+            $attStmt->execute([':registration_id' => $participant['registration_id']]);
+            $participant['attendance'] = $attStmt->fetchAll();
+        }
+        unset($participant);
+
+        return $participants;
     }
 
     public function isWithinGeofence(array $event, float $lat, float $lng): array
