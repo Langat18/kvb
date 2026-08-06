@@ -38,8 +38,9 @@ body { display: block; padding: 2.5rem; }
         <p class="sub">Kenya Veterinary Board — Staff Dashboard</p>
         <div class="info-row"><span class="label">Role</span> <?= htmlspecialchars($user['role'], ENT_QUOTES, 'UTF-8') ?></div>
         <div class="info-row"><span class="label">Email</span> <?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?></div>
-        <div style="margin-top:1.5rem;">
+        <div style="margin-top:1.5rem;display:flex;gap:.75rem;">
             <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
+            <a href="/events/index.php" class="btn btn-secondary">All Events</a>
         </div>
     </div>
 </div>
