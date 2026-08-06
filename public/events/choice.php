@@ -30,7 +30,7 @@ $endDate   = date('d M Y', strtotime($event['end_date']));
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> — Kenya Veterinary Board</title>
+<title><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
