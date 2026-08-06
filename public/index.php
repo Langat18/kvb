@@ -44,6 +44,9 @@ body { display: block; padding: 2.5rem; }
             <?php if ($user['role'] === 'admin'): ?>
                 <a href="/staff/index.php" class="btn btn-secondary">Manage Staff</a>
             <?php endif; ?>
+            <?php if (in_array($user['role'], ['admin', 'ceo'], true)): ?>
+                <a href="/reports/dashboard.php" class="btn btn-secondary">Reports</a>
+            <?php endif; ?>
             <a href="/logout.php" class="btn btn-secondary" style="margin-left:auto;">Log Out</a>
         </div>
     </div>
