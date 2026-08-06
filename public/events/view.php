@@ -32,10 +32,11 @@ $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
 
-$appUrl     = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8000', '/');
-$choiceUrl  = $appUrl . '/events/choice.php?token=' . urlencode($event['token']);
-$startDate  = date('d M Y', strtotime($event['start_date']));
-$endDate    = date('d M Y', strtotime($event['end_date']));
+$appUrl       = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8000', '/');
+$choiceUrl    = $appUrl . '/events/choice.php?token=' . urlencode($event['token']);
+$startDate    = date('d M Y', strtotime($event['start_date']));
+$endDate      = date('d M Y', strtotime($event['end_date']));
+$participants = $eventModel->getParticipants((int) $event['id']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -98,8 +99,45 @@ h2.section-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color
     </div>
 
     <div class="card">
-        <h2 class="section-title">Registered Participants (0)</h2>
-        <p class="empty-state">No participants have registered yet.</p>
+        <h2 class="section-title">Registered Participants (<?= count($participants) ?>)</h2>
+        <?php if (empty($participants)): ?>
+            <p class="empty-state">No participants have registered yet.</p>
+        <?php else: ?>
+        <table class="list-table">
+            <thead>
+                <tr>
+                    <th>Reg No</th>
+                    <th>Name</th>
+                    <th>Cadre</th>
+                    <th>Sessions Signed</th>
+                    <th>Flagged</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($participants as $p): ?>
+                <?php
+                    $sessionsSigned = count($p['attendance']);
+                    $flaggedCount   = count(array_filter($p['attendance'], fn($a) => $a['flagged']));
+                ?>
+                <tr>
+                    <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars(CADRE_LABELS[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><?= $sessionsSigned ?></td>
+                    <td>
+                        <?php if ($flaggedCount > 0): ?>
+                            <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);">
+                                &#9888; <?= $flaggedCount ?> flagged
+                            </span>
+                        <?php else: ?>
+                            &mdash;
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
     </div>
 
     <div style="margin-top:1.5rem;">
