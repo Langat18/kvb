@@ -37,6 +37,15 @@ $choiceUrl    = $appUrl . '/events/choice.php?token=' . urlencode($event['token'
 $startDate    = date('d M Y', strtotime($event['start_date']));
 $endDate      = date('d M Y', strtotime($event['end_date']));
 $participants = $eventModel->getParticipants((int) $event['id']);
+
+$flaggedTotal = 0;
+foreach ($participants as $p) {
+    foreach ($p['attendance'] as $a) {
+        if ($a['flagged']) {
+            $flaggedTotal++;
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -143,6 +152,11 @@ h2.section-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color
     <div style="margin-top:1.5rem;display:flex;gap:.75rem;">
         <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-primary" target="_blank">Nominal Roll</a>
         <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-secondary">Add to Calendar</a>
+        <?php if ($flaggedTotal > 0): ?>
+            <a href="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-secondary" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);">
+                &#9888; Review Flagged (<?= $flaggedTotal ?>)
+            </a>
+        <?php endif; ?>
         <a href="/events/index.php" class="btn btn-secondary">&larr; Back to Events</a>
     </div>
 </div>

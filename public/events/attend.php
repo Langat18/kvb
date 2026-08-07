@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Participant;
+use VetBoard\Registration;
 
 Auth::startSession();
 
@@ -74,11 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $pdo = VetBoard\Database::getInstance()->getPdo();
-
-    $regStmt = $pdo->prepare('SELECT id FROM registrations WHERE event_id = :event_id AND reg_no = :reg_no');
-    $regStmt->execute([':event_id' => $event['id'], ':reg_no' => $regNo]);
-    $registration = $regStmt->fetch();
+    $registrationModel = new Registration();
+    $registration       = $registrationModel->find((int) $event['id'], $regNo);
 
     if (!$registration) {
         $_SESSION['attend_error'] = 'You are not registered for this event. Please register first.';
@@ -93,12 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $dupStmt = $pdo->prepare(
-        'SELECT id FROM attendance WHERE registration_id = :registration_id AND attendance_date = CURRENT_DATE AND session = :session'
-    );
-    $dupStmt->execute([':registration_id' => $registration['id'], ':session' => $session]);
-
-    if ($dupStmt->fetch()) {
+    if ($registrationModel->hasSignedSession((int) $registration['id'], $session)) {
         $_SESSION['attend_error'] = 'You have already signed for the ' . SESSION_LABELS[$session] . ' session today.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
@@ -136,29 +129,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        $insertStmt = $pdo->prepare(
-            'INSERT INTO attendance
-                (registration_id, session, method, geo_verified, submitted_lat, submitted_lng, distance_m, flagged, flag_reason)
-             VALUES
-                (:registration_id, :session, :method, :geo_verified, :submitted_lat, :submitted_lng, :distance_m, :flagged, :flag_reason)'
-        );
-        $insertStmt->bindValue(':registration_id', $registration['id'], PDO::PARAM_INT);
-        $insertStmt->bindValue(':session', $session, PDO::PARAM_STR);
-        $insertStmt->bindValue(':method', $method, PDO::PARAM_STR);
-
-        if ($geoVerified === null) {
-            $insertStmt->bindValue(':geo_verified', null, PDO::PARAM_NULL);
-        } else {
-            $insertStmt->bindValue(':geo_verified', $geoVerified, PDO::PARAM_BOOL);
-        }
-
-        $insertStmt->bindValue(':submitted_lat', $submittedLat, $submittedLat === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $insertStmt->bindValue(':submitted_lng', $submittedLng, $submittedLng === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-        $insertStmt->bindValue(':distance_m', $distanceM, $distanceM === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
-        $insertStmt->bindValue(':flagged', $flagged, PDO::PARAM_BOOL);
-        $insertStmt->bindValue(':flag_reason', $flagReason, $flagReason === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
-
-        $insertStmt->execute();
+        $registrationModel->recordAttendance([
+            'registration_id' => (int) $registration['id'],
+            'session'         => $session,
+            'method'          => $method,
+            'geo_verified'    => $geoVerified,
+            'submitted_lat'   => $submittedLat,
+            'submitted_lng'   => $submittedLng,
+            'distance_m'      => $distanceM,
+            'flagged'         => $flagged,
+            'flag_reason'     => $flagReason,
+        ]);
 
         $_SESSION['attend_success'] = true;
         $_SESSION['attend_session'] = $session;
