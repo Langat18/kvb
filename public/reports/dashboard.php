@@ -26,7 +26,7 @@ $flaggedByEvent       = $reportModel->flaggedByEvent(5);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reports — Kenya Veterinary Board</title>
+<title>Reports Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -49,7 +49,7 @@ body { display: block; padding: 2.5rem; }
 <div class="container">
     <div class="page-header">
         <h1>Reports Dashboard</h1>
-        <a href="/index.php" class="btn btn-secondary">&larr; Back to Dashboard</a>
+        <a href="/index.php" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 
     <div class="stat-grid">

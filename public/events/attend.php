@@ -55,9 +55,11 @@ function detectSession(): array
     return ['session' => null, 'flagged' => true, 'reason' => 'Outside all session hours'];
 }
 
-$sessionInfo = detectSession();
-$isOnsite    = $event['event_mode'] !== 'virtual';
-$error       = $_SESSION['attend_error'] ?? null;
+$sessionInfo  = detectSession();
+$eventMode    = $event['event_mode'];
+$isPureOnsite = $eventMode === 'onsite';
+$isHybrid     = $eventMode === 'hybrid';
+$error        = $_SESSION['attend_error'] ?? null;
 unset($_SESSION['attend_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -74,6 +76,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
     }
+
+    if ($isHybrid) {
+        $method = $_POST['attendance_method'] ?? '';
+        if (!in_array($method, ['onsite', 'virtual'], true)) {
+            $_SESSION['attend_error'] = 'Please select whether you are attending on-site or virtually.';
+            header('Location: /events/attend.php?token=' . urlencode($token));
+            exit;
+        }
+    } else {
+        $method = $isPureOnsite ? 'onsite' : 'virtual';
+    }
+
+    $isOnsiteSubmission = $method === 'onsite';
 
     $registrationModel = new Registration();
     $registration       = $registrationModel->find((int) $event['id'], $regNo);
@@ -97,20 +112,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $method      = $isOnsite ? 'onsite' : 'virtual';
-    $geoVerified = null;
+    $geoVerified  = null;
     $submittedLat = null;
     $submittedLng = null;
-    $distanceM   = null;
-    $flagged     = false;
-    $flagReason  = null;
+    $distanceM    = null;
+    $flagged      = false;
+    $flagReason   = null;
 
-    if ($isOnsite) {
+    if ($isOnsiteSubmission) {
         $lat = $_POST['geo_lat'] ?? '';
         $lng = $_POST['geo_lng'] ?? '';
 
         if ($lat === '' || $lng === '') {
-            $_SESSION['attend_error'] = 'Location access is required to sign attendance for this on-site event.';
+            $_SESSION['attend_error'] = 'Location access is required to sign attendance on-site.';
             header('Location: /events/attend.php?token=' . urlencode($token));
             exit;
         }
@@ -176,10 +190,17 @@ body { display: block; padding: 1.5rem; }
 .attend-header h1 { font-size: 1.1rem; font-weight: 700; color: var(--kvb-green-dark); margin: 0; }
 .attend-header p { font-size: .85rem; color: var(--text-muted); margin: .3rem 0 0; }
 .session-pill { text-align: center; margin-bottom: 1rem; }
-#geo-status { font-size: .8rem; padding: .6rem .75rem; border-radius: 8px; margin-bottom: 1rem; }
-#geo-status.pending { background: #f0f0f0; color: var(--text-muted); }
-#geo-status.granted { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
-#geo-status.denied  { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
+.method-choice { display: flex; gap: .6rem; margin-bottom: 1rem; }
+.method-choice label {
+    flex: 1; display: flex; align-items: center; gap: .4rem; font-weight: 400;
+    padding: .6rem .75rem; border: 1px solid #d8dde3; border-radius: 8px; cursor: pointer; font-size: .85rem;
+}
+.method-choice input[type="radio"] { accent-color: var(--kvb-green-dark); }
+.method-choice label.selected { border-color: var(--kvb-green-dark); background: var(--kvb-green-light); }
+#geo-status { font-size: .8rem; padding: .6rem .75rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
+#geo-status.pending { background: #f0f0f0; color: var(--text-muted); display: block; }
+#geo-status.granted { background: var(--kvb-green-light); color: var(--kvb-green-dark); display: block; }
+#geo-status.denied  { background: var(--kvb-red-light); color: var(--kvb-red-dark); display: block; }
 #submit-btn:disabled { opacity: .5; cursor: not-allowed; }
 </style>
 </head>
@@ -216,9 +237,18 @@ body { display: block; padding: 1.5rem; }
         <?php endif; ?>
 
         <div class="card">
-            <?php if ($isOnsite): ?>
-                <div id="geo-status" class="pending">Checking location access…</div>
+            <?php if ($isHybrid): ?>
+                <div class="method-choice" id="method-choice">
+                    <label for="method-onsite">
+                        <input type="radio" name="attendance_method" id="method-onsite" value="onsite"> On-site
+                    </label>
+                    <label for="method-virtual">
+                        <input type="radio" name="attendance_method" id="method-virtual" value="virtual"> Virtual
+                    </label>
+                </div>
             <?php endif; ?>
+
+            <div id="geo-status" class="<?= $isPureOnsite ? 'pending' : '' ?>">Checking location access…</div>
 
             <form method="POST" action="/events/attend.php?token=<?= urlencode($token) ?>" id="attend-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
@@ -230,7 +260,7 @@ body { display: block; padding: 1.5rem; }
                     <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="submit-btn" style="width:100%;margin-top:.5rem;" <?= $isOnsite ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-primary" id="submit-btn" style="width:100%;margin-top:.5rem;" <?= ($isPureOnsite || $isHybrid) ? 'disabled' : '' ?>>
                     Sign Attendance
                 </button>
             </form>
@@ -238,12 +268,14 @@ body { display: block; padding: 1.5rem; }
     <?php endif; ?>
 </div>
 
-<?php if ($isOnsite && !$attendSuccess): ?>
+<?php if (!$attendSuccess): ?>
 <script>
-const geoStatus = document.getElementById('geo-status');
-const submitBtn = document.getElementById('submit-btn');
-const latInput  = document.getElementById('geo_lat');
-const lngInput  = document.getElementById('geo_lng');
+const geoStatus  = document.getElementById('geo-status');
+const submitBtn  = document.getElementById('submit-btn');
+const latInput   = document.getElementById('geo_lat');
+const lngInput   = document.getElementById('geo_lng');
+const isHybrid   = <?= $isHybrid ? 'true' : 'false' ?>;
+const isPureOnsite = <?= $isPureOnsite ? 'true' : 'false' ?>;
 
 function onGeoSuccess(position) {
     latInput.value = position.coords.latitude;
@@ -254,7 +286,7 @@ function onGeoSuccess(position) {
 }
 
 function onGeoError() {
-    geoStatus.textContent = 'Location access is required to sign attendance. Please enable location in your browser settings and reload this page.';
+    geoStatus.textContent = 'Location access is required to sign attendance on-site. Please enable location in your browser settings and reload this page.';
     geoStatus.className = 'denied';
     submitBtn.disabled = true;
 }
@@ -270,13 +302,36 @@ function requestLocation() {
     });
 }
 
-if (navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then(status => {
+if (isPureOnsite) {
+    geoStatus.className = 'pending';
+    if (navigator.permissions) {
+        navigator.permissions.query({ name: 'geolocation' }).then(status => {
+            requestLocation();
+            status.onchange = requestLocation;
+        }).catch(requestLocation);
+    } else {
         requestLocation();
-        status.onchange = requestLocation;
-    }).catch(requestLocation);
-} else {
-    requestLocation();
+    }
+}
+
+if (isHybrid) {
+    const radios = document.querySelectorAll('input[name="attendance_method"]');
+    radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            document.querySelectorAll('.method-choice label').forEach(l => l.classList.remove('selected'));
+            radio.closest('label').classList.add('selected');
+
+            if (radio.value === 'virtual') {
+                geoStatus.className = '';
+                submitBtn.disabled = false;
+            } else {
+                geoStatus.className = 'pending';
+                geoStatus.textContent = 'Checking location access…';
+                submitBtn.disabled = true;
+                requestLocation();
+            }
+        });
+    });
 }
 </script>
 <?php endif; ?>
