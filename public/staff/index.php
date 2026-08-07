@@ -96,6 +96,7 @@ body { display: block; padding: 2.5rem; }
                     <td><?= $s['is_active'] ? 'Active' : 'Deactivated' ?></td>
                     <td>
                         <?php if ((int) $s['id'] !== (int) $user['id']): ?>
+                            <a href="/staff/reset_password.php?id=<?= (int) $s['id'] ?>" class="action-btn" style="background:#eee;color:var(--text-main);text-decoration:none;display:inline-block;margin-right:.35rem;">Reset Password</a>
                             <form method="POST" action="/staff/toggle_active.php" style="display:inline;">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
