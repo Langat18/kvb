@@ -207,6 +207,7 @@ body { display: block; padding: 1.5rem; }
                 <div class="form-group">
                     <label for="reg_no">Registration Number <span class="required">*</span></label>
                     <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
+                    <small id="lookup-status" style="color:var(--text-muted);"></small>
                 </div>
                 <div class="form-group">
                     <label for="id_number">ID Number <span class="required">*</span></label>
@@ -282,6 +283,42 @@ canvas.addEventListener('mouseleave', () => { drawing = false; });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }, { passive: false });
 canvas.addEventListener('touchmove',  e => { e.preventDefault(); if (!drawing) return; const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); hasSig = true; }, { passive: false });
 canvas.addEventListener('touchend',   () => { drawing = false; });
+
+const regNoEl      = document.getElementById('reg_no');
+const lookupStatus = document.getElementById('lookup-status');
+let lookupTimer;
+
+function lockFields(data) {
+    document.getElementById('id_number').value = data.id_number ?? '';
+    document.getElementById('name').value       = data.name      ?? '';
+    document.getElementById('email').value      = data.email     ?? '';
+    document.getElementById('phone').value      = data.phone     ?? '';
+    ['id_number', 'name', 'email', 'phone'].forEach(id => {
+        document.getElementById(id).setAttribute('readonly', true);
+    });
+    lookupStatus.textContent = 'Returning participant — details locked.';
+    lookupStatus.style.color = 'var(--kvb-green-dark)';
+}
+
+function unlockFields() {
+    ['id_number', 'name', 'email', 'phone'].forEach(id => {
+        document.getElementById(id).removeAttribute('readonly');
+    });
+    lookupStatus.textContent = '';
+}
+
+regNoEl.addEventListener('input', () => {
+    clearTimeout(lookupTimer);
+    unlockFields();
+    lookupTimer = setTimeout(() => {
+        const regNo = regNoEl.value.trim();
+        if (regNo.length < 4) return;
+        fetch('/events/lookup.php?reg_no=' + encodeURIComponent(regNo))
+            .then(r => r.json())
+            .then(d => { if (d.found) lockFields(d); })
+            .catch(() => {});
+    }, 500);
+});
 
 document.getElementById('clear-sig').addEventListener('click', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
