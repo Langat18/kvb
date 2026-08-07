@@ -82,13 +82,24 @@ body { display: flex; align-items: center; justify-content: center; }
 
         <div class="form-group">
             <label for="password">Password</label>
-            <input type="password" id="password" name="password" required>
+            <div style="position:relative;">
+                <input type="password" id="password" name="password" required style="padding-right:2.5rem;">
+                <button type="button" id="toggle-pw" style="position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--text-muted);padding:0;">&#128065;</button>
+            </div>
         </div>
 
         <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
     </form>
 
     <p class="footer-note">Forgot your password? Contact your system administrator.</p>
+
+    <script>
+    document.getElementById('toggle-pw').addEventListener('click', function() {
+        const input = document.getElementById('password');
+        input.type = input.type === 'password' ? 'text' : 'password';
+        this.textContent = input.type === 'password' ? '\u{1F441}' : '\u{1F576}';
+    });
+    </script>
 </div>
 </body>
 </html>
