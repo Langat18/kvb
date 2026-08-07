@@ -118,8 +118,7 @@ h2.section-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color
                     <th>Reg No</th>
                     <th>Name</th>
                     <th>Cadre</th>
-                    <th>Sessions Signed</th>
-                    <th>Flagged</th>
+                    <th>Sessions</th>
                 </tr>
             </thead>
             <tbody>
@@ -132,14 +131,23 @@ h2.section-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars(CADRE_LABELS[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
-                    <td><?= $sessionsSigned ?></td>
                     <td>
-                        <?php if ($flaggedCount > 0): ?>
-                            <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);">
-                                &#9888; <?= $flaggedCount ?> flagged
-                            </span>
-                        <?php else: ?>
+                        <?php if (empty($p['attendance'])): ?>
                             &mdash;
+                        <?php else: ?>
+                            <?php foreach ($p['attendance'] as $a): ?>
+                                <?php if ($a['flagged']): ?>
+                                    <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);margin-right:.3rem;white-space:nowrap;"
+                                          title="<?= (int) $a['distance_m'] ?>m from venue">
+                                        &#9888; <?= htmlspecialchars(SESSION_LABELS[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);margin-right:.3rem;white-space:nowrap;"
+                                          title="Within geofence">
+                                        &#10003; <?= htmlspecialchars(SESSION_LABELS[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
+                                    </span>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
                         <?php endif; ?>
                     </td>
                 </tr>

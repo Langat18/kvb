@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if ($event['event_mode'] !== 'virtual') {
+    if ($event['event_mode'] === 'onsite') {
         $geoLat = $_POST['geo_lat'] ?? '';
         $geoLng = $_POST['geo_lng'] ?? '';
 
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $startDate = date('d M Y', strtotime($event['start_date']));
 $endDate   = date('d M Y', strtotime($event['end_date']));
-$isOnsite  = $event['event_mode'] !== 'virtual';
+$isOnsite  = $event['event_mode'] === 'onsite';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -189,6 +189,9 @@ body { display: block; padding: 1.5rem; }
     <div class="card">
         <p class="notice-box">
             Please fill in your official details as they appear in official CPD directory and records.
+            <?php if ($event['event_mode'] === 'hybrid'): ?>
+                <br>This event supports both on-site and virtual attendance — you will choose how you are attending each session when you sign in.
+            <?php endif; ?>
         </p>
 
         <?php if ($isOnsite): ?>

@@ -238,6 +238,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
 .nom-table tr:nth-child(even) td { background: #f5f9f6; }
 .sig-img { max-height: 32px; max-width: 90px; }
 .flag-badge { color: #b91c1c; font-weight: 600; font-size: 7.5pt; }
+.ok-badge { color: #0f5132; font-weight: 600; font-size: 7.5pt; }
 .no-print { margin-bottom: 1rem; display: flex; gap: .5rem; }
 @media print {
     .no-print { display: none; }
@@ -298,7 +299,6 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
         <?php else: ?>
             <?php foreach ($participants as $i => $p):
                 $sessionsSigned = count($p['attendance']);
-                $flaggedRows    = array_filter($p['attendance'], fn($a) => $a['flagged']);
             ?>
             <tr>
                 <td><?= $i + 1 ?></td>
@@ -309,11 +309,15 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                 <td><?= htmlspecialchars($p['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                 <td style="text-align:center;"><?= $sessionsSigned ?></td>
                 <td>
-                    <?php if (empty($flaggedRows)): ?>
+                    <?php if (empty($p['attendance'])): ?>
                         &mdash;
                     <?php else: ?>
-                        <?php foreach ($flaggedRows as $f): ?>
-                            <div class="flag-badge">&#9888; <?= htmlspecialchars(SESSION_LABELS[$f['session']], ENT_QUOTES, 'UTF-8') ?>: <?= (int) $f['distance_m'] ?>m from venue</div>
+                        <?php foreach ($p['attendance'] as $a): ?>
+                            <?php if ($a['flagged']): ?>
+                                <div class="flag-badge">&#9888; <?= htmlspecialchars(SESSION_LABELS[$a['session']], ENT_QUOTES, 'UTF-8') ?>: <?= (int) $a['distance_m'] ?>m from venue</div>
+                            <?php else: ?>
+                                <div class="ok-badge">&#10003; <?= htmlspecialchars(SESSION_LABELS[$a['session']], ENT_QUOTES, 'UTF-8') ?></div>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </td>
