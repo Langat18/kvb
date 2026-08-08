@@ -126,3 +126,27 @@ label {
 .required {
     color: var(--kvb-red);
 }
+
+.navbar {
+    background: #fff;
+    border-bottom: 1px solid #e8e6df;
+    padding: .85rem 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.navbar-brand { display: flex; align-items: center; gap: .6rem; }
+.navbar-brand img { height: 44px; }
+.navbar-brand span { font-weight: 700; font-size: .95rem; color: var(--kvb-green-dark); }
+.navbar-user { display: flex; align-items: center; gap: .85rem; font-size: .85rem; }
+.navbar-user .role-badge {
+    padding: .2rem .6rem; border-radius: 12px; font-size: .72rem; font-weight: 600;
+    background: var(--kvb-green-light); color: var(--kvb-green-dark);
+}
+.navbar-user a { color: var(--text-muted); text-decoration: none; }
+.navbar-user a:hover { color: var(--kvb-red-dark); }
+
+.page-body-outer { max-width: 1100px; margin: 0 auto; padding: 1.25rem 2.5rem 0; }
+.breadcrumb { font-size: .8rem; color: var(--text-muted); }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--kvb-green-dark); }
