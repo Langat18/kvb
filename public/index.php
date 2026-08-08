@@ -30,7 +30,7 @@ $greeting   = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Go
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard — Kenya Veterinary Board</title>
+<title>Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -94,8 +94,7 @@ body { display: block; padding: 0; }
 
 <div class="navbar">
     <div class="navbar-brand">
-        <img src="/assets/img/kvb_logo.png" alt="KVB">
-        <span>Kenya Veterinary Board</span>
+        <img src="/assets/img/kvb_logo.png" alt="Kenya Veterinary Board">
     </div>
     <div class="navbar-user">
         <span><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
