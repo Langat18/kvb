@@ -86,7 +86,8 @@ body { display: block; padding: 2rem 2.5rem; }
 .qr-actions { display: flex; flex-direction: column; gap: .4rem; }
 .qr-actions .btn { width: 100%; font-size: .8rem; }
 
-.list-table { width: 100%; border-collapse: collapse; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.list-table { width: 100%; border-collapse: collapse; min-width: 560px; }
 .list-table th { text-align: left; padding: .65rem .6rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; background: #faf9f7; }
 .list-table td { padding: .65rem .6rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
 .list-table tr:hover td { background: #f7faf8; }
@@ -119,6 +120,10 @@ body { display: block; padding: 2rem 2.5rem; }
             </h1>
         </div>
         <div class="action-row">
+            <?php $canEdit = $user['role'] === 'admin' || (int) $user['id'] === (int) ($event['created_by'] ?? 0); ?>
+            <?php if ($canEdit): ?>
+                <a href="/events/edit.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Edit Event</a>
+            <?php endif; ?>
             <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-primary" target="_blank">Nominal Roll</a>
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
             <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-ghost">Add to Calendar</a>
@@ -168,6 +173,7 @@ body { display: block; padding: 2rem 2.5rem; }
         <?php if (empty($participants)): ?>
             <p class="empty-state">No participants have registered yet.</p>
         <?php else: ?>
+        <div class="table-scroll">
         <table class="list-table">
             <thead>
                 <tr>
@@ -206,6 +212,7 @@ body { display: block; padding: 2rem 2.5rem; }
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
         <?php endif; ?>
     </div>
 
