@@ -12,6 +12,11 @@ use VetBoard\Event;
 Auth::startSession();
 Auth::requireLogin();
 
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/index.php'],
+    ['label' => 'Events',    'url' => null],
+];
+
 $user       = Auth::user();
 $eventModel = new Event();
 
@@ -40,12 +45,12 @@ unset($_SESSION['success'], $_SESSION['error']);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Events — Kenya Veterinary Board</title>
+<title>Events Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 2.5rem; }
+body { display: block; padding: 0; }
 .container { max-width: 1000px; margin: 0 auto; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
 .page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
@@ -63,13 +68,11 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
-<div class="container">
+<?php require __DIR__ . '/../templates/nav.php'; ?>
+<div class="container" style="max-width:1100px;margin:0 auto;padding:1.25rem 2.5rem 2.5rem;">
     <div class="page-header">
         <h1>Events</h1>
-        <div style="display:flex;gap:.6rem;">
-            <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
-            <a href="/logout.php" class="btn btn-secondary">Log Out</a>
-        </div>
+        <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
     </div>
 
     <?php if ($success): ?>

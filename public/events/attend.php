@@ -192,11 +192,14 @@ body { display: block; padding: 1.5rem; }
 .session-pill { text-align: center; margin-bottom: 1rem; }
 .method-choice { display: flex; gap: .6rem; margin-bottom: 1rem; }
 .method-choice label {
-    flex: 1; display: flex; align-items: center; gap: .4rem; font-weight: 400;
-    padding: .6rem .75rem; border: 1px solid #d8dde3; border-radius: 8px; cursor: pointer; font-size: .85rem;
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
+    font-weight: 500; white-space: nowrap; text-align: center;
+    padding: .75rem .5rem; border: 1.5px solid #d8dde3; border-radius: 10px; cursor: pointer; font-size: .88rem;
+    transition: var(--transition);
 }
-.method-choice input[type="radio"] { accent-color: var(--kvb-green-dark); }
-.method-choice label.selected { border-color: var(--kvb-green-dark); background: var(--kvb-green-light); }
+.method-choice input[type="radio"] { accent-color: var(--kvb-green-dark); width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
+.method-choice label:hover { border-color: var(--kvb-green); }
+.method-choice label.selected { border-color: var(--kvb-green-dark); background: var(--kvb-green-light); font-weight: 600; }
 #geo-status { font-size: .8rem; padding: .6rem .75rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
 #geo-status.pending { background: #f0f0f0; color: var(--text-muted); display: block; }
 #geo-status.granted { background: var(--kvb-green-light); color: var(--kvb-green-dark); display: block; }
@@ -237,23 +240,23 @@ body { display: block; padding: 1.5rem; }
         <?php endif; ?>
 
         <div class="card">
-            <?php if ($isHybrid): ?>
-                <div class="method-choice" id="method-choice">
-                    <label for="method-onsite">
-                        <input type="radio" name="attendance_method" id="method-onsite" value="onsite"> On-site
-                    </label>
-                    <label for="method-virtual">
-                        <input type="radio" name="attendance_method" id="method-virtual" value="virtual"> Virtual
-                    </label>
-                </div>
-            <?php endif; ?>
-
             <div id="geo-status" class="<?= $isPureOnsite ? 'pending' : '' ?>">Checking location access…</div>
 
             <form method="POST" action="/events/attend.php?token=<?= urlencode($token) ?>" id="attend-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="geo_lat" id="geo_lat">
                 <input type="hidden" name="geo_lng" id="geo_lng">
+
+                <?php if ($isHybrid): ?>
+                    <div class="method-choice" id="method-choice">
+                        <label for="method-onsite">
+                            <input type="radio" name="attendance_method" id="method-onsite" value="onsite"> On-site
+                        </label>
+                        <label for="method-virtual">
+                            <input type="radio" name="attendance_method" id="method-virtual" value="virtual"> Virtual
+                        </label>
+                    </div>
+                <?php endif; ?>
 
                 <div class="form-group">
                     <label for="reg_no">Registration Number <span class="required">*</span></label>

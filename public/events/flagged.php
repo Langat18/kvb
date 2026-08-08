@@ -11,7 +11,7 @@ use VetBoard\Event;
 use VetBoard\Registration;
 
 Auth::startSession();
-Auth::requireRole('admin', 'staff');
+Auth::requireRole('admin');
 
 $user = Auth::user();
 
