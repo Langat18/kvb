@@ -12,6 +12,9 @@ use VetBoard\Event;
 Auth::startSession();
 Auth::requireLogin();
 
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Events', 'url' => '/events/index.php'], ['label' => 'Edit Event', 'url' => null]];
+
+
 $user = Auth::user();
 
 if (empty($_GET['token'])) {
@@ -105,6 +108,7 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
     <h1>Edit Event</h1>
 

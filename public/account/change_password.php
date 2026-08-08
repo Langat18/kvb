@@ -12,6 +12,8 @@ use VetBoard\Staff;
 Auth::startSession();
 Auth::requireLogin();
 
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Change Password', 'url' => null]];
+
 $user  = Auth::user();
 $error = $_SESSION['error']   ?? null;
 $success = $_SESSION['success'] ?? null;
@@ -74,6 +76,7 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
     <h1>Change Password</h1>
 
@@ -118,7 +121,6 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/index.php" class="btn btn-secondary">&larr; Back to Dashboard</a>
     </div>
 </div>
 

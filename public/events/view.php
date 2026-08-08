@@ -98,6 +98,7 @@ body { display: block; padding: 2rem 2.5rem; }
 .empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 </style>
 </head>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <body>
 <div class="container">
 

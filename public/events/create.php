@@ -12,6 +12,8 @@ use VetBoard\Event;
 Auth::startSession();
 Auth::requireLogin();
 
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Events', 'url' => '/events/index.php'], ['label' => 'New Event', 'url' => null]];
+
 $user = Auth::user();
 
 $error    = $_SESSION['error']     ?? null;
@@ -88,6 +90,7 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
     <h1>New Event</h1>
 

@@ -22,6 +22,14 @@ $totals       = $reportModel->totals();
 $recentEvents = $eventModel->list([], 5, 0);
 
 $roleLabels = ['admin' => 'Admin', 'staff' => 'Staff', 'ceo' => 'CEO'];
+
+function firstNameOnly(string $fullName): string
+{
+    $cleaned = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($fullName));
+    $parts   = explode(' ', $cleaned);
+
+    return $parts[0] !== '' ? $parts[0] : $fullName;
+}
 $hour       = (int) date('H');
 $greeting   = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
 ?>
@@ -107,7 +115,7 @@ body { display: block; padding: 0; }
 <div class="page-body">
 
     <div class="hero">
-        <h1><?= $greeting ?>, <?= htmlspecialchars(explode(' ', $user['name'])[0], ENT_QUOTES, 'UTF-8') ?></h1>
+        <h1><?= $greeting ?>, <?= htmlspecialchars(firstNameOnly($user['name']), ENT_QUOTES, 'UTF-8') ?></h1>
         <p>Here's what's happening across the Board's events.</p>
     </div>
 

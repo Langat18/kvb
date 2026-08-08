@@ -12,6 +12,8 @@ use VetBoard\Staff;
 Auth::startSession();
 Auth::requireRole('admin');
 
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Staff', 'url' => null]];
+
 $user       = Auth::user();
 $staffModel = new Staff();
 
@@ -46,6 +48,7 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
     <div class="page-header">
         <h1>Staff Accounts</h1>
@@ -114,7 +117,6 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1.5rem;">
-        <a href="/index.php" class="btn btn-secondary">&larr; Back to Dashboard</a>
     </div>
 </div>
 </body>

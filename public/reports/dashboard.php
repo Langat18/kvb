@@ -12,6 +12,8 @@ use VetBoard\Report;
 Auth::startSession();
 Auth::requireRole('admin', 'ceo');
 
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Reports', 'url' => null]];
+
 $user         = Auth::user();
 $reportModel  = new Report();
 
@@ -46,10 +48,10 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
     <div class="page-header">
         <h1>Reports Dashboard</h1>
-        <a href="/index.php" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 
     <div class="stat-grid">
