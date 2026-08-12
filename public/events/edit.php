@@ -62,6 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_lat'           => $_POST['geo_lat']    !== '' ? (float) $_POST['geo_lat']    : null,
         'geo_lng'           => $_POST['geo_lng']    !== '' ? (float) $_POST['geo_lng']    : null,
         'geo_radius_m'      => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
+        'points_morning'     => $_POST['points_morning']     !== '' ? (int) $_POST['points_morning']     : null,
+        'points_mid_morning' => $_POST['points_mid_morning'] !== '' ? (int) $_POST['points_mid_morning'] : null,
+        'points_afternoon'   => $_POST['points_afternoon']   !== '' ? (int) $_POST['points_afternoon']   : null,
     ];
 
     try {
@@ -202,8 +205,32 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
+            <div class="form-grid" style="margin-top:1rem;">
+                <div class="form-group full">
+                    <label>Points per Session <span style="font-weight:normal;color:var(--text-muted);">(total across all sessions cannot exceed 8)</span></label>
+                </div>
+                <div class="form-group">
+                    <label for="points_morning">Morning</label>
+                    <input type="number" min="0" id="points_morning" name="points_morning"
+                           value="<?= htmlspecialchars((string) ($v['points_morning'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group">
+                    <label for="points_mid_morning">Mid-Morning</label>
+                    <input type="number" min="0" id="points_mid_morning" name="points_mid_morning"
+                           value="<?= htmlspecialchars((string) ($v['points_mid_morning'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group">
+                    <label for="points_afternoon">Afternoon</label>
+                    <input type="number" min="0" id="points_afternoon" name="points_afternoon"
+                           value="<?= htmlspecialchars((string) ($v['points_afternoon'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+                <div class="form-group full">
+                    <span id="points-total" style="font-size:.85rem;color:var(--text-muted);">Total: 0 / 8</span>
+                </div>
+            </div>
+
             <div style="margin-top:1.5rem;display:flex;gap:.6rem;">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn">Save Changes</button>
                 <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Cancel</a>
             </div>
         </form>
