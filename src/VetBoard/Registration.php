@@ -27,6 +27,10 @@ class Registration
 
     public function create(int $eventId, string $regNo, string $signatureImage): int
     {
+        if (!str_starts_with($signatureImage, 'data:image/')) {
+            throw new \InvalidArgumentException('A valid signature image is required.');
+        }
+
         $stmt = $this->pdo->prepare(
             'INSERT INTO registrations (event_id, reg_no, signature_image)
              VALUES (:event_id, :reg_no, :signature_image)
@@ -79,7 +83,100 @@ class Registration
 
         $stmt->execute();
 
-        return (int) $stmt->fetchColumn();
+        $attendanceId = (int) $stmt->fetchColumn();
+
+        $this->awardPoints($attendanceId, (int) $data['registration_id'], $data['session']);
+
+        return $attendanceId;
+    }
+
+    private function awardPoints(int $attendanceId, int $registrationId, string $session): void
+    {
+        $regStmt = $this->pdo->prepare(
+            'SELECT r.event_id, r.reg_no,
+                    e.points_morning, e.points_mid_morning, e.points_afternoon
+             FROM registrations r
+             JOIN events e ON e.id = r.event_id
+             WHERE r.id = :registration_id'
+        );
+        $regStmt->execute([':registration_id' => $registrationId]);
+        $row = $regStmt->fetch();
+
+        if (!$row) {
+            return;
+        }
+
+        $sessionPointsMap = [
+            'morning'     => $row['points_morning'],
+            'mid_morning' => $row['points_mid_morning'],
+            'afternoon'   => $row['points_afternoon'],
+        ];
+
+        $sessionPoints = (int) ($sessionPointsMap[$session] ?? 0);
+
+        if ($sessionPoints <= 0) {
+            return;
+        }
+
+        $todayStmt = $this->pdo->prepare(
+            "SELECT COALESCE(SUM(points), 0) FROM points_ledger
+             WHERE event_id = :event_id AND reg_no = :reg_no
+             AND awarded_at::date = CURRENT_DATE"
+        );
+        $todayStmt->execute([
+            ':event_id' => $row['event_id'],
+            ':reg_no'   => $row['reg_no'],
+        ]);
+        $awardedToday = (int) $todayStmt->fetchColumn();
+
+        $remaining = max(0, 8 - $awardedToday);
+        $toAward   = min($sessionPoints, $remaining);
+
+        if ($toAward <= 0) {
+            return;
+        }
+
+        $insertStmt = $this->pdo->prepare(
+            'INSERT INTO points_ledger (attendance_id, reg_no, event_id, points, reason)
+             VALUES (:attendance_id, :reg_no, :event_id, :points, :reason)'
+        );
+        $insertStmt->execute([
+            ':attendance_id' => $attendanceId,
+            ':reg_no'        => $row['reg_no'],
+            ':event_id'      => $row['event_id'],
+            ':points'        => $toAward,
+            ':reason'        => ucfirst(str_replace('_', '-', $session)) . ' session attendance',
+        ]);
+    }
+
+
+    public function attendanceDatesForEvent(int $eventId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT DISTINCT attendance_date FROM attendance a
+             JOIN registrations r ON r.id = a.registration_id
+             WHERE r.event_id = :event_id
+             ORDER BY attendance_date ASC'
+        );
+        $stmt->execute([':event_id' => $eventId]);
+
+        return array_column($stmt->fetchAll(), 'attendance_date');
+    }
+
+    public function attendanceRowsForDate(int $eventId, string $date): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT p.reg_no, p.name, p.cadre, p.email, p.phone,
+                    a.session, a.method, a.flagged, a.distance_m
+             FROM attendance a
+             JOIN registrations r ON r.id = a.registration_id
+             JOIN participants p ON p.reg_no = r.reg_no
+             WHERE r.event_id = :event_id AND a.attendance_date = :date
+             ORDER BY p.name ASC'
+        );
+        $stmt->execute([':event_id' => $eventId, ':date' => $date]);
+
+        return $stmt->fetchAll();
     }
 
     public function flaggedForEvent(int $eventId): array
