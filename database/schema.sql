@@ -152,3 +152,7 @@ CREATE TRIGGER trg_staff_updated_at
 ALTER TYPE staff_role_t ADD VALUE IF NOT EXISTS 'ceo';
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE staff ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+
+ALTER TABLE events ADD COLUMN IF NOT EXISTS points_mid_morning SMALLINT;
+ALTER TABLE events ADD CONSTRAINT chk_points_daily_cap
+    CHECK (COALESCE(points_morning,0) + COALESCE(points_mid_morning,0) + COALESCE(points_afternoon,0) <= 8);
