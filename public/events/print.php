@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
 use VetBoard\Event;
+use VetBoard\Registration;
 
 Auth::startSession();
 Auth::requireRole('admin', 'staff');
@@ -29,30 +30,12 @@ if (!$event) {
     die('Event not found.');
 }
 
-$pdo = VetBoard\Database::getInstance()->getPdo();
-
-$datesStmt = $pdo->prepare(
-    'SELECT DISTINCT attendance_date FROM attendance a
-     JOIN registrations r ON r.id = a.registration_id
-     WHERE r.event_id = :event_id
-     ORDER BY attendance_date ASC'
-);
-$datesStmt->execute([':event_id' => $event['id']]);
-$dates = array_column($datesStmt->fetchAll(), 'attendance_date');
+$registrationModel = new Registration();
+$dates = $registrationModel->attendanceDatesForEvent((int) $event['id']);
 
 $selectedDate = $_GET['date'] ?? $dates[0] ?? date('Y-m-d');
 
-$rowsStmt = $pdo->prepare(
-    'SELECT p.reg_no, p.name, p.cadre, p.email, p.phone,
-            a.session, a.method, a.flagged, a.distance_m
-     FROM attendance a
-     JOIN registrations r ON r.id = a.registration_id
-     JOIN participants p ON p.reg_no = r.reg_no
-     WHERE r.event_id = :event_id AND a.attendance_date = :date
-     ORDER BY p.name ASC'
-);
-$rowsStmt->execute([':event_id' => $event['id'], ':date' => $selectedDate]);
-$rows = $rowsStmt->fetchAll();
+$rows = $registrationModel->attendanceRowsForDate((int) $event['id'], $selectedDate);
 
 $startDate = date('d M Y', strtotime($event['start_date']));
 $endDate   = date('d M Y', strtotime($event['end_date']));

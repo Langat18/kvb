@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Participant;
+use VetBoard\Registration;
 
 Auth::startSession();
 
@@ -94,27 +95,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
         }
 
-        $pdo = VetBoard\Database::getInstance()->getPdo();
+        $registrationModel = new Registration();
 
-        $checkStmt = $pdo->prepare('SELECT id FROM registrations WHERE event_id = :event_id AND reg_no = :reg_no');
-        $checkStmt->execute([':event_id' => $event['id'], ':reg_no' => $regNo]);
-
-        if ($checkStmt->fetch()) {
+        if ($registrationModel->find((int) $event['id'], $regNo)) {
             $_SESSION['reg_error'] = 'You are already registered for this event. Please use Sign Attendance instead.';
             header('Location: /events/register.php?token=' . urlencode($token));
             exit;
         }
 
-        $insertStmt = $pdo->prepare(
-            'INSERT INTO registrations (event_id, reg_no, signature_image)
-             VALUES (:event_id, :reg_no, :signature_image)'
-        );
-        $insertStmt->execute([
-            ':event_id'        => $event['id'],
-            ':reg_no'          => $regNo,
-            ':signature_image' => $signature,
-        ]);
-
+        $registrationModel->create((int) $event['id'], $regNo, $signature);
         $_SESSION['reg_success'] = 'Registration successful. You may now sign your attendance.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;

@@ -322,8 +322,10 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                     <?php endif; ?>
                 </td>
                 <td>
-                    <?php if (!empty($p['signature'])): ?>
-                        <img src="<?= htmlspecialchars($p['signature'], ENT_QUOTES, 'UTF-8') ?>" class="sig-img" alt="Sig">
+                    <?php if (!empty($p['signature']) && str_starts_with($p['signature'], 'data:image/')): ?>
+                        <img src="<?= htmlspecialchars($p['signature'], ENT_QUOTES, 'UTF-8') ?>" class="sig-img" alt="Signature">
+                    <?php else: ?>
+                        <span style="color:#999;font-size:7.5pt;font-style:italic;">No signature</span>
                     <?php endif; ?>
                 </td>
             </tr>
