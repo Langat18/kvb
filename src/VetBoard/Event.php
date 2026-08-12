@@ -22,10 +22,12 @@ class Event
         $stmt = $this->pdo->prepare(
             'INSERT INTO events
                 (title, event_code, event_mode, venue, department, coordinator, program_assistant,
-                 start_date, end_date, geo_lat, geo_lng, geo_radius_m, token, view_token, created_by)
+                 start_date, end_date, geo_lat, geo_lng, geo_radius_m,
+                 points_morning, points_mid_morning, points_afternoon, token, view_token, created_by)
              VALUES
                 (:title, :event_code, :event_mode, :venue, :department, :coordinator, :program_assistant,
-                 :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m, :token, :view_token, :created_by)
+                 :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m,
+                 :points_morning, :points_mid_morning, :points_afternoon, :token, :view_token, :created_by)
              RETURNING id'
         );
 
@@ -42,6 +44,9 @@ class Event
             ':geo_lat'           => $data['geo_lat']      ?? null,
             ':geo_lng'           => $data['geo_lng']      ?? null,
             ':geo_radius_m'      => $data['geo_radius_m'] ?? null,
+            ':points_morning'     => $data['points_morning']     ?? null,
+            ':points_mid_morning' => $data['points_mid_morning'] ?? null,
+            ':points_afternoon'   => $data['points_afternoon']   ?? null,
             ':token'             => bin2hex(random_bytes(16)),
             ':view_token'        => bin2hex(random_bytes(16)),
             ':created_by'        => $data['created_by'] ?? null,
@@ -59,7 +64,8 @@ class Event
                 title = :title, event_code = :event_code, event_mode = :event_mode,
                 venue = :venue, department = :department, coordinator = :coordinator,
                 program_assistant = :program_assistant, start_date = :start_date, end_date = :end_date,
-                geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m
+                geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m,
+                points_morning = :points_morning, points_mid_morning = :points_mid_morning, points_afternoon = :points_afternoon
              WHERE id = :id'
         );
 
@@ -77,6 +83,9 @@ class Event
             ':geo_lat'           => $data['geo_lat']      ?? null,
             ':geo_lng'           => $data['geo_lng']      ?? null,
             ':geo_radius_m'      => $data['geo_radius_m'] ?? null,
+            ':points_morning'     => $data['points_morning']     ?? null,
+            ':points_mid_morning' => $data['points_mid_morning'] ?? null,
+            ':points_afternoon'   => $data['points_afternoon']   ?? null,
         ]);
     }
 
@@ -101,6 +110,20 @@ class Event
         if ($data['event_mode'] !== 'virtual') {
             if (empty($data['geo_lat']) || empty($data['geo_lng']) || empty($data['geo_radius_m'])) {
                 throw new \InvalidArgumentException('Location and radius are required for on-site or hybrid events.');
+            }
+        }
+
+        $pointsTotal = (int) ($data['points_morning'] ?? 0)
+            + (int) ($data['points_mid_morning'] ?? 0)
+            + (int) ($data['points_afternoon'] ?? 0);
+
+        if ($pointsTotal > 8) {
+            throw new \InvalidArgumentException('Total points across all sessions cannot exceed 8 per day.');
+        }
+
+        foreach (['points_morning', 'points_mid_morning', 'points_afternoon'] as $field) {
+            if (isset($data[$field]) && $data[$field] !== null && (int) $data[$field] < 0) {
+                throw new \InvalidArgumentException('Points cannot be negative.');
             }
         }
     }
