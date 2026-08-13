@@ -111,12 +111,12 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
     <thead>
         <tr>
             <th>#</th><th>Reg No</th><th>Full Name</th><th>Cadre</th>
-            <th>Email</th><th>Phone</th><th>Session</th><th>Method</th><th>Location</th>
+            <th>Email</th><th>Phone</th><th>Session</th><th>Method</th><th>Location</th><th>Points</th>
         </tr>
     </thead>
     <tbody>
         <?php if (empty($rows)): ?>
-            <tr><td colspan="9" style="text-align:center;padding:.6rem;color:#888;">No attendance records for this date.</td></tr>
+            <tr><td colspan="10" style="text-align:center;padding:.6rem;color:#888;">No attendance records for this date.</td></tr>
         <?php else: ?>
             <?php foreach ($rows as $i => $r): ?>
             <tr>
@@ -139,6 +139,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                         &mdash;
                     <?php endif; ?>
                 </td>
+                <td style="text-align:center;font-weight:bold;color:#0f5132;"><?= (int) $r['points_awarded'] ?></td>
             </tr>
             <?php endforeach; ?>
         <?php endif; ?>
