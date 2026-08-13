@@ -243,6 +243,12 @@ class Event
             );
             $attStmt->execute([':registration_id' => $participant['registration_id']]);
             $participant['attendance'] = $attStmt->fetchAll();
+
+            $ptsStmt = $this->pdo->prepare(
+                'SELECT COALESCE(SUM(points), 0) FROM points_ledger WHERE event_id = :event_id AND reg_no = :reg_no'
+            );
+            $ptsStmt->execute([':event_id' => $eventId, ':reg_no' => $participant['reg_no']]);
+            $participant['points_earned'] = (int) $ptsStmt->fetchColumn();
         }
         unset($participant);
 
