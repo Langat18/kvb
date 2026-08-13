@@ -167,10 +167,12 @@ class Registration
     {
         $stmt = $this->pdo->prepare(
             'SELECT p.reg_no, p.name, p.cadre, p.email, p.phone,
-                    a.session, a.method, a.flagged, a.distance_m
+                    a.session, a.method, a.flagged, a.distance_m,
+                    COALESCE(pl.points, 0) AS points_awarded
              FROM attendance a
              JOIN registrations r ON r.id = a.registration_id
              JOIN participants p ON p.reg_no = r.reg_no
+             LEFT JOIN points_ledger pl ON pl.attendance_id = a.id
              WHERE r.event_id = :event_id AND a.attendance_date = :date
              ORDER BY p.name ASC'
         );
