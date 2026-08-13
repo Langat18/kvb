@@ -253,6 +253,29 @@ function toggleGeoFields() {
 modeSelect.addEventListener('change', toggleGeoFields);
 window.addEventListener('pageshow', toggleGeoFields);
 toggleGeoFields();
+
+const pointsInputs = [
+    document.getElementById('points_morning'),
+    document.getElementById('points_mid_morning'),
+    document.getElementById('points_afternoon'),
+];
+const pointsTotal = document.getElementById('points-total');
+const submitBtn   = document.getElementById('submit-btn');
+
+function updatePointsTotal() {
+    const total = pointsInputs.reduce((sum, el) => sum + (parseInt(el.value, 10) || 0), 0);
+    pointsTotal.textContent = 'Total: ' + total + ' / 8';
+    if (total > 8) {
+        pointsTotal.style.color = 'var(--kvb-red-dark)';
+        submitBtn.disabled = true;
+    } else {
+        pointsTotal.style.color = 'var(--text-muted)';
+        submitBtn.disabled = false;
+    }
+}
+
+pointsInputs.forEach(el => el.addEventListener('input', updatePointsTotal));
+updatePointsTotal();
 </script>
 </body>
 </html>
