@@ -94,7 +94,7 @@ if ($format === 'word') {
 
     $section->addTextBreak(1);
 
-    $colWidths = [500, 1600, 2600, 2400, 2600, 1600, 1600, 3000];
+    $colWidths = [500, 1600, 2600, 2400, 2600, 1600, 1600, 1200, 2400];
     $table = $section->addTable([
         'borderSize'  => 6,
         'borderColor' => 'CCCCCC',
@@ -105,7 +105,7 @@ if ($format === 'word') {
     $hPara  = ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER];
 
     $table->addRow();
-    foreach (['#', 'Reg No', 'Full Name', 'Cadre', 'Email', 'Phone', 'Sessions', 'Flagged'] as $idx => $h) {
+    foreach (['#', 'Reg No', 'Full Name', 'Cadre', 'Email', 'Phone', 'Sessions', 'Points', 'Flagged'] as $idx => $h) {
         $table->addCell($colWidths[$idx])->addText($h, $hStyle, $hPara);
     }
 
@@ -129,7 +129,8 @@ if ($format === 'word') {
         $table->addCell($colWidths[4])->addText($p['email'], $cStyle);
         $table->addCell($colWidths[5])->addText($p['phone'] ?? '', $cStyle);
         $table->addCell($colWidths[6])->addText((string) $sessionsSigned, $cStyle, $cCenter);
-        $table->addCell($colWidths[7])->addText($flaggedText, $cStyle);
+        $table->addCell($colWidths[7])->addText((string) ($p['points_earned'] ?? 0), $cStyle, $cCenter);
+        $table->addCell($colWidths[8])->addText($flaggedText, $cStyle);
     }
 
     $section->addTextBreak(1);
@@ -166,16 +167,16 @@ if ($format === 'excel') {
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
 
-    $sheet->mergeCells('A1:H1');
+    $sheet->mergeCells('A1:I1');
     $sheet->setCellValue('A1', $event['title'] . ' — Nominal Roll');
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
     $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
-    $sheet->mergeCells('A2:H2');
+    $sheet->mergeCells('A2:I2');
     $sheet->setCellValue('A2', ($event['venue'] ?? '') . ' | ' . $startDate . ' - ' . $endDate);
     $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
-    $headers = ['#', 'Reg No', 'Full Name', 'Cadre', 'Email', 'Phone', 'Sessions Signed', 'Flagged'];
+    $headers = ['#', 'Reg No', 'Full Name', 'Cadre', 'Email', 'Phone', 'Sessions Signed', 'Points', 'Flagged'];
     foreach ($headers as $col => $h) {
         $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1) . '3';
         $sheet->setCellValue($cell, $h);
@@ -199,10 +200,11 @@ if ($format === 'excel') {
         $sheet->setCellValue('E' . $row, $p['email']);
         $sheet->getCell('F' . $row)->setValueExplicit($p['phone'] ?? '', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         $sheet->setCellValue('G' . $row, $sessionsSigned);
-        $sheet->setCellValue('H' . $row, $flaggedText ?: 'None');
+        $sheet->setCellValue('H' . $row, (int) ($p['points_earned'] ?? 0));
+        $sheet->setCellValue('I' . $row, $flaggedText ?: 'None');
     }
 
-    foreach (['A' => 5, 'B' => 12, 'C' => 26, 'D' => 24, 'E' => 26, 'F' => 15, 'G' => 14, 'H' => 40] as $col => $w) {
+    foreach (['A' => 5, 'B' => 12, 'C' => 26, 'D' => 24, 'E' => 26, 'F' => 15, 'G' => 14, 'H' => 10, 'I' => 40] as $col => $w) {
         $sheet->getColumnDimension($col)->setWidth($w);
     }
 
@@ -289,13 +291,14 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
             <th>Email</th>
             <th>Phone</th>
             <th>Sessions Signed</th>
+            <th>Points</th>
             <th>Flagged</th>
             <th>Signature</th>
         </tr>
     </thead>
     <tbody>
         <?php if (empty($participants)): ?>
-            <tr><td colspan="9" style="text-align:center;padding:.75rem;color:#888;font-style:italic;">No participants registered yet.</td></tr>
+            <tr><td colspan="10" style="text-align:center;padding:.75rem;color:#888;font-style:italic;">No participants registered yet.</td></tr>
         <?php else: ?>
             <?php foreach ($participants as $i => $p):
                 $sessionsSigned = count($p['attendance']);
@@ -308,6 +311,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                 <td><?= htmlspecialchars($p['email'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($p['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                 <td style="text-align:center;"><?= $sessionsSigned ?></td>
+                <td style="text-align:center;font-weight:600;"><?= (int) ($p['points_earned'] ?? 0) ?></td>
                 <td>
                     <?php if (empty($p['attendance'])): ?>
                         &mdash;
