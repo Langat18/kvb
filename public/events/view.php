@@ -182,6 +182,7 @@ body { display: block; padding: 2rem 2.5rem; }
                     <th>Name</th>
                     <th>Cadre</th>
                     <th>Sessions</th>
+                    <th>Points</th>
                 </tr>
             </thead>
             <tbody>
@@ -209,6 +210,7 @@ body { display: block; padding: 2rem 2.5rem; }
                             </div>
                         <?php endif; ?>
                     </td>
+                    <td style="font-weight:600;color:var(--kvb-green-dark);"><?= (int) ($p['points_earned'] ?? 0) ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
