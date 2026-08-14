@@ -18,10 +18,10 @@ const EVENT_MODES = [
 ];
 
 const CADRE_LABELS = [
-    'veterinary_surgeon' => 'Veterinary Surgeon',
-    'vet_bachelors'       => 'Veterinary Doctor (Bachelors)',
-    'vet_diploma'         => 'Veterinary Doctor (Diploma)',
-    'vet_certificate'     => 'Veterinary Doctor (Certificate)',
+    'veterinary_surgeon' => 'Surgeon',
+    'vet_bachelors'       => 'Bachelors',
+    'vet_diploma'         => 'Diploma',
+    'vet_certificate'     => 'Certificate',
 ];
 
 const SESSION_LABELS = [
