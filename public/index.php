@@ -150,6 +150,11 @@ body { display: block; padding: 0; }
             <div class="title">All Events</div>
             <div class="desc">Browse, search, and manage events</div>
         </a>
+        <a href="/points/leaderboard.php" class="action-card">
+            <span class="icon">&#127942;</span>
+            <div class="title">Points Leaderboard</div>
+            <div class="desc">See accumulated points across participants</div>
+        </a>
         <?php if (in_array($user['role'], ['admin', 'ceo'], true)): ?>
         <a href="/reports/dashboard.php" class="action-card">
             <span class="icon">&#128202;</span>
