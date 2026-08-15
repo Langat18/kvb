@@ -64,6 +64,41 @@ class Participant
         return $regNo;
     }
 
+    public function findByRegNoAndIdNumber(string $regNo, string $idNumber): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM participants WHERE reg_no = :reg_no AND id_number = :id_number');
+        $stmt->execute([
+            ':reg_no'    => strtoupper(trim($regNo)),
+            ':id_number' => trim($idNumber),
+        ]);
+
+        $result = $stmt->fetch();
+
+        return $result ?: null;
+    }
+
+    public function pointsSummary(string $regNo): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT e.title, e.start_date, pl.points, pl.reason, pl.awarded_at
+             FROM points_ledger pl
+             JOIN events e ON e.id = pl.event_id
+             WHERE pl.reg_no = :reg_no
+             ORDER BY pl.awarded_at DESC'
+        );
+        $stmt->execute([':reg_no' => strtoupper(trim($regNo))]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function totalPoints(string $regNo): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(points), 0) FROM points_ledger WHERE reg_no = :reg_no');
+        $stmt->execute([':reg_no' => strtoupper(trim($regNo))]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function findByRegNo(string $regNo): ?array
     {
         $stmt = $this->pdo->prepare('SELECT * FROM participants WHERE reg_no = :reg_no');
@@ -99,6 +134,36 @@ class Participant
             ':email'     => strtolower(trim($data['email'])),
             ':phone'     => trim($data['phone'] ?? ''),
         ]);
+    }
+
+    public function leaderboard(string $search = '', int $limit = 50, int $offset = 0): array
+    {
+        $where  = '';
+        $params = [];
+
+        if ($search !== '') {
+            $where = 'WHERE p.name ILIKE :search OR p.reg_no ILIKE :search';
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT p.reg_no, p.name, p.cadre, COALESCE(SUM(pl.points), 0) AS total_points
+             FROM participants p
+             LEFT JOIN points_ledger pl ON pl.reg_no = p.reg_no
+             {$where}
+             GROUP BY p.reg_no, p.name, p.cadre
+             ORDER BY total_points DESC, p.name ASC
+             LIMIT :limit OFFSET :offset"
+        );
+
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
 
     public function list(array $filters = [], int $limit = 20, int $offset = 0): array
