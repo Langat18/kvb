@@ -68,6 +68,9 @@ body { display: flex; align-items: center; justify-content: center; padding: 1.5
             <small>Already registered? Sign in for today's session.</small>
         </a>
     </div>
+    <p style="margin-top:1.5rem;font-size:.78rem;">
+        <a href="/points/mylookup.php" style="color:var(--text-muted);">Check my CPD points</a>
+    </p>
 </div>
 </body>
 </html>
