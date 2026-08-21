@@ -150,3 +150,104 @@ label {
 .breadcrumb { font-size: .8rem; color: var(--text-muted); }
 .breadcrumb a { color: var(--text-muted); text-decoration: none; }
 .breadcrumb a:hover { color: var(--kvb-green-dark); }
+
+input, select {
+    border-radius: 14px;
+}
+
+.auth-shell {
+    max-width: 1000px;
+    margin: 2rem auto;
+    background: #fff;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 620px;
+}
+@media (max-width: 860px) {
+    .auth-shell { grid-template-columns: 1fr; margin: 1rem; min-height: auto; }
+}
+
+.auth-hero {
+    background:
+        radial-gradient(circle at 15% 15%, rgba(26, 123, 50, 0.55), transparent 60%),
+        radial-gradient(circle at 90% 95%, rgba(220, 38, 38, 0.35), transparent 55%),
+        linear-gradient(160deg, #061109, #0f5132 55%, #061109);
+    color: #fff;
+    padding: 2.75rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.auth-hero-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: .75rem;
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .15);
+    padding: .5rem 1.1rem .5rem .5rem;
+    border-radius: 999px;
+    width: fit-content;
+}
+.auth-hero-brand img { height: 36px; background: #fff; border-radius: 50%; padding: .3rem; }
+.auth-hero-brand span { font-weight: 700; font-size: .82rem; letter-spacing: .02em; }
+
+.auth-hero h1 { font-size: 2rem; font-weight: 700; line-height: 1.15; margin: 2.25rem 0 1rem; }
+.auth-hero p { font-size: .95rem; color: rgba(255, 255, 255, .75); max-width: 320px; }
+.auth-hero-foot { font-size: .75rem; color: rgba(255, 255, 255, .45); }
+
+.auth-form-pane { padding: 3rem 2.75rem; display: flex; flex-direction: column; justify-content: center; }
+.auth-form-pane h2 { font-size: 1.4rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .4rem; }
+.auth-form-pane p.sub { color: var(--text-muted); font-size: .9rem; margin-bottom: 2rem; }
+
+.input-icon-wrap { position: relative; }
+.input-icon-wrap .field-icon {
+    position: absolute; left: .95rem; top: 50%; transform: translateY(-50%);
+    color: var(--text-muted); font-size: .95rem; pointer-events: none;
+}
+.input-icon-wrap input { padding-left: 2.6rem; }
+
+.btn-pill {
+    border-radius: 999px; width: 100%; padding: .85rem 1.4rem;
+    font-weight: 700; font-size: .92rem;
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+}
+
+.auth-note {
+    margin-top: 1.25rem; font-size: .78rem; color: var(--text-muted);
+    background: #f7f7f5; border-radius: 14px; padding: .85rem 1rem;
+    text-align: center; line-height: 1.5;
+}
+
+.auth-date-badge {
+    position: absolute; top: 1.5rem; right: 1.75rem;
+    background: #fff; border: 1px solid #ececec;
+    padding: .5rem 1rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 600; color: var(--text-main);
+    box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; gap: .4rem;
+}
+
+.auth-form-pane { position: relative; }
+.auth-form-pane h2 { font-size: 1.8rem; font-weight: 700; color: var(--text-main); margin-bottom: .4rem; }
+
+.field-label-icon { display: flex; align-items: center; gap: .45rem; font-size: .9rem; font-weight: 700; margin-bottom: .5rem; color: var(--text-main); }
+.field-label-icon .lbl-icon { color: var(--kvb-green-dark); font-size: 1rem; }
+
+.input-icon-wrap input {
+    padding: .95rem 1rem .95rem 2.8rem;
+    border-radius: 14px;
+    border-color: #e4e2ef;
+    box-shadow: inset 0 1px 2px rgba(15,23,42,.03);
+}
+.input-icon-wrap .field-icon { font-size: 1.05rem; }
+
+.auth-row-between { display: flex; align-items: center; justify-content: space-between; font-size: .85rem; margin: .9rem 0 1.5rem; }
+.auth-row-between label { display: flex; align-items: center; gap: .5rem; font-weight: 400; margin: 0; }
+.auth-row-between a { color: var(--text-main); text-decoration: none; display: flex; align-items: center; gap: .3rem; }
+.auth-row-between a:hover { color: var(--kvb-green-dark); }
+
+.btn-pill { padding: 1rem 1.4rem; font-size: .95rem; }
