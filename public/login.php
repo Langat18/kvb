@@ -48,78 +48,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>System Login — Kenya Veterinary Board</title>
+<title>Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
 body { display: flex; align-items: center; justify-content: center; padding: 1rem; }
 </style>
 </head>
 <body>
-<div class="auth-shell">
-    <div class="auth-hero">
-        <div>
-            <div class="auth-hero-brand">
-                <img src="/assets/img/kvb_logo.png" alt="KVB">
-                <span>KENYA VETERINARY BOARD<br><span style="font-weight:400;opacity:.8;">Professional Regulatory Portal</span></span>
+<div class="auth-shell kvb-auth-shell">
+    <div class="auth-hero kvb-left">
+        <div class="kvb-left-top">
+            <div class="kvb-logo-pill">
+                <div class="kvb-logo-pill-icon">
+                    <img src="/assets/img/kvb_logo.png" alt="KVB Logo">
+                </div>
+                <div>
+                    <div class="kvb-logo-pill-text-main">KENYA VETERINARY BOARD</div>
+                    <div class="kvb-logo-pill-text-sub">Professional Regulatory Portal</div>
+                </div>
             </div>
-            <h1>KVB Online Services</h1>
-            <p>Secure digital gateway for veterinary professionals in Kenya. Access your licensed services and maintain compliance in one place.</p>
+            <div>
+                <div class="kvb-left-title">KVB Online Services</div>
+                <div class="kvb-left-sub">
+                    Secure digital gateway for veterinary professionals in Kenya. Access your licensed services and maintain compliance in one place.
+                </div>
+            </div>
         </div>
         <div class="auth-hero-foot">&copy; Kenya Veterinary Board — Internal Staff Access</div>
     </div>
 
-    <div class="auth-form-pane">
-        <div class="auth-date-badge">&#128197; <?= date('l, d F Y') ?></div>
+    <div class="kvb-right">
+        <div class="kvb-date-pill">
+            <i class="fa fa-calendar-day"></i> <?= date('l, d F Y') ?>
+        </div>
 
-        <h2>System Login</h2>
-        <p class="sub">Enter your credentials to access your professional dashboard.</p>
+        <div class="kvb-right-header">
+            <div class="kvb-right-title">System Login</div>
+            <div class="kvb-right-sub">Enter your credentials to access your professional dashboard.</div>
+        </div>
 
         <?php if ($error): ?>
             <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
         <?php endif; ?>
 
-        <form method="POST" action="/login.php">
+        <form id="login-form" class="kvb-form" action="/login.php" method="POST" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 
-            <div class="form-group" style="margin-bottom:1.1rem;">
-                <div class="field-label-icon"><span class="lbl-icon">&#128100;</span> Username or Email Address</div>
-                <div class="input-icon-wrap">
-                    <span class="field-icon">&#128100;</span>
-                    <input type="email" id="email" name="email" required autocomplete="email" placeholder="Enter your email address">
+            <div class="kvb-form-body">
+                <div class="kvb-field">
+                    <div class="kvb-field-label"><i class="fa fa-user"></i> <span>Username or Email Address</span></div>
+                    <div class="kvb-input-wrap">
+                        <i class="fa fa-user kvb-input-icon"></i>
+                        <input type="email" id="email" class="form-control" name="email" placeholder="Enter your email address" autocomplete="email" required>
+                    </div>
+                </div>
+
+                <div class="kvb-field">
+                    <div class="kvb-field-label"><i class="fa fa-key"></i> <span>Password</span></div>
+                    <div class="kvb-input-wrap">
+                        <i class="fa fa-lock kvb-input-icon"></i>
+                        <input type="password" id="password-field" class="form-control" name="password" placeholder="Enter your secure password" autocomplete="current-password" required>
+                        <i class="fa fa-eye" id="togglePassword"></i>
+                    </div>
+                </div>
+
+                <div class="kvb-form-footer-top">
+                    <div class="kvb-remember">
+                        <div class="form-check">
+                            <input type="checkbox" id="rememberMe" class="form-check-input" checked>
+                            <label class="form-check-label" for="rememberMe">Remember Me</label>
+                        </div>
+                    </div>
+                    <a href="mailto:info@kenyavetboard.or.ke"><i class="fa fa-circle-question"></i> Forgot password?</a>
+                </div>
+
+                <button type="submit" class="kvb-btn kvb-btn-primary" id="login-btn">
+                    <span class="btn-text">Sign in to portal</span>
+                    <i class="fa fa-arrow-right-to-bracket"></i>
+                    <div class="kvb-loading" aria-hidden="true"></div>
+                </button>
+
+                <div class="kvb-support">
+                    <i class="fa fa-headset"></i>
+                    <span>Need help logging in? Contact KVB support through: +254-722 305 253, +254-701 581 718, info@kenyavetboard.or.ke</span>
                 </div>
             </div>
-
-            <div class="form-group">
-                <div class="field-label-icon"><span class="lbl-icon">&#128273;</span> Password</div>
-                <div class="input-icon-wrap">
-                    <span class="field-icon">&#128274;</span>
-                    <input type="password" id="password" name="password" required style="padding-right:2.5rem;" placeholder="Enter your secure password">
-                    <button type="button" id="toggle-pw" style="position:absolute;right:.9rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--text-muted);padding:0;">&#128065;</button>
-                </div>
-            </div>
-
-            <div class="auth-row-between">
-                <label><input type="checkbox" checked style="accent-color:var(--kvb-green-dark);"> Remember Me</label>
-                <a href="mailto:info@kenyavetboard.or.ke">&#10067; Forgot password?</a>
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-pill">Sign in to portal &#8594;</button>
         </form>
-
-        <a href="#" class="btn btn-secondary btn-pill" style="margin-top:.75rem;text-decoration:none;display:block;text-align:center;">&#128100;&#43; Create new account</a>
-
-        <div class="auth-note">
-            &#127911; Need help logging in? Contact KVB support through: +254-722 305 253, +254-701 581 718, info@kenyavetboard.or.ke
-        </div>
     </div>
 </div>
 
 <script>
-document.getElementById('toggle-pw').addEventListener('click', function() {
-    const input = document.getElementById('password');
-    input.type = input.type === 'password' ? 'text' : 'password';
+document.addEventListener('DOMContentLoaded', function() {
+    const loginForm     = document.getElementById('login-form');
+    const loginBtn      = document.getElementById('login-btn');
+    const btnText       = loginBtn.querySelector('.btn-text');
+    const loadingSpinner = loginBtn.querySelector('.kvb-loading');
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordField  = document.getElementById('password-field');
+
+    loginForm.addEventListener('submit', function() {
+        btnText.textContent = 'Signing in...';
+        loadingSpinner.style.display = 'block';
+        loginBtn.disabled = true;
+    });
+
+    if (togglePassword && passwordField) {
+        togglePassword.addEventListener('click', () => {
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+        });
+    }
 });
 </script>
 </body>
