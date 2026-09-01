@@ -77,7 +77,7 @@ body { display: flex; align-items: center; justify-content: center; padding: 1re
                 </div>
             </div>
         </div>
-        <div class="auth-hero-foot">&copy; Kenya Veterinary Board — Internal Staff Access</div>
+        <div class="auth-hero-foot">&copy; Kenya Veterinary Board</div>
     </div>
 
     <div class="kvb-right">
