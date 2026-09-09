@@ -85,9 +85,47 @@ class Registration
 
         $attendanceId = (int) $stmt->fetchColumn();
 
-        $this->awardPoints($attendanceId, (int) $data['registration_id'], $data['session']);
+        if ($data['method'] !== 'virtual') {
+            $this->awardPoints($attendanceId, (int) $data['registration_id'], $data['session']);
+        }
 
         return $attendanceId;
+    }
+
+    public function reconfirmAttendance(int $eventId, string $regNo, string $session): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT a.id, a.confirmed_at, a.reconfirmed_at, a.method, a.registration_id
+             FROM attendance a
+             JOIN registrations r ON r.id = a.registration_id
+             WHERE r.event_id = :event_id AND r.reg_no = :reg_no
+               AND a.session = :session AND a.attendance_date = CURRENT_DATE'
+        );
+        $stmt->execute([
+            ':event_id' => $eventId,
+            ':reg_no'   => strtoupper(trim($regNo)),
+            ':session'  => $session,
+        ]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return ['ok' => false, 'message' => 'No check-in found for this session. Please check in first.'];
+        }
+
+        if ($row['method'] !== 'virtual') {
+            return ['ok' => false, 'message' => 'Reconfirmation only applies to virtual attendance.'];
+        }
+
+        if ($row['reconfirmed_at'] !== null) {
+            return ['ok' => false, 'message' => 'You have already reconfirmed this session.'];
+        }
+
+        $update = $this->pdo->prepare('UPDATE attendance SET reconfirmed_at = now() WHERE id = :id');
+        $update->execute([':id' => $row['id']]);
+
+        $this->awardPoints((int) $row['id'], (int) $row['registration_id'], $session);
+
+        return ['ok' => true, 'message' => 'Attendance reconfirmed. Points have been awarded.'];
     }
 
     private function awardPoints(int $attendanceId, int $registrationId, string $session): void
