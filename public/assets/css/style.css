@@ -602,3 +602,10 @@ input, select {
 @media (max-width: 600px) {
     .form-grid { grid-template-columns: 1fr; }
 }
+
+/* --- Success button (deactivate/reactivate toggle pattern) --- */
+.btn-success {
+    background: var(--kvb-green-light);
+    color: var(--kvb-green-dark);
+}
+.btn-success:hover { background: var(--kvb-green); color: #fff; }
