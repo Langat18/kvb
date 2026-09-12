@@ -32,6 +32,23 @@ class Auth
         }
     }
 
+    public static function requirePermission(string $permissionKey): void
+    {
+        self::requireLogin();
+
+        if (!self::can($permissionKey)) {
+            http_response_code(403);
+            die('Access denied.');
+        }
+    }
+
+    public static function can(string $permissionKey): bool
+    {
+        self::requireLogin();
+
+        return in_array($permissionKey, $_SESSION['user_permissions'] ?? [], true);
+    }
+
     public static function user(): ?array
     {
         if (empty($_SESSION['user_id'])) {
@@ -43,6 +60,7 @@ class Auth
             'name'  => $_SESSION['user_name']  ?? '',
             'email' => $_SESSION['user_email'] ?? '',
             'role'  => $_SESSION['user_role']  ?? '',
+            'role_label' => $_SESSION['user_role_label'] ?? '',
         ];
     }
 
@@ -53,10 +71,26 @@ class Auth
         $_SESSION['user_name']  = $staff['name'];
         $_SESSION['user_email'] = $staff['email'];
         $_SESSION['user_role']  = $staff['role'];
+        $_SESSION['user_role_label'] = $staff['role_label'] ?? $staff['role'];
+
+        $roleModel = new Role();
+        $roleRow   = $roleModel->findByKey($staff['role']);
+        $_SESSION['user_permissions'] = $roleRow ? $roleModel->getPermissionKeys((int) $roleRow['id']) : [];
 
         $pdo  = Database::getInstance()->getPdo();
         $stmt = $pdo->prepare('UPDATE staff SET last_login_at = now() WHERE id = :id');
         $stmt->execute([':id' => $staff['id']]);
+    }
+
+    public static function refreshPermissions(): void
+    {
+        if (empty($_SESSION['user_role'])) {
+            return;
+        }
+
+        $roleModel = new Role();
+        $roleRow   = $roleModel->findByKey($_SESSION['user_role']);
+        $_SESSION['user_permissions'] = $roleRow ? $roleModel->getPermissionKeys((int) $roleRow['id']) : [];
     }
 
     public static function logout(): void
