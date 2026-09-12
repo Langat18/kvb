@@ -77,17 +77,8 @@ if ($format === 'excel') {
 <style>
 body { display: block; padding: 0; }
 .container { max-width: 900px; margin: 0 auto; padding: 1.25rem 2.5rem 2.5rem; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
 .filter-bar { display: flex; gap: .6rem; margin-bottom: 1.25rem; }
 .filter-bar input { flex: 1; }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { text-align: left; padding: .65rem .6rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; background: #faf9f7; }
-.list-table td { padding: .65rem .6rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; }
-.list-table tr:hover td { background: #f7faf8; }
-.rank { font-weight: 700; color: var(--text-muted); width: 40px; }
-.points-value { font-weight: 700; color: var(--kvb-green-dark); }
-.empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 @media print {
     .navbar, .no-print { display: none !important; }
     body { padding: 0; }
@@ -111,11 +102,11 @@ body { display: block; padding: 0; }
         <button type="submit" class="btn btn-secondary">Search</button>
     </form>
 
-    <div class="card" style="padding:0;">
+    <div class="card card-flush">
         <?php if (empty($leaderboard)): ?>
             <p class="empty-state">No participants found.</p>
         <?php else: ?>
-        <table class="list-table">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>#</th>

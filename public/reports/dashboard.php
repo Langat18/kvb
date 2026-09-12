@@ -37,16 +37,9 @@ $flaggedByEvent       = $reportModel->flaggedByEvent(5);
 <style>
 body { display: block; padding: 2.5rem; }
 .container { max-width: 1100px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-.stat-card { text-align: center; padding: 1.25rem; }
-.stat-card .num { font-size: 1.8rem; font-weight: 700; color: var(--kvb-green-dark); }
-.stat-card .label { font-size: .8rem; color: var(--text-muted); margin-top: .25rem; }
-.stat-card.flagged .num { color: var(--kvb-red-dark); }
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
 .chart-card h2 { font-size: .95rem; font-weight: 600; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-@media (max-width: 800px) { .stat-grid, .chart-grid { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .chart-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>

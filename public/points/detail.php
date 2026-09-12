@@ -58,11 +58,6 @@ body { display: block; padding: 0; }
 .total-badge { text-align: center; padding: 1rem 1.5rem; }
 .total-badge .num { font-size: 2rem; font-weight: 700; color: var(--kvb-green-dark); }
 .total-badge .label { font-size: .78rem; color: var(--text-muted); }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { text-align: left; padding: .65rem .6rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; background: #faf9f7; }
-.list-table td { padding: .65rem .6rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; }
-.points-value { font-weight: 700; color: var(--kvb-green-dark); }
-.empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 </style>
 </head>
 <body>
@@ -79,11 +74,11 @@ body { display: block; padding: 0; }
         </div>
     </div>
 
-    <div class="card" style="padding:0;">
+    <div class="card card-flush">
         <?php if (empty($summary)): ?>
             <p class="empty-state">No points earned yet.</p>
         <?php else: ?>
-        <table class="list-table">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Event</th>
