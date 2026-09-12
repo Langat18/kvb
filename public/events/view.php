@@ -7,7 +7,9 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\CadreRepository;
 use VetBoard\Event;
+use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requireLogin();
@@ -32,6 +34,9 @@ $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
 
+$cadreLabels   = (new CadreRepository())->labelMap();
+$sessionLabels = (new SessionWindowRepository())->labelMap();
+
 $appUrl       = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8000', '/');
 $choiceUrl    = $appUrl . '/events/choice.php?token=' . urlencode($event['token']);
 $startDate    = date('d M Y', strtotime($event['start_date']));
@@ -52,7 +57,7 @@ foreach ($participants as $p) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> — Kenya Veterinary Board</title>
+<title><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -117,18 +122,18 @@ body { display: block; padding: 2rem 2.5rem; }
         <div>
             <h1>
                 <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>
-                <span class="pill"><?= htmlspecialchars(EVENT_MODES[$event['event_mode']] ?? $event['event_mode'], ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="pill"><?= htmlspecialchars($event['event_mode_label'] ?? $event['event_mode'], ENT_QUOTES, 'UTF-8') ?></span>
             </h1>
         </div>
         <div class="action-row">
-            <?php $canEdit = $user['role'] === 'admin' || (int) $user['id'] === (int) ($event['created_by'] ?? 0); ?>
+            <?php $canEdit = Auth::can('manage_events') || (int) $user['id'] === (int) ($event['created_by'] ?? 0); ?>
             <?php if ($canEdit): ?>
                 <a href="/events/edit.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Edit Event</a>
             <?php endif; ?>
             <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-primary" target="_blank">Nominal Roll</a>
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
             <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-ghost">Add to Calendar</a>
-            <?php if ($flaggedTotal > 0 && $user['role'] === 'admin'): ?>
+            <?php if ($flaggedTotal > 0 && Auth::can('review_flagged_attendance')): ?>
                 <a href="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-danger-outline">
                     &#9888; Review Flagged (<?= $flaggedTotal ?>)
                 </a>
@@ -143,7 +148,7 @@ body { display: block; padding: 2rem 2.5rem; }
                 <tr><th>Event Code</th><td><?= htmlspecialchars($event['event_code'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
                 <tr><th>Dates</th><td><?= $startDate ?> &ndash; <?= $endDate ?></td></tr>
                 <tr><th>Venue</th><td><?= htmlspecialchars($event['venue'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
-                <tr><th>Department</th><td><?= htmlspecialchars($event['department'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
+                <tr><th>Department</th><td><?= htmlspecialchars($event['department_name'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
                 <tr><th>Coordinator</th><td><?= htmlspecialchars($event['coordinator'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
                 <tr><th>Program Assistant</th><td><?= htmlspecialchars($event['program_assistant'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
                 <?php if ($event['event_mode'] !== 'virtual'): ?>
@@ -190,7 +195,7 @@ body { display: block; padding: 2rem 2.5rem; }
                 <tr>
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                    <td><?= htmlspecialchars(CADRE_LABELS[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td>
                         <?php if (empty($p['attendance'])): ?>
                             &mdash;
@@ -199,11 +204,11 @@ body { display: block; padding: 2rem 2.5rem; }
                                 <?php foreach ($p['attendance'] as $a): ?>
                                     <?php if ($a['flagged']): ?>
                                         <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);" title="<?= (int) $a['distance_m'] ?>m from venue">
-                                            &#9888; <?= htmlspecialchars(SESSION_LABELS[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
+                                            &#9888; <?= htmlspecialchars($sessionLabels[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php else: ?>
                                         <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="Verified">
-                                            &#10003; <?= htmlspecialchars(SESSION_LABELS[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
+                                            &#10003; <?= htmlspecialchars($sessionLabels[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php endif; ?>
                                 <?php endforeach; ?>

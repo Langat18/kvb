@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
 use VetBoard\Event;
+use VetBoard\EventModeRepository;
 
 Auth::startSession();
 Auth::requireLogin();
@@ -17,8 +18,11 @@ $breadcrumbs = [
     ['label' => 'Events',    'url' => null],
 ];
 
-$user       = Auth::user();
-$eventModel = new Event();
+$user          = Auth::user();
+$eventModel    = new Event();
+$eventModeRepo = new EventModeRepository();
+$eventModes    = $eventModeRepo->list(true);
+$modeLabels    = $eventModeRepo->labelMap();
 
 $page       = max(1, (int) ($_GET['page']     ?? 1));
 $perPage    = max(1, min(100, (int) ($_GET['per_page'] ?? 20)));
@@ -91,9 +95,9 @@ body { display: block; padding: 0; }
             <label>Mode</label>
             <select name="event_mode">
                 <option value="">All modes</option>
-                <?php foreach (EVENT_MODES as $key => $label): ?>
-                    <option value="<?= $key ?>" <?= $modeFilter === $key ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                <?php foreach ($eventModes as $mode): ?>
+                    <option value="<?= htmlspecialchars($mode['item_key'], ENT_QUOTES, 'UTF-8') ?>" <?= $modeFilter === $mode['item_key'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($mode['label'], ENT_QUOTES, 'UTF-8') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -125,7 +129,7 @@ body { display: block; padding: 0; }
                     <?php foreach ($events as $e): ?>
                     <tr>
                         <td><?= htmlspecialchars($e['title'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="pill"><?= htmlspecialchars(EVENT_MODES[$e['event_mode']] ?? $e['event_mode'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><span class="pill"><?= htmlspecialchars($e['event_mode_label'] ?? $modeLabels[$e['event_mode']] ?? $e['event_mode'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td>
                             <?= date('d M Y', strtotime($e['start_date'])) ?>
                             &ndash;

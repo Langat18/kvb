@@ -43,7 +43,7 @@ if (!empty($event['venue'])) {
     $icsEvent->setLocation(new Location($event['venue']));
 }
 
-$description = 'Mode: ' . (EVENT_MODES[$event['event_mode']] ?? $event['event_mode']);
+$description = 'Mode: ' . ($event['event_mode_label'] ?? $event['event_mode']);
 if (!empty($event['coordinator'])) {
     $description .= "\nCoordinator: " . $event['coordinator'];
 }
