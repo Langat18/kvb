@@ -35,6 +35,7 @@ $endDate   = date('d M Y', strtotime($event['end_date']));
 <head>
 <meta charset="UTF-8">
 <title>QR Code <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<link rel="stylesheet" href="/assets/css/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,22 +51,22 @@ body {
     text-align: center;
 }
 img.logo { height: 70px; margin-bottom: 1rem; }
-h1 { font-size: 14pt; color: #0f5132; margin-bottom: .25rem; }
-h2 { font-size: 11pt; font-weight: normal; color: #333; margin-bottom: .5rem; }
-.meta { font-size: 9pt; color: #555; margin-bottom: 1.5rem; }
+h1 { font-size: 14pt; color: var(--kvb-green-dark); margin-bottom: .25rem; }
+h2 { font-size: 11pt; font-weight: normal; color: var(--text-main); margin-bottom: .5rem; }
+.meta { font-size: 9pt; color: var(--text-muted); margin-bottom: 1.5rem; }
 #qrcode { display: inline-block; margin: 1rem 0; }
 #qrcode img, #qrcode canvas { width: 300px !important; height: 300px !important; }
-.url { font-size: 7.5pt; color: #888; word-break: break-all; max-width: 400px; margin: .5rem auto 0; }
+.url { font-size: 7.5pt; color: var(--text-muted); word-break: break-all; max-width: 400px; margin: .5rem auto 0; }
 @media print { .url { display: none; } }
 .instruction {
     margin-top: 1.5rem;
     font-size: 10pt;
-    color: #444;
+    color: var(--text-main);
     border-top: 1px solid #ccc;
     padding-top: 1rem;
     max-width: 420px;
 }
-.footer { font-size: 7.5pt; color: #aaa; margin-top: 2rem; }
+.footer { font-size: 7.5pt; color: var(--text-muted); margin-top: 2rem; }
 @media print { body { padding: 1cm; } }
 </style>
 </head>
@@ -85,7 +86,7 @@ h2 { font-size: 11pt; font-weight: normal; color: #333; margin-bottom: .5rem; }
 
 <div class="instruction">
     Scan the QR code above with your phone camera to register or sign your attendance.<br>
-    <strong>Sign in for each session you attend.</strong>
+<strong>Sign in for each session you attend.</strong>
 </div>
 
 <div class="footer">Kenya Veterinary Board &bull; Event Attendance System</div>
@@ -100,7 +101,7 @@ new QRCode(document.getElementById("qrcode"), {
     correctLevel: QRCode.CorrectLevel.H
 });
 window.onload = function() {
-    setTimeout(function() { window.print(); }, 800);
+setTimeout(function() { window.print(); }, 800);
 };
 </script>
 </body>

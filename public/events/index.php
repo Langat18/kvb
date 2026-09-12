@@ -55,16 +55,10 @@ unset($_SESSION['success'], $_SESSION['error']);
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
 body { display: block; padding: 0; }
-.container { max-width: 1000px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
+.container { max-width: 1100px; margin: 0 auto; padding: 1.25rem 2.5rem 2.5rem; }
 .filter-bar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1.25rem; }
 .filter-bar .form-group { margin-bottom: 0; flex: 1; min-width: 160px; }
 .filter-bar select, .filter-bar input { width: 100%; }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { text-align: left; padding: .6rem .5rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; }
-.list-table td { padding: .6rem .5rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; }
-.empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 .pagination { display: flex; gap: .4rem; margin-top: 1rem; }
 .pagination a, .pagination span { padding: .3rem .65rem; border-radius: 6px; text-decoration: none; font-size: .82rem; }
 .pagination a { background: #eee; color: var(--text-main); }
@@ -73,7 +67,7 @@ body { display: block; padding: 0; }
 </head>
 <body>
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container" style="max-width:1100px;margin:0 auto;padding:1.25rem 2.5rem 2.5rem;">
+<div class="container">
     <div class="page-header">
         <h1>Events</h1>
         <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
@@ -114,8 +108,8 @@ body { display: block; padding: 0; }
     <?php if (empty($events)): ?>
         <div class="card"><p class="empty-state">No events found.</p></div>
     <?php else: ?>
-        <div class="card" style="padding:0;">
-            <table class="list-table">
+        <div class="card card-flush">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Title</th>
@@ -137,7 +131,7 @@ body { display: block; padding: 0; }
                         </td>
                         <td><?= htmlspecialchars($e['venue'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                         <td>
-                            <a href="/events/view.php?token=<?= urlencode($e['view_token']) ?>" class="btn btn-secondary" style="padding:.35rem .8rem;font-size:.8rem;">View</a>
+                            <a href="/events/view.php?token=<?= urlencode($e['view_token']) ?>" class="btn btn-secondary btn-sm">View</a>
                         </td>
                     </tr>
                     <?php endforeach; ?>
