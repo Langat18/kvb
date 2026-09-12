@@ -130,40 +130,23 @@ $isOnsite  = $event['event_mode'] === 'onsite';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Register <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<title>Register - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 1.5rem; }
-.reg-wrap { max-width: 540px; margin: 1.5rem auto; }
-.reg-header { text-align: center; margin-bottom: 1.5rem; }
-.reg-header h1 { font-size: 1.1rem; font-weight: 700; color: var(--kvb-green-dark); margin: 0; }
-.reg-header p { font-size: .85rem; color: var(--text-muted); margin: .3rem 0 0; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-@media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } }
-.form-group { margin-bottom: .85rem; }
-.notice-box {
-    font-size: .82rem; color: var(--text-muted); margin-bottom: 1rem;
-    padding: .6rem .75rem; background: var(--kvb-green-light);
-    border-left: 3px solid var(--kvb-green); border-radius: 6px;
-}
+.public-shell { max-width: 540px; }
 #signature-pad {
     border: 1px solid #d8dde3; border-radius: 10px;
     width: 100%; height: 140px; touch-action: none; background: #fff; display: block;
 }
-#geo-status {
-    font-size: .8rem; padding: .6rem .75rem; border-radius: 8px; margin-bottom: 1rem;
-}
-#geo-status.pending { background: #f0f0f0; color: var(--text-muted); }
-#geo-status.granted { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
-#geo-status.denied  { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
 #submit-btn:disabled { opacity: .5; cursor: not-allowed; }
 </style>
 </head>
 <body>
-<div class="reg-wrap">
-    <div class="reg-header">
+<div class="public-page">
+<div class="public-shell">
+    <div class="public-header">
         <h1><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></h1>
         <p><?= htmlspecialchars($event['venue'] ?? '', ENT_QUOTES, 'UTF-8') ?> &bull; <?= $startDate ?> &ndash; <?= $endDate ?></p>
     </div>
@@ -179,12 +162,12 @@ body { display: block; padding: 1.5rem; }
         <p class="notice-box">
             Please fill in your official details as they appear in official CPD directory and records.
             <?php if ($event['event_mode'] === 'hybrid'): ?>
-                <br>This event supports both on-site and virtual attendance — you will choose how you are attending each session when you sign in.
+                <br>This event supports both on-site and virtual attendance &mdash; you will choose how you are attending each session when you sign in.
             <?php endif; ?>
         </p>
 
         <?php if ($isOnsite): ?>
-            <div id="geo-status" class="pending">Checking location access…</div>
+            <div id="geo-status" class="status-box pending">Checking location access&hellip;</div>
         <?php endif; ?>
 
         <form method="POST" action="/events/register.php?token=<?= urlencode($token) ?>" id="reg-form">
@@ -192,7 +175,7 @@ body { display: block; padding: 1.5rem; }
             <input type="hidden" name="geo_lat" id="geo_lat">
             <input type="hidden" name="geo_lng" id="geo_lng">
 
-            <div class="form-row">
+            <div class="form-grid">
                 <div class="form-group">
                     <label for="reg_no">Registration Number <span class="required">*</span></label>
                     <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
@@ -209,7 +192,7 @@ body { display: block; padding: 1.5rem; }
                 <input type="text" id="name" name="name" required>
             </div>
 
-            <div class="form-row">
+            <div class="form-grid">
                 <div class="form-group">
                     <label for="email">Email Address <span class="required">*</span></label>
                     <input type="email" id="email" name="email" required>
@@ -229,7 +212,7 @@ body { display: block; padding: 1.5rem; }
                 <input type="hidden" name="signature" id="signature-data">
             </div>
 
-            <button type="submit" class="btn btn-primary" id="submit-btn" style="width:100%;" <?= $isOnsite ? 'disabled' : '' ?>>
+            <button type="submit" class="btn btn-primary btn-block" id="submit-btn" <?= $isOnsite ? 'disabled' : '' ?>>
                 Register
             </button>
         </form>
@@ -239,6 +222,7 @@ body { display: block; padding: 1.5rem; }
             <a href="/events/attend.php?token=<?= urlencode($token) ?>" style="color:var(--kvb-green-dark);">Sign Attendance</a>
         </p>
     </div>
+</div>
 </div>
 
 <script>
@@ -333,13 +317,13 @@ function onGeoSuccess(position) {
     latInput.value = position.coords.latitude;
     lngInput.value = position.coords.longitude;
     geoStatus.textContent = 'Location confirmed.';
-    geoStatus.className = 'granted';
+    geoStatus.className = 'status-box granted';
     submitBtn.disabled = false;
 }
 
 function onGeoError() {
     geoStatus.textContent = 'Location access is required to register for this on-site event. Please enable location in your browser settings and reload this page.';
-    geoStatus.className = 'denied';
+    geoStatus.className = 'status-box denied';
     submitBtn.disabled = true;
 }
 

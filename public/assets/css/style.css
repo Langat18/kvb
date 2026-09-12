@@ -621,3 +621,41 @@ input, select {
 .geo-fields { display: none; }
 .geo-fields.active { display: grid; }
 .geo-map { height: 320px; border-radius: 12px; grid-column: 1 / -1; }
+
+
+
+.public-page {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2.5rem 1.25rem;
+}
+.public-shell { max-width: 520px; width: 100%; }
+.public-header { text-align: center; margin-bottom: var(--space-5); }
+.public-header h1 { font-size: var(--fs-lg); font-weight: 700; color: var(--kvb-green-dark); margin: 0; }
+.public-header p { font-size: var(--fs-base); color: var(--text-muted); margin: var(--space-1) 0 0; }
+
+.notice-box {
+    font-size: var(--fs-base);
+    color: var(--text-muted);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--kvb-green-light);
+    border-left: 3px solid var(--kvb-green);
+    border-radius: 6px;
+}
+
+.status-box {
+    font-size: var(--fs-sm);
+    padding: var(--space-3) var(--space-4);
+    border-radius: 8px;
+    margin-bottom: var(--space-4);
+}
+.status-box.pending { background: #f0f0f0; color: var(--text-muted); }
+.status-box.granted { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
+.status-box.denied  { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
+
+@media (max-width: 520px) {
+    .public-page { padding: 1.5rem 1rem; }
+}

@@ -176,17 +176,11 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Attendance — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<title>Attendance - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 1.5rem; }
-.attend-wrap { max-width: 480px; margin: 1.5rem auto; }
-.attend-header { text-align: center; margin-bottom: 1.5rem; }
-.attend-header h1 { font-size: 1.1rem; font-weight: 700; color: var(--kvb-green-dark); margin: 0; }
-.attend-header p { font-size: .85rem; color: var(--text-muted); margin: .3rem 0 0; }
-.session-pill { text-align: center; margin-bottom: 1rem; }
 .method-choice { display: flex; gap: .6rem; margin-bottom: 1rem; }
 .method-choice label {
     flex: 1; display: flex; align-items: center; justify-content: center; gap: .5rem;
@@ -197,16 +191,13 @@ body { display: block; padding: 1.5rem; }
 .method-choice input[type="radio"] { accent-color: var(--kvb-green-dark); width: 16px; height: 16px; margin: 0; flex-shrink: 0; }
 .method-choice label:hover { border-color: var(--kvb-green); }
 .method-choice label.selected { border-color: var(--kvb-green-dark); background: var(--kvb-green-light); font-weight: 600; }
-#geo-status { font-size: .8rem; padding: .6rem .75rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
-#geo-status.pending { background: #f0f0f0; color: var(--text-muted); display: block; }
-#geo-status.granted { background: var(--kvb-green-light); color: var(--kvb-green-dark); display: block; }
-#geo-status.denied  { background: var(--kvb-red-light); color: var(--kvb-red-dark); display: block; }
 #submit-btn:disabled { opacity: .5; cursor: not-allowed; }
 </style>
 </head>
 <body>
-<div class="attend-wrap">
-    <div class="attend-header">
+<div class="public-page">
+<div class="public-shell">
+    <div class="public-header">
         <h1><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></h1>
         <p><?= htmlspecialchars($event['venue'] ?? '', ENT_QUOTES, 'UTF-8') ?></p>
     </div>
@@ -224,7 +215,7 @@ body { display: block; padding: 1.5rem; }
         </div>
     <?php else: ?>
 
-        <div class="session-pill">
+        <div style="text-align:center;margin-bottom:1rem;">
             <?php if ($sessionInfo['session']): ?>
                 <span class="pill"><?= htmlspecialchars($sessionLabels[$sessionInfo['session']] ?? $sessionInfo['session'], ENT_QUOTES, 'UTF-8') ?> Session</span>
             <?php else: ?>
@@ -237,7 +228,7 @@ body { display: block; padding: 1.5rem; }
         <?php endif; ?>
 
         <div class="card">
-            <div id="geo-status" class="<?= $isPureOnsite ? 'pending' : '' ?>">Checking location access…</div>
+            <div id="geo-status" class="status-box <?= $isPureOnsite ? 'pending' : '' ?>">Checking location access&hellip;</div>
 
             <form method="POST" action="/events/attend.php?token=<?= urlencode($token) ?>" id="attend-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
@@ -260,12 +251,13 @@ body { display: block; padding: 1.5rem; }
                     <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
                 </div>
 
-                <button type="submit" class="btn btn-primary" id="submit-btn" style="width:100%;margin-top:.5rem;" <?= ($isPureOnsite || $isHybrid) ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-primary btn-block" id="submit-btn" style="margin-top:.5rem;" <?= ($isPureOnsite || $isHybrid) ? 'disabled' : '' ?>>
                     Sign Attendance
                 </button>
             </form>
         </div>
     <?php endif; ?>
+</div>
 </div>
 
 <?php if (!$attendSuccess): ?>
@@ -281,13 +273,13 @@ function onGeoSuccess(position) {
     latInput.value = position.coords.latitude;
     lngInput.value = position.coords.longitude;
     geoStatus.textContent = 'Location confirmed.';
-    geoStatus.className = 'granted';
+    geoStatus.className = 'status-box granted';
     submitBtn.disabled = false;
 }
 
 function onGeoError() {
     geoStatus.textContent = 'Location access is required to sign attendance on-site. Please enable location in your browser settings and reload this page.';
-    geoStatus.className = 'denied';
+    geoStatus.className = 'status-box denied';
     submitBtn.disabled = true;
 }
 
@@ -303,7 +295,7 @@ function requestLocation() {
 }
 
 if (isPureOnsite) {
-    geoStatus.className = 'pending';
+    geoStatus.className = 'status-box pending';
     if (navigator.permissions) {
         navigator.permissions.query({ name: 'geolocation' }).then(status => {
             requestLocation();
@@ -325,7 +317,7 @@ if (isHybrid) {
                 geoStatus.className = '';
                 submitBtn.disabled = false;
             } else {
-                geoStatus.className = 'pending';
+                geoStatus.className = 'status-box pending';
                 geoStatus.textContent = 'Checking location access…';
                 submitBtn.disabled = true;
                 requestLocation();
