@@ -26,9 +26,8 @@ if (!$participant) {
 }
 
 echo json_encode([
-    'found'      => true,
-    'name'       => $participant['name'],
-    'id_number'  => $participant['id_number'],
-    'email'      => $participant['email'],
-    'phone'      => $participant['phone'] ?? '',
+    'found' => true,
+    'name'  => $participant['name'],
+    'email' => $participant['email'],
+    'phone' => $participant['phone'] ?? '',
 ]);

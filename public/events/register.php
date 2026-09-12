@@ -130,7 +130,7 @@ $isOnsite  = $event['event_mode'] === 'onsite';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Register — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<title>Register <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -278,19 +278,18 @@ const lookupStatus = document.getElementById('lookup-status');
 let lookupTimer;
 
 function lockFields(data) {
-    document.getElementById('id_number').value = data.id_number ?? '';
-    document.getElementById('name').value       = data.name      ?? '';
-    document.getElementById('email').value      = data.email     ?? '';
-    document.getElementById('phone').value      = data.phone     ?? '';
-    ['id_number', 'name', 'email', 'phone'].forEach(id => {
+    document.getElementById('name').value  = data.name  ?? '';
+    document.getElementById('email').value = data.email ?? '';
+    document.getElementById('phone').value = data.phone ?? '';
+    ['name', 'email', 'phone'].forEach(id => {
         document.getElementById(id).setAttribute('readonly', true);
     });
-    lookupStatus.textContent = 'Returning participant — details locked.';
+    lookupStatus.textContent = 'Returning participant — details locked. Please enter your ID number to confirm.';
     lookupStatus.style.color = 'var(--kvb-green-dark)';
 }
 
 function unlockFields() {
-    ['id_number', 'name', 'email', 'phone'].forEach(id => {
+    ['name', 'email', 'phone'].forEach(id => {
         document.getElementById(id).removeAttribute('readonly');
     });
     lookupStatus.textContent = '';

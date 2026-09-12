@@ -10,6 +10,7 @@ use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Participant;
 use VetBoard\Registration;
+use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 
@@ -38,28 +39,24 @@ if ($today < $event['start_date'] || $today > $event['end_date']) {
 
 function detectSession(): array
 {
-    $now = date('H:i');
+    $now     = date('H:i:s');
+    $windows = (new SessionWindowRepository())->list(true);
 
-    if ($now >= MORNING_SESSION_START && $now <= MORNING_SESSION_END) {
-        return ['session' => 'morning', 'flagged' => false, 'reason' => null];
-    }
-
-    if ($now >= MID_MORNING_SESSION_START && $now <= MID_MORNING_SESSION_END) {
-        return ['session' => 'mid_morning', 'flagged' => false, 'reason' => null];
-    }
-
-    if ($now >= AFTERNOON_SESSION_START && $now <= AFTERNOON_SESSION_END) {
-        return ['session' => 'afternoon', 'flagged' => false, 'reason' => null];
+    foreach ($windows as $w) {
+        if ($now >= $w['start_time'] && $now <= $w['end_time']) {
+            return ['session' => $w['item_key'], 'flagged' => false, 'reason' => null];
+        }
     }
 
     return ['session' => null, 'flagged' => true, 'reason' => 'Outside all session hours'];
 }
 
-$sessionInfo  = detectSession();
-$eventMode    = $event['event_mode'];
-$isPureOnsite = $eventMode === 'onsite';
-$isHybrid     = $eventMode === 'hybrid';
-$error        = $_SESSION['attend_error'] ?? null;
+$sessionLabels = (new SessionWindowRepository())->labelMap();
+$sessionInfo   = detectSession();
+$eventMode     = $event['event_mode'];
+$isPureOnsite  = $eventMode === 'onsite';
+$isHybrid      = $eventMode === 'hybrid';
+$error         = $_SESSION['attend_error'] ?? null;
 unset($_SESSION['attend_error']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -107,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($registrationModel->hasSignedSession((int) $registration['id'], $session)) {
-        $_SESSION['attend_error'] = 'You have already signed for the ' . SESSION_LABELS[$session] . ' session today.';
+        $_SESSION['attend_error'] = 'You have already signed for the ' . ($sessionLabels[$session] ?? $session) . ' session today.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
     }
@@ -218,7 +215,7 @@ body { display: block; padding: 1.5rem; }
         <div class="card" style="text-align:center;padding:2rem;">
             <div style="font-size:3rem;">&#10003;</div>
             <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Attendance Recorded</h2>
-            <p>Your <?= htmlspecialchars(SESSION_LABELS[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
+            <p>Your <?= htmlspecialchars($sessionLabels[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
             <?php if ($attendFlagged): ?>
                 <p style="font-size:.82rem;color:var(--kvb-red-dark);margin-top:.75rem;">
                     Your location was outside the expected event radius. This record has been flagged for admin review.
@@ -229,7 +226,7 @@ body { display: block; padding: 1.5rem; }
 
         <div class="session-pill">
             <?php if ($sessionInfo['session']): ?>
-                <span class="pill"><?= htmlspecialchars(SESSION_LABELS[$sessionInfo['session']], ENT_QUOTES, 'UTF-8') ?> Session</span>
+                <span class="pill"><?= htmlspecialchars($sessionLabels[$sessionInfo['session']] ?? $sessionInfo['session'], ENT_QUOTES, 'UTF-8') ?> Session</span>
             <?php else: ?>
                 <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);">Outside session hours</span>
             <?php endif; ?>
