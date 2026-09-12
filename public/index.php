@@ -49,14 +49,6 @@ body { display: block; padding: 0; }
 .hero h1 { font-size: 1.4rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .3rem; }
 .hero p { font-size: .9rem; color: var(--text-muted); }
 
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.75rem; }
-.stat-card { text-align: center; padding: 1.1rem; }
-.stat-card .num { font-size: 1.7rem; font-weight: 700; color: var(--kvb-green-dark); }
-.stat-card .label { font-size: .78rem; color: var(--text-muted); margin-top: .2rem; }
-.stat-card.flagged .num { color: var(--kvb-red-dark); }
-
-.section-label { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-bottom: .75rem; }
-
 .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.75rem; }
 .action-card {
     display: block; text-decoration: none; padding: 1.1rem;
@@ -67,12 +59,6 @@ body { display: block; padding: 0; }
 .action-card .icon { font-size: 1.4rem; margin-bottom: .5rem; display: block; }
 .action-card .title { font-weight: 600; font-size: .92rem; color: var(--text-main); margin-bottom: .2rem; }
 .action-card .desc { font-size: .78rem; color: var(--text-muted); }
-
-.event-list { width: 100%; border-collapse: collapse; }
-.event-list th { text-align: left; padding: .6rem .6rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; background: #faf9f7; }
-.event-list td { padding: .6rem .6rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; }
-.event-list tr:hover td { background: #f7faf8; }
-.empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 </style>
 </head>
 <body>
@@ -159,12 +145,12 @@ body { display: block; padding: 0; }
     </div>
 
     <div class="section-label">Recent Events</div>
-    <div class="card" style="padding:0;">
+    <div class="card card-flush">
         <?php if (empty($recentEvents)): ?>
             <p class="empty-state">No events created yet.</p>
         <?php else: ?>
             <div class="table-scroll">
-            <table class="event-list">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Title</th>
@@ -179,7 +165,7 @@ body { display: block; padding: 0; }
                         <td><?= htmlspecialchars($e['title'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="pill"><?= htmlspecialchars($e['event_mode_label'] ?? $e['event_mode'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= date('d M Y', strtotime($e['start_date'])) ?> &ndash; <?= date('d M Y', strtotime($e['end_date'])) ?></td>
-                        <td><a href="/events/view.php?token=<?= urlencode($e['view_token']) ?>" class="btn btn-ghost" style="padding:.3rem .7rem;font-size:.78rem;">View</a></td>
+                        <td><a href="/events/view.php?token=<?= urlencode($e['view_token']) ?>" class="btn btn-ghost btn-sm">View</a></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
