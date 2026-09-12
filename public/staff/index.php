@@ -7,30 +7,31 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\Role;
 use VetBoard\Staff;
 
 Auth::startSession();
-Auth::requireRole('admin');
+Auth::requirePermission('manage_staff');
 
 $breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Staff', 'url' => null]];
 
 $user       = Auth::user();
 $staffModel = new Staff();
+$roleModel  = new Role();
 
 $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
 
 $staffList = $staffModel->list();
-
-$roleLabels = ['admin' => 'Admin', 'staff' => 'Staff', 'ceo' => 'CEO'];
+$roles     = $roleModel->list(true);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Staff Accounts — Kenya Veterinary Board</title>
+<title>Staff Accounts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -63,6 +64,7 @@ body { display: block; padding: 2.5rem; }
     <?php endif; ?>
 
     <div class="card" style="padding:0;">
+        <div class="table-scroll">
         <table class="list-table">
             <thead>
                 <tr>
@@ -81,15 +83,17 @@ body { display: block; padding: 2.5rem; }
                     <td><?= htmlspecialchars($s['email'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td>
                         <?php if ((int) $s['id'] === (int) $user['id']): ?>
-                            <?= htmlspecialchars($roleLabels[$s['role']] ?? $s['role'], ENT_QUOTES, 'UTF-8') ?>
+                            <?= htmlspecialchars($s['role_label'], ENT_QUOTES, 'UTF-8') ?>
                             <span style="color:var(--text-muted);font-size:.75rem;">(you)</span>
                         <?php else: ?>
                             <form method="POST" action="/staff/update_role.php" style="display:inline;">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
-                                <select name="role" class="role-select" onchange="this.form.submit()">
-                                    <?php foreach ($roleLabels as $key => $label): ?>
-                                        <option value="<?= $key ?>" <?= $s['role'] === $key ? 'selected' : '' ?>><?= $label ?></option>
+                                <select name="role_id" class="role-select" onchange="this.form.submit()">
+                                    <?php foreach ($roles as $role): ?>
+                                        <option value="<?= (int) $role['id'] ?>" <?= (int) $s['role_id'] === (int) $role['id'] ? 'selected' : '' ?>>
+                                            <?= htmlspecialchars($role['label'], ENT_QUOTES, 'UTF-8') ?>
+                                        </option>
                                     <?php endforeach; ?>
                                 </select>
                             </form>
@@ -104,7 +108,7 @@ body { display: block; padding: 2.5rem; }
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
                                 <input type="hidden" name="active" value="<?= $s['is_active'] ? '0' : '1' ?>">
-                                <button type="submit" class="action-btn" style="background:<?= $s['is_active'] ? 'var(--kvb-red-light)' : 'var(--kvb-green-light)' ?>;color:<?= $s['is_active'] ? 'var(--kvb-red-dark)' : 'var(--kvb-green-dark)' ?>;">
+                                <button type="submit" class="action-btn" style="background:<?= $s['is_active'] ? 'var(--kvb-red-light)': 'var(--kvb-green-light)' ?>;color:<?= $s['is_active'] ? 'var(--kvb-red-dark)' : 'var(--kvb-green-dark)' ?>;">
                                     <?= $s['is_active'] ? 'Deactivate' : 'Reactivate' ?>
                                 </button>
                             </form>
@@ -114,9 +118,7 @@ body { display: block; padding: 2.5rem; }
                 <?php endforeach; ?>
             </tbody>
         </table>
-    </div>
-
-    <div style="margin-top:1.5rem;">
+        </div>
     </div>
 </div>
 </body>

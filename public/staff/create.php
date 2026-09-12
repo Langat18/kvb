@@ -7,10 +7,14 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\Role;
 use VetBoard\Staff;
 
 Auth::startSession();
-Auth::requireRole('admin');
+Auth::requirePermission('manage_staff');
+
+$roleModel = new Role();
+$roles     = $roleModel->list(true);
 
 $error    = $_SESSION['error']     ?? null;
 $formData = $_SESSION['form_data'] ?? [];
@@ -27,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'name'     => trim($_POST['name']     ?? ''),
         'email'    => trim($_POST['email']    ?? ''),
         'password' => trim($_POST['password'] ?? ''),
-        'role'     => $_POST['role']          ?? 'staff',
+        'role_id'  => $_POST['role_id'] !== '' ? (int) $_POST['role_id'] : null,
     ];
 
     try {
@@ -50,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>New Staff — Kenya Veterinary Board</title>
+<title>New Staff</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -90,11 +94,14 @@ body { display: block; padding: 2.5rem; }
             </div>
 
             <div class="form-group">
-                <label for="role">Role <span class="required">*</span></label>
-                <select id="role" name="role" required>
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
-                    <option value="ceo">CEO</option>
+                <label for="role_id">Role <span class="required">*</span></label>
+                <select id="role_id" name="role_id" required>
+                    <option value="">-- Select --</option>
+                    <?php foreach ($roles as $role): ?>
+                        <option value="<?= (int) $role['id'] ?>" <?= (int) ($formData['role_id'] ?? 0) === (int) $role['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($role['label'], ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
                 </select>
             </div>
 
