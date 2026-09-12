@@ -7,13 +7,14 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\Department;
 use VetBoard\Event;
+use VetBoard\EventModeRepository;
 
 Auth::startSession();
 Auth::requireLogin();
 
 $breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Events', 'url' => '/events/index.php'], ['label' => 'Edit Event', 'url' => null]];
-
 
 $user = Auth::user();
 
@@ -31,12 +32,17 @@ if (!$event) {
     exit;
 }
 
-$canEdit = $user['role'] === 'admin' || (int) $user['id'] === (int) ($event['created_by'] ?? 0);
+$canEdit = Auth::can('manage_events') || (int) $user['id'] === (int) ($event['created_by'] ?? 0);
 
 if (!$canEdit) {
     http_response_code(403);
     die('Access denied.');
 }
+
+$eventModeRepo    = new EventModeRepository();
+$departmentModel  = new Department();
+$eventModes       = $eventModeRepo->list(true);
+$departments      = $departmentModel->list(true);
 
 $error    = $_SESSION['error']     ?? null;
 $formData = $_SESSION['form_data'] ?? [];
@@ -52,9 +58,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
         'title'             => trim($_POST['title']             ?? ''),
         'event_code'        => trim($_POST['event_code']        ?? ''),
-        'event_mode'        => $_POST['event_mode']              ?? '',
+        'event_mode_id'     => $_POST['event_mode_id']  !== '' ? (int) $_POST['event_mode_id'] : null,
         'venue'             => trim($_POST['venue']              ?? ''),
-        'department'        => trim($_POST['department']        ?? ''),
+        'department_id'     => $_POST['department_id'] !== '' ? (int) $_POST['department_id'] : null,
         'coordinator'       => trim($_POST['coordinator']        ?? ''),
         'program_assistant' => trim($_POST['program_assistant'] ?? ''),
         'start_date'        => $_POST['start_date']              ?? '',
@@ -99,6 +105,7 @@ $v = empty($formData) ? $event : array_merge($event, $formData);
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 body { display: block; padding: 2.5rem; }
 .container { max-width: 680px; margin: 0 auto; }
@@ -108,6 +115,8 @@ body { display: block; padding: 2.5rem; }
 .form-group.full { grid-column: 1 / -1; }
 #geo-fields { display: none; }
 #geo-fields.active { display: grid; }
+#geo-map { height: 320px; border-radius: 12px; grid-column: 1 / -1; }
+.locate-btn { padding: .5rem 1rem; background: #f0f0f0; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; font-size: .85rem; }
 </style>
 </head>
 <body>
@@ -137,11 +146,14 @@ body { display: block; padding: 2.5rem; }
                 </div>
 
                 <div class="form-group">
-                    <label for="event_mode">Mode <span class="required">*</span></label>
-                    <select id="event_mode" name="event_mode" required>
-                        <?php foreach (EVENT_MODES as $key => $label): ?>
-                            <option value="<?= $key ?>" <?= ($v['event_mode'] ?? '') === $key ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                    <label for="event_mode_id">Mode <span class="required">*</span></label>
+                    <select id="event_mode_id" name="event_mode_id" required>
+                        <option value="">-- Select --</option>
+                        <?php foreach ($eventModes as $mode): ?>
+                            <option value="<?= (int) $mode['id'] ?>"
+                                    data-key="<?= htmlspecialchars($mode['item_key'], ENT_QUOTES, 'UTF-8') ?>"
+                                    <?= (int) ($v['event_mode_id'] ?? 0) === (int) $mode['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($mode['label'], ENT_QUOTES, 'UTF-8') ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -178,9 +190,15 @@ body { display: block; padding: 2.5rem; }
                 </div>
 
                 <div class="form-group">
-                    <label for="department">Department</label>
-                    <input type="text" id="department" name="department"
-                           value="<?= htmlspecialchars($v['department'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    <label for="department_id">Department <span class="required">*</span></label>
+                    <select id="department_id" name="department_id" required>
+                        <option value="">-- Select --</option>
+                        <?php foreach ($departments as $dept): ?>
+                            <option value="<?= (int) $dept['id'] ?>" <?= (int) ($v['department_id'] ?? 0) === (int) $dept['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
 
@@ -188,6 +206,13 @@ body { display: block; padding: 2.5rem; }
                 <div class="form-group full">
                     <label>Location <span class="required">*</span> <span style="font-weight:normal;color:var(--text-muted);">(required for on-site/hybrid events)</span></label>
                 </div>
+
+                <div id="geo-map"></div>
+
+                <div class="form-group full">
+                    <button type="button" class="locate-btn" onclick="detectLocation()">&#128205; Use My Location</button>
+                </div>
+
                 <div class="form-group">
                     <label for="geo_lat">Latitude</label>
                     <input type="number" step="any" id="geo_lat" name="geo_lat"
@@ -237,14 +262,92 @@ body { display: block; padding: 2.5rem; }
     </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
-const modeSelect = document.getElementById('event_mode');
+const DEFAULT_LAT = -1.2921;
+const DEFAULT_LNG = 36.8219;
+let geoMap = null;
+let geoMarker = null;
+let syncingFromMap = false;
+
+function initGeoMap() {
+    if (geoMap) return;
+
+    const latInput = document.getElementById('geo_lat');
+    const lngInput = document.getElementById('geo_lng');
+    const startLat = parseFloat(latInput.value) || DEFAULT_LAT;
+    const startLng = parseFloat(lngInput.value) || DEFAULT_LNG;
+
+    geoMap = L.map('geo-map').setView([startLat, startLng], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(geoMap);
+
+    geoMarker = L.marker([startLat, startLng], { draggable: true }).addTo(geoMap);
+
+    geoMarker.on('dragend', function () {
+        const pos = geoMarker.getLatLng();
+        syncingFromMap = true;
+        latInput.value = pos.lat.toFixed(7);
+        lngInput.value = pos.lng.toFixed(7);
+        syncingFromMap = false;
+    });
+
+    geoMap.on('click', function (e) {
+        geoMarker.setLatLng(e.latlng);
+        syncingFromMap = true;
+        latInput.value = e.latlng.lat.toFixed(7);
+        lngInput.value = e.latlng.lng.toFixed(7);
+        syncingFromMap = false;
+    });
+
+    latInput.addEventListener('input', syncMarkerFromInputs);
+    lngInput.addEventListener('input', syncMarkerFromInputs);
+}
+
+function syncMarkerFromInputs() {
+    if (syncingFromMap || !geoMap || !geoMarker) return;
+    const lat = parseFloat(document.getElementById('geo_lat').value);
+    const lng = parseFloat(document.getElementById('geo_lng').value);
+    if (!isNaN(lat) && !isNaN(lng)) {
+        geoMarker.setLatLng([lat, lng]);
+        geoMap.panTo([lat, lng]);
+    }
+}
+
+function detectLocation() {
+    if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser.');
+        return;
+    }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        syncingFromMap = true;
+        document.getElementById('geo_lat').value = lat.toFixed(7);
+        document.getElementById('geo_lng').value = lng.toFixed(7);
+        syncingFromMap = false;
+        if (geoMap && geoMarker) {
+            geoMarker.setLatLng([lat, lng]);
+            geoMap.setView([lat, lng], 15);
+        }
+    }, function () {
+        alert('Unable to retrieve your location. Please enter coordinates manually or drop a pin on the map.');
+    });
+}
+
+const modeSelect = document.getElementById('event_mode_id');
 const geoFields  = document.getElementById('geo-fields');
 
 function toggleGeoFields() {
-    const mode = modeSelect.value;
-    if (mode === 'onsite' || mode === 'hybrid') {
+    const selected = modeSelect.options[modeSelect.selectedIndex];
+    const key = selected ? selected.dataset.key : '';
+    if (key === 'onsite' || key === 'hybrid') {
         geoFields.classList.add('active');
+        initGeoMap();
+        setTimeout(function () { if (geoMap) geoMap.invalidateSize(); }, 50);
     } else {
         geoFields.classList.remove('active');
     }
