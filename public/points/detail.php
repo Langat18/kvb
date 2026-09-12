@@ -45,7 +45,7 @@ $total       = $participantModel->totalPoints($regNo);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= htmlspecialchars($participant['name'], ENT_QUOTES, 'UTF-8') ?> — Points — Kenya Veterinary Board</title>
+<title><?= htmlspecialchars($participant['name'], ENT_QUOTES, 'UTF-8') ?> - Points - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">

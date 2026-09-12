@@ -30,6 +30,13 @@ if (!$event) {
     exit;
 }
 
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/index.php'],
+    ['label' => 'Events', 'url' => '/events/index.php'],
+    ['label' => $event['title'], 'url' => '/events/view.php?token=' . urlencode($event['view_token'])],
+    ['label' => 'Flagged Attendance', 'url' => null],
+];
+
 $registrationModel = new Registration();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -60,28 +67,22 @@ unset($_SESSION['success']);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flagged Attendance<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<title>Flagged Attendance - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
 body { display: block; padding: 2.5rem; }
 .container { max-width: 900px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
-.page-header h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { text-align: left; padding: .6rem .5rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; }
-.list-table td { padding: .6rem .5rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
 .distance-badge { color: var(--kvb-red-dark); font-weight: 600; font-size: .82rem; }
-.approve-btn { padding: .35rem .8rem; font-size: .8rem; border-radius: 6px; border: none; cursor: pointer; background: var(--kvb-green-light); color: var(--kvb-green-dark); }
-.empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
     <div class="page-header">
-        <h1>Flagged Attendance — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></h1>
-        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-secondary">&larr; Back to Event</a>
+        <h1>Flagged Attendance</h1>
+        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">&larr; Back to Event</a>
     </div>
 
     <?php if ($success): ?>
@@ -91,8 +92,8 @@ body { display: block; padding: 2.5rem; }
     <?php if (empty($flagged)): ?>
         <div class="card"><p class="empty-state">No flagged records for this event.</p></div>
     <?php else: ?>
-        <div class="card" style="padding:0;">
-            <table class="list-table">
+        <div class="card card-flush">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Reg No</th>
@@ -117,7 +118,7 @@ body { display: block; padding: 2.5rem; }
                             <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="attendance_id" value="<?= (int) $f['attendance_id'] ?>">
-                                <button type="submit" class="approve-btn" onclick="return confirm('Approve this attendance record despite the location flag?')">Approve</button>
+                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this attendance record despite the location flag?')">Approve</button>
                             </form>
                         </td>
                     </tr>

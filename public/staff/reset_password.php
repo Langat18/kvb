@@ -66,7 +66,6 @@ body { display: block; padding: 2.5rem; }
 .container { max-width: 420px; margin: 0 auto; }
 .container h1 { font-size: 1.15rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .3rem; }
 .container p.sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 1rem; }
-.form-group { margin-bottom: 1rem; }
 </style>
 </head>
 <body>
@@ -88,7 +87,7 @@ body { display: block; padding: 2.5rem; }
                 <small style="color:var(--text-muted);">Share this with them directly; they should change it after logging in.</small>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;">Reset Password</button>
+            <button type="submit" class="btn btn-primary btn-block">Reset Password</button>
         </form>
     </div>
 

@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>New <?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?> Item — Kenya Veterinary Board</title>
+<title>New <?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?> Item - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">

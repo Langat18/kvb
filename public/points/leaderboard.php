@@ -31,7 +31,7 @@ if ($format === 'excel') {
     $sheet = $spreadsheet->getActiveSheet();
 
     $sheet->mergeCells('A1:E1');
-    $sheet->setCellValue('A1', 'Kenya Veterinary Board — Points Leaderboard');
+    $sheet->setCellValue('A1', 'Kenya Veterinary Board - Points Leaderboard');
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
     $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
