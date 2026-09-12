@@ -80,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 body { display: block; padding: 2.5rem; }
 .container { max-width: 480px; margin: 0 auto; }
 .container h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-.form-group { margin-bottom: 1rem; }
 </style>
 </head>
 <body>
@@ -129,7 +128,7 @@ body { display: block; padding: 2.5rem; }
                        value="<?= htmlspecialchars((string) ($formData['sort_order'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;">Create</button>
+            <button type="submit" class="btn btn-primary btn-block">Create</button>
         </form>
     </div>
 

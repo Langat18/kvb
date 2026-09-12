@@ -73,7 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 body { display: block; padding: 2.5rem; }
 .container { max-width: 560px; margin: 0 auto; }
 .container h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-.form-group { margin-bottom: 1rem; }
 .perm-list { display: flex; flex-direction: column; gap: .6rem; margin: .5rem 0 1.25rem; }
 .perm-item { display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .75rem; border: 1px solid #eee; border-radius: 10px; }
 .perm-item input { width: auto; margin-top: .2rem; }
@@ -132,7 +131,7 @@ body { display: block; padding: 2.5rem; }
                 <?php endif; ?>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;">Save Changes</button>
+            <button type="submit" class="btn btn-primary btn-block">Save Changes</button>
         </form>
     </div>
 
