@@ -33,9 +33,15 @@ class Staff
             throw new \InvalidArgumentException('An account with this email already exists.');
         }
 
+        $roleId = (int) ($data['role_id'] ?? 0);
+
+        if ($roleId <= 0 || !(new Role())->findById($roleId)) {
+            throw new \InvalidArgumentException('A valid role is required.');
+        }
+
         $stmt = $this->pdo->prepare(
-            'INSERT INTO staff (name, email, password_hash, role)
-             VALUES (:name, :email, :password_hash, :role)
+            'INSERT INTO staff (name, email, password_hash, role_id)
+             VALUES (:name, :email, :password_hash, :role_id)
              RETURNING id'
         );
 
@@ -43,7 +49,7 @@ class Staff
             ':name'          => trim($data['name']),
             ':email'         => strtolower(trim($data['email'])),
             ':password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
-            ':role'          => $data['role'] ?? 'staff',
+            ':role_id'       => $roleId,
         ]);
 
         return (int) $stmt->fetchColumn();
@@ -51,7 +57,12 @@ class Staff
 
     public function findByEmail(string $email): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM staff WHERE email = :email');
+        $stmt = $this->pdo->prepare(
+            'SELECT s.*, r.item_key AS role, r.label AS role_label
+             FROM staff s
+             JOIN roles r ON r.id = s.role_id
+             WHERE s.email = :email'
+        );
         $stmt->execute([':email' => strtolower(trim($email))]);
 
         $result = $stmt->fetch();
@@ -75,7 +86,11 @@ class Staff
     public function list(): array
     {
         $stmt = $this->pdo->query(
-            'SELECT id, name, email, role, is_active, last_login_at, created_at FROM staff ORDER BY name ASC'
+            'SELECT s.id, s.name, s.email, s.role_id, r.item_key AS role, r.label AS role_label,
+                    s.is_active, s.last_login_at, s.created_at
+             FROM staff s
+             JOIN roles r ON r.id = s.role_id
+             ORDER BY s.name ASC'
         );
 
         return $stmt->fetchAll();
@@ -83,7 +98,13 @@ class Staff
 
     public function findById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT id, name, email, role, is_active, last_login_at FROM staff WHERE id = :id');
+        $stmt = $this->pdo->prepare(
+            'SELECT s.id, s.name, s.email, s.role_id, r.item_key AS role, r.label AS role_label,
+                    s.is_active, s.last_login_at
+             FROM staff s
+             JOIN roles r ON r.id = s.role_id
+             WHERE s.id = :id'
+        );
         $stmt->execute([':id' => $id]);
 
         $result = $stmt->fetch();
@@ -91,15 +112,15 @@ class Staff
         return $result ?: null;
     }
 
-    public function updateRole(int $id, string $role): bool
+    public function updateRole(int $id, int $roleId): bool
     {
-        if (!in_array($role, ['admin', 'staff', 'ceo'], true)) {
+        if (!(new Role())->findById($roleId)) {
             throw new \InvalidArgumentException('Invalid role.');
         }
 
-        $stmt = $this->pdo->prepare('UPDATE staff SET role = :role WHERE id = :id');
+        $stmt = $this->pdo->prepare('UPDATE staff SET role_id = :role_id WHERE id = :id');
 
-        return $stmt->execute([':id' => $id, ':role' => $role]);
+        return $stmt->execute([':id' => $id, ':role_id' => $roleId]);
     }
 
     public function setActive(int $id, bool $active): bool
