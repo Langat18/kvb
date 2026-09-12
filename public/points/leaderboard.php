@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\CadreRepository;
 use VetBoard\Participant;
 
 Auth::startSession();
@@ -20,9 +21,10 @@ $breadcrumbs = [
 ];
 
 $participantModel = new Participant();
-$search = trim($_GET['search'] ?? '');
-$leaderboard = $participantModel->leaderboard($search, 100, 0);
-$format = $_GET['format'] ?? '';
+$cadreLabels      = (new CadreRepository())->labelMap();
+$search           = trim($_GET['search'] ?? '');
+$leaderboard      = $participantModel->leaderboard($search, 100, 0);
+$format           = $_GET['format'] ?? '';
 
 if ($format === 'excel') {
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
@@ -46,7 +48,7 @@ if ($format === 'excel') {
         $sheet->setCellValue('A' . $row, $i + 1);
         $sheet->setCellValue('B' . $row, $p['reg_no']);
         $sheet->setCellValue('C' . $row, $p['name']);
-        $sheet->setCellValue('D' . $row, CADRE_LABELS[$p['cadre']] ?? $p['cadre']);
+        $sheet->setCellValue('D' . $row, $cadreLabels[$p['cadre']] ?? $p['cadre']);
         $sheet->setCellValue('E' . $row, (int) $p['total_points']);
     }
 
@@ -68,7 +70,7 @@ if ($format === 'excel') {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Points Leaderboard — Kenya Veterinary Board</title>
+<title>Leaderboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -129,7 +131,7 @@ body { display: block; padding: 0; }
                     <td class="rank"><?= $i + 1 ?></td>
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                    <td><?= htmlspecialchars(CADRE_LABELS[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td class="points-value"><?= (int) $p['total_points'] ?></td>
                 </tr>
                 <?php endforeach; ?>

@@ -7,20 +7,22 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\CadreRepository;
 use VetBoard\Report;
 
 Auth::startSession();
-Auth::requireRole('admin', 'ceo');
+Auth::requirePermission('view_reports');
 
 $breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Reports', 'url' => null]];
 
 $user         = Auth::user();
 $reportModel  = new Report();
+$cadreLabels  = (new CadreRepository())->labelMap();
 
-$totals             = $reportModel->totals();
-$eventsByMode        = $reportModel->eventsByMode();
-$participantsByCadre = $reportModel->participantsByCadre();
-$monthlyTrend        = $reportModel->monthlyEventsTrend(6);
+$totals              = $reportModel->totals();
+$eventsByMode         = $reportModel->eventsByMode();
+$participantsByCadre  = $reportModel->participantsByCadre();
+$monthlyTrend         = $reportModel->monthlyEventsTrend(6);
 $flaggedByEvent       = $reportModel->flaggedByEvent(5);
 ?>
 <!DOCTYPE html>
@@ -28,7 +30,7 @@ $flaggedByEvent       = $reportModel->flaggedByEvent(5);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reports Kenya Veterinary Board</title>
+<title>Reports</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -106,7 +108,7 @@ const kvbGreenDark = '#0f5132';
 new Chart(document.getElementById('modeChart'), {
     type: 'doughnut',
     data: {
-        labels: <?= json_encode(array_map(fn($r) => EVENT_MODES[$r['event_mode']] ?? $r['event_mode'], $eventsByMode)) ?>,
+        labels: <?= json_encode(array_map(fn($r) => $r['event_mode'], $eventsByMode)) ?>,
         datasets: [{
             data: <?= json_encode(array_map(fn($r) => (int) $r['count'], $eventsByMode)) ?>,
             backgroundColor: [kvbGreen, kvbGold, kvbGreenDark],
@@ -118,7 +120,7 @@ new Chart(document.getElementById('modeChart'), {
 new Chart(document.getElementById('cadreChart'), {
     type: 'bar',
     data: {
-        labels: <?= json_encode(array_map(fn($r) => CADRE_LABELS[$r['cadre']] ?? $r['cadre'], $participantsByCadre)) ?>,
+        labels: <?= json_encode(array_map(fn($r) => $cadreLabels[$r['cadre']] ?? $r['cadre'], $participantsByCadre)) ?>,
         datasets: [{
             label: 'Participants',
             data: <?= json_encode(array_map(fn($r) => (int) $r['count'], $participantsByCadre)) ?>,

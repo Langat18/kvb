@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\CadreRepository;
 use VetBoard\Participant;
 
 Auth::startSession();
@@ -35,8 +36,9 @@ $breadcrumbs = [
     ['label' => $participant['name'], 'url' => null],
 ];
 
-$summary = $participantModel->pointsSummary($regNo);
-$total   = $participantModel->totalPoints($regNo);
+$cadreLabels = (new CadreRepository())->labelMap();
+$summary     = $participantModel->pointsSummary($regNo);
+$total       = $participantModel->totalPoints($regNo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,7 +71,7 @@ body { display: block; padding: 0; }
     <div class="profile-card">
         <div>
             <h1><?= htmlspecialchars($participant['name'], ENT_QUOTES, 'UTF-8') ?></h1>
-            <p><?= htmlspecialchars($participant['reg_no'], ENT_QUOTES, 'UTF-8') ?> &bull; <?= htmlspecialchars(CADRE_LABELS[$participant['cadre']] ?? $participant['cadre'], ENT_QUOTES, 'UTF-8') ?></p>
+            <p><?= htmlspecialchars($participant['reg_no'], ENT_QUOTES, 'UTF-8') ?> &bull; <?= htmlspecialchars($cadreLabels[$participant['cadre']] ?? $participant['cadre'], ENT_QUOTES, 'UTF-8') ?></p>
         </div>
         <div class="card total-badge">
             <div class="num"><?= $total ?></div>
