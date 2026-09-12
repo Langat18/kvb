@@ -114,7 +114,7 @@ body { display: block; padding: 2rem 2.5rem; }
             <?php if ($canEdit): ?>
                 <a href="/events/edit.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Edit Event</a>
             <?php endif; ?>
-            <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-primary" target="_blank">Nominal Roll</a>
+            <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Nominal Roll</a>
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
             <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-ghost">Add to Calendar</a>
             <?php if ($flaggedTotal > 0 && Auth::can('review_flagged_attendance')): ?>
