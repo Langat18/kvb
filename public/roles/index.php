@@ -35,13 +35,6 @@ $roles = $roleModel->list();
 <style>
 body { display: block; padding: 2.5rem; }
 .container { max-width: 900px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { text-align: left; padding: .6rem .5rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; }
-.list-table td { padding: .6rem .5rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
-.inactive-row { opacity: .55; }
-.action-btn { padding: .3rem .7rem; font-size: .78rem; border-radius: 6px; border: none; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -59,9 +52,9 @@ body { display: block; padding: 2.5rem; }
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="card" style="padding:0;">
+    <div class="card card-flush">
         <div class="table-scroll">
-        <table class="list-table">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Key</th>
@@ -77,13 +70,13 @@ body { display: block; padding: 2.5rem; }
                     <td><?= htmlspecialchars($role['label'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= $role['active'] ? 'Active' : 'Deactivated' ?></td>
                     <td>
-                        <a href="/roles/edit.php?id=<?= (int) $role['id'] ?>" class="action-btn" style="background:#eee;color:var(--text-main);text-decoration:none;display:inline-block;margin-right:.35rem;">Edit &amp; Permissions</a>
+                        <a href="/roles/edit.php?id=<?= (int) $role['id'] ?>" class="btn btn-ghost btn-sm">Edit &amp; Permissions</a>
                         <?php if (!$role['is_system']): ?>
                         <form method="POST" action="/roles/toggle_active.php" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="id" value="<?= (int) $role['id'] ?>">
                             <input type="hidden" name="active" value="<?= $role['active'] ? '0' : '1' ?>">
-                            <button type="submit" class="action-btn" style="background:<?= $role['active'] ? 'var(--kvb-red-light)' : 'var(--kvb-green-light)' ?>;color:<?= $role['active'] ? 'var(--kvb-red-dark)' : 'var(--kvb-green-dark)' ?>;">
+                            <button type="submit" class="btn btn-sm <?= $role['active'] ? 'btn-danger' : 'btn-success' ?>">
                                 <?= $role['active'] ? 'Deactivate' : 'Reactivate' ?>
                             </button>
                         </form>

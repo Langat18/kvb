@@ -52,16 +52,6 @@ $items = $repo->list();
 <style>
 body { display: block; padding: 2.5rem; }
 .container { max-width: 900px; margin: 0 auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
-.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
-.tabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; }
-.tabs a { padding: .4rem .9rem; font-size: .85rem; border-radius: 6px; text-decoration: none; color: var(--text-main); background: #f2f2f2; }
-.tabs a.active { background: var(--kvb-green-dark); color: #fff; }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { text-align: left; padding: .6rem .5rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; }
-.list-table td { padding: .6rem .5rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
-.inactive-row { opacity: .55; }
-.action-btn { padding: .3rem .7rem; font-size: .78rem; border-radius: 6px; border: none; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -87,8 +77,8 @@ body { display: block; padding: 2.5rem; }
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="card" style="padding:0;">
-        <table class="list-table">
+    <div class="card card-flush">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Key</th>
@@ -114,13 +104,13 @@ body { display: block; padding: 2.5rem; }
                     <td><?= (int) $item['sort_order'] ?></td>
                     <td><?= $item['active'] ? 'Active' : 'Deactivated' ?></td>
                     <td>
-                        <a href="/lookups/edit.php?type=<?= urlencode($type) ?>&id=<?= (int) $item['id'] ?>" class="action-btn" style="background:#eee;color:var(--text-main);text-decoration:none;display:inline-block;margin-right:.35rem;">Edit</a>
+                        <a href="/lookups/edit.php?type=<?= urlencode($type) ?>&id=<?= (int) $item['id'] ?>" class="btn btn-ghost btn-sm">Edit</a>
                         <form method="POST" action="/lookups/toggle_active.php" style="display:inline;">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="type" value="<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
                             <input type="hidden" name="active" value="<?= $item['active'] ? '0' : '1' ?>">
-                            <button type="submit" class="action-btn" style="background:<?= $item['active'] ? 'var(--kvb-red-light)' : 'var(--kvb-green-light)' ?>;color:<?= $item['active'] ? 'var(--kvb-red-dark)' : 'var(--kvb-green-dark)' ?>;">
+                            <button type="submit" class="btn btn-sm <?= $item['active'] ? 'btn-danger' : 'btn-success' ?>">
                                 <?= $item['active'] ? 'Deactivate' : 'Reactivate' ?>
                             </button>
                         </form>
