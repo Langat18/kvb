@@ -1,0 +1,135 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../../config/constants.php';
+require_once __DIR__ . '/../../config/database.php';
+
+use VetBoard\Auth;
+use VetBoard\CadreRepository;
+use VetBoard\EventModeRepository;
+use VetBoard\SessionWindowRepository;
+
+const LOOKUP_TYPES = [
+    'event-modes' => ['label' => 'Event Modes',     'repository' => EventModeRepository::class,    'has_time' => false],
+    'cadres'      => ['label' => 'Cadres',           'repository' => CadreRepository::class,        'has_time' => false],
+    'sessions'    => ['label' => 'Session Windows',  'repository' => SessionWindowRepository::class,'has_time' => true],
+];
+
+Auth::startSession();
+Auth::requirePermission('manage_lookups');
+$user = Auth::user();
+
+$type = $_GET['type'] ?? 'event-modes';
+
+if (!array_key_exists($type, LOOKUP_TYPES)) {
+    http_response_code(404);
+    die('Unknown lookup type.');
+}
+
+$config     = LOOKUP_TYPES[$type];
+$repoClass  = $config['repository'];
+$repo       = new $repoClass();
+
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => $config['label'], 'url' => null]];
+
+$success = $_SESSION['success'] ?? null;
+$error   = $_SESSION['error']   ?? null;
+unset($_SESSION['success'], $_SESSION['error']);
+
+$items = $repo->list();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?> — Kenya Veterinary Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/style.css">
+<style>
+body { display: block; padding: 2.5rem; }
+.container { max-width: 900px; margin: 0 auto; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.page-header h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); }
+.tabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; }
+.tabs a { padding: .4rem .9rem; font-size: .85rem; border-radius: 6px; text-decoration: none; color: var(--text-main); background: #f2f2f2; }
+.tabs a.active { background: var(--kvb-green-dark); color: #fff; }
+.list-table { width: 100%; border-collapse: collapse; }
+.list-table th { text-align: left; padding: .6rem .5rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; }
+.list-table td { padding: .6rem .5rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
+.inactive-row { opacity: .55; }
+.action-btn { padding: .3rem .7rem; font-size: .78rem; border-radius: 6px; border: none; cursor: pointer; }
+</style>
+</head>
+<body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
+<div class="container">
+    <div class="tabs">
+        <?php foreach (LOOKUP_TYPES as $key => $cfg): ?>
+            <a href="/lookups/index.php?type=<?= urlencode($key) ?>" class="<?= $key === $type ? 'active' : '' ?>">
+                <?= htmlspecialchars($cfg['label'], ENT_QUOTES, 'UTF-8') ?>
+            </a>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="page-header">
+        <h1><?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?></h1>
+        <a href="/lookups/create.php?type=<?= urlencode($type) ?>" class="btn btn-primary">+ New</a>
+    </div>
+
+    <?php if ($success): ?>
+        <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
+    <?php if ($error): ?>
+        <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
+
+    <div class="card" style="padding:0;">
+        <table class="list-table">
+            <thead>
+                <tr>
+                    <th>Key</th>
+                    <th>Label</th>
+                    <?php if ($config['has_time']): ?>
+                        <th>Start</th>
+                        <th>End</th>
+                    <?php endif; ?>
+                    <th>Order</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($items as $item): ?>
+                <tr class="<?= $item['active'] ? '' : 'inactive-row' ?>">
+                    <td><code><?= htmlspecialchars($item['item_key'], ENT_QUOTES, 'UTF-8') ?></code></td>
+                    <td><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <?php if ($config['has_time']): ?>
+                        <td><?= htmlspecialchars(substr($item['start_time'], 0, 5), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars(substr($item['end_time'], 0, 5), ENT_QUOTES, 'UTF-8') ?></td>
+                    <?php endif; ?>
+                    <td><?= (int) $item['sort_order'] ?></td>
+                    <td><?= $item['active'] ? 'Active' : 'Deactivated' ?></td>
+                    <td>
+                        <a href="/lookups/edit.php?type=<?= urlencode($type) ?>&id=<?= (int) $item['id'] ?>" class="action-btn" style="background:#eee;color:var(--text-main);text-decoration:none;display:inline-block;margin-right:.35rem;">Edit</a>
+                        <form method="POST" action="/lookups/toggle_active.php" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="type" value="<?= htmlspecialchars($type, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="id" value="<?= (int) $item['id'] ?>">
+                            <input type="hidden" name="active" value="<?= $item['active'] ? '0' : '1' ?>">
+                            <button type="submit" class="action-btn" style="background:<?= $item['active'] ? 'var(--kvb-red-light)' : 'var(--kvb-green-light)' ?>;color:<?= $item['active'] ? 'var(--kvb-red-dark)' : 'var(--kvb-green-dark)' ?>;">
+                                <?= $item['active'] ? 'Deactivate' : 'Reactivate' ?>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

@@ -9,10 +9,14 @@ use PDO;
 class Event
 {
     private PDO $pdo;
+    private EventModeRepository $eventModeRepo;
+    private Department $departmentModel;
 
     public function __construct()
     {
-        $this->pdo = Database::getInstance()->getPdo();
+        $this->pdo             = Database::getInstance()->getPdo();
+        $this->eventModeRepo   = new EventModeRepository();
+        $this->departmentModel = new Department();
     }
 
     public function create(array $data): int
@@ -21,11 +25,11 @@ class Event
 
         $stmt = $this->pdo->prepare(
             'INSERT INTO events
-                (title, event_code, event_mode, venue, department, coordinator, program_assistant,
+                (title, event_code, event_mode_id, venue, department_id, coordinator, program_assistant,
                  start_date, end_date, geo_lat, geo_lng, geo_radius_m,
                  points_morning, points_mid_morning, points_afternoon, token, view_token, created_by)
              VALUES
-                (:title, :event_code, :event_mode, :venue, :department, :coordinator, :program_assistant,
+                (:title, :event_code, :event_mode_id, :venue, :department_id, :coordinator, :program_assistant,
                  :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m,
                  :points_morning, :points_mid_morning, :points_afternoon, :token, :view_token, :created_by)
              RETURNING id'
@@ -34,9 +38,9 @@ class Event
         $stmt->execute([
             ':title'             => trim($data['title']),
             ':event_code'        => trim($data['event_code'] ?? ''),
-            ':event_mode'        => $data['event_mode'],
+            ':event_mode_id'     => (int) $data['event_mode_id'],
             ':venue'             => trim($data['venue'] ?? ''),
-            ':department'        => trim($data['department'] ?? ''),
+            ':department_id'     => (int) $data['department_id'],
             ':coordinator'       => trim($data['coordinator'] ?? ''),
             ':program_assistant' => trim($data['program_assistant'] ?? ''),
             ':start_date'        => $data['start_date'],
@@ -61,8 +65,8 @@ class Event
 
         $stmt = $this->pdo->prepare(
             'UPDATE events SET
-                title = :title, event_code = :event_code, event_mode = :event_mode,
-                venue = :venue, department = :department, coordinator = :coordinator,
+                title = :title, event_code = :event_code, event_mode_id = :event_mode_id,
+                venue = :venue, department_id = :department_id, coordinator = :coordinator,
                 program_assistant = :program_assistant, start_date = :start_date, end_date = :end_date,
                 geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m,
                 points_morning = :points_morning, points_mid_morning = :points_mid_morning, points_afternoon = :points_afternoon
@@ -73,9 +77,9 @@ class Event
             ':id'                => $id,
             ':title'             => trim($data['title']),
             ':event_code'        => trim($data['event_code'] ?? ''),
-            ':event_mode'        => $data['event_mode'],
+            ':event_mode_id'     => (int) $data['event_mode_id'],
             ':venue'             => trim($data['venue'] ?? ''),
-            ':department'        => trim($data['department'] ?? ''),
+            ':department_id'     => (int) $data['department_id'],
             ':coordinator'       => trim($data['coordinator'] ?? ''),
             ':program_assistant' => trim($data['program_assistant'] ?? ''),
             ':start_date'        => $data['start_date'],
@@ -95,8 +99,14 @@ class Event
             throw new \InvalidArgumentException('Event title is required.');
         }
 
-        if (empty($data['event_mode']) || !array_key_exists($data['event_mode'], EVENT_MODES)) {
+        $mode = !empty($data['event_mode_id']) ? $this->eventModeRepo->findById((int) $data['event_mode_id']) : null;
+
+        if (!$mode) {
             throw new \InvalidArgumentException('A valid event mode is required.');
+        }
+
+        if (empty($data['department_id']) || !$this->departmentModel->findById((int) $data['department_id'])) {
+            throw new \InvalidArgumentException('A valid department is required.');
         }
 
         if (empty($data['start_date']) || empty($data['end_date'])) {
@@ -107,7 +117,7 @@ class Event
             throw new \InvalidArgumentException('End date cannot be before start date.');
         }
 
-        if ($data['event_mode'] !== 'virtual') {
+        if ($mode['item_key'] !== 'virtual') {
             if (empty($data['geo_lat']) || empty($data['geo_lng']) || empty($data['geo_radius_m'])) {
                 throw new \InvalidArgumentException('Location and radius are required for on-site or hybrid events.');
             }
@@ -130,7 +140,13 @@ class Event
 
     public function findById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM events WHERE id = :id');
+        $stmt = $this->pdo->prepare(
+            'SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
+             FROM events e
+             LEFT JOIN departments d ON d.id = e.department_id
+             LEFT JOIN event_modes m ON m.id = e.event_mode_id
+             WHERE e.id = :id'
+        );
         $stmt->execute([':id' => $id]);
 
         $result = $stmt->fetch();
@@ -140,7 +156,13 @@ class Event
 
     public function findByToken(string $token): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM events WHERE token = :token');
+        $stmt = $this->pdo->prepare(
+            'SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
+             FROM events e
+             LEFT JOIN departments d ON d.id = e.department_id
+             LEFT JOIN event_modes m ON m.id = e.event_mode_id
+             WHERE e.token = :token'
+        );
         $stmt->execute([':token' => trim($token)]);
 
         $result = $stmt->fetch();
@@ -150,7 +172,13 @@ class Event
 
     public function findByViewToken(string $viewToken): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM events WHERE view_token = :view_token');
+        $stmt = $this->pdo->prepare(
+            'SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
+             FROM events e
+             LEFT JOIN departments d ON d.id = e.department_id
+             LEFT JOIN event_modes m ON m.id = e.event_mode_id
+             WHERE e.view_token = :view_token'
+        );
         $stmt->execute([':view_token' => trim($viewToken)]);
 
         $result = $stmt->fetch();
@@ -164,24 +192,29 @@ class Event
         $params = [];
 
         if (!empty($filters['search'])) {
-            $where[]           = 'title ILIKE :search';
+            $where[]           = 'e.title ILIKE :search';
             $params[':search'] = '%' . $filters['search'] . '%';
         }
 
         if (!empty($filters['event_mode'])) {
-            $where[]               = 'event_mode = :event_mode';
+            $where[]               = 'm.item_key = :event_mode';
             $params[':event_mode'] = $filters['event_mode'];
         }
 
         if (!empty($filters['date'])) {
-            $where[]          = ':date BETWEEN start_date AND end_date';
+            $where[]          = ':date BETWEEN e.start_date AND e.end_date';
             $params[':date']  = $filters['date'];
         }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         $stmt = $this->pdo->prepare(
-            "SELECT * FROM events {$whereSql} ORDER BY start_date DESC LIMIT :limit OFFSET :offset"
+            "SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
+             FROM events e
+             LEFT JOIN departments d ON d.id = e.department_id
+             LEFT JOIN event_modes m ON m.id = e.event_mode_id
+             {$whereSql}
+             ORDER BY e.start_date DESC LIMIT :limit OFFSET :offset"
         );
 
         foreach ($params as $key => $value) {
@@ -200,23 +233,25 @@ class Event
         $params = [];
 
         if (!empty($filters['search'])) {
-            $where[]           = 'title ILIKE :search';
+            $where[]           = 'e.title ILIKE :search';
             $params[':search'] = '%' . $filters['search'] . '%';
         }
 
         if (!empty($filters['event_mode'])) {
-            $where[]               = 'event_mode = :event_mode';
+            $where[]               = 'm.item_key = :event_mode';
             $params[':event_mode'] = $filters['event_mode'];
         }
 
         if (!empty($filters['date'])) {
-            $where[]          = ':date BETWEEN start_date AND end_date';
+            $where[]          = ':date BETWEEN e.start_date AND e.end_date';
             $params[':date']  = $filters['date'];
         }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM events {$whereSql}");
+        $stmt = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM events e LEFT JOIN event_modes m ON m.id = e.event_mode_id {$whereSql}"
+        );
         $stmt->execute($params);
 
         return (int) $stmt->fetchColumn();
