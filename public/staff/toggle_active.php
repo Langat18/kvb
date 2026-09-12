@@ -10,7 +10,7 @@ use VetBoard\Auth;
 use VetBoard\Staff;
 
 Auth::startSession();
-Auth::requireRole('admin');
+Auth::requirePermission('manage_staff');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Auth::validateCsrf($_POST['csrf_token'] ?? '')) {
     http_response_code(403);
