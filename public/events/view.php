@@ -30,6 +30,12 @@ if (!$event) {
     exit;
 }
 
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/index.php'],
+    ['label' => 'Events', 'url' => '/events/index.php'],
+    ['label' => $event['title'], 'url' => null],
+];
+
 $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
@@ -57,7 +63,7 @@ foreach ($participants as $p) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>Kenya Veterinary Board</title>
+<title><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> — Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -65,22 +71,12 @@ foreach ($participants as $p) {
 body { display: block; padding: 2rem 2.5rem; }
 .container { max-width: 1000px; margin: 0 auto; }
 
-.breadcrumb { font-size: .8rem; color: var(--text-muted); margin-bottom: .75rem; }
-.breadcrumb a { color: var(--text-muted); text-decoration: none; }
-.breadcrumb a:hover { color: var(--kvb-green-dark); }
-
 .page-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
 .page-top h1 { font-size: 1.35rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .35rem; }
 
-.action-row { display: flex; gap: .5rem; flex-wrap: wrap; }
 .action-row .btn { font-size: .82rem; padding: .5rem 1rem; }
-.btn-ghost { background: #fff; border: 1px solid #d8dde3; color: var(--text-main); }
-.btn-danger-outline { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
-
-.section-label { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-bottom: .6rem; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 300px; gap: 1.25rem; align-items: start; margin-bottom: 1.5rem; }
-@media (max-width: 780px) { .grid-2 { grid-template-columns: 1fr; } }
 
 .detail-table { width: 100%; border-collapse: collapse; }
 .detail-table th { text-align: left; padding: .45rem .5rem .45rem 0; color: var(--text-muted); font-size: .82rem; width: 32%; vertical-align: top; font-weight: 600; }
@@ -91,25 +87,13 @@ body { display: block; padding: 2rem 2.5rem; }
 .qr-actions { display: flex; flex-direction: column; gap: .4rem; }
 .qr-actions .btn { width: 100%; font-size: .8rem; }
 
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.list-table { width: 100%; border-collapse: collapse; min-width: 560px; }
-.list-table th { text-align: left; padding: .65rem .6rem; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid #eee; background: #faf9f7; }
-.list-table td { padding: .65rem .6rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
-.list-table tr:hover td { background: #f7faf8; }
-
 .session-badges { display: flex; flex-wrap: wrap; gap: .3rem; max-width: 320px; }
 .session-badges .pill { white-space: nowrap; font-size: .72rem; padding: .18rem .55rem; }
-
-.empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
 </style>
 </head>
-<?php require __DIR__ . '/../templates/nav.php'; ?>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
-
-    <div class="breadcrumb">
-        <a href="/index.php">Dashboard</a> &rsaquo; <a href="/events/index.php">Events</a> &rsaquo; <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>
-    </div>
 
     <?php if ($success): ?>
         <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
@@ -134,7 +118,7 @@ body { display: block; padding: 2rem 2.5rem; }
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
             <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-ghost">Add to Calendar</a>
             <?php if ($flaggedTotal > 0 && Auth::can('review_flagged_attendance')): ?>
-                <a href="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-danger-outline">
+                <a href="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-danger">
                     &#9888; Review Flagged (<?= $flaggedTotal ?>)
                 </a>
             <?php endif; ?>
@@ -180,7 +164,7 @@ body { display: block; padding: 2rem 2.5rem; }
             <p class="empty-state">No participants have registered yet.</p>
         <?php else: ?>
         <div class="table-scroll">
-        <table class="list-table">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Reg No</th>
