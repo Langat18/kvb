@@ -616,3 +616,8 @@ input, select {
 /* --- Points display helpers (leaderboard + detail) --- */
 .rank { font-weight: 700; color: var(--text-muted); width: 40px; }
 .points-value { font-weight: 700; color: var(--kvb-green-dark); }
+
+/* --- Geofence map (shared by event create/edit forms) --- */
+.geo-fields { display: none; }
+.geo-fields.active { display: grid; }
+.geo-map { height: 320px; border-radius: 12px; grid-column: 1 / -1; }
