@@ -378,3 +378,84 @@ input, select {
     gap: .5rem;
 }
 .kvb-support i { margin-top: .15rem; }
+
+.navbar-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 34px;
+    height: 34px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+.navbar-toggle span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: var(--text-main);
+    border-radius: 2px;
+}
+
+@media (max-width: 780px) {
+    .navbar {
+        position: relative;
+        padding: .75rem 1.25rem;
+    }
+    .navbar-toggle { display: flex; }
+
+    .navbar-user {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #fff;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .75rem;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e8e6df;
+        box-shadow: var(--shadow-sm);
+        z-index: 50;
+    }
+    .navbar-user.open { display: flex; }
+
+    .page-body-outer, .page-body { padding: 1rem 1.25rem 0; }
+
+    .card { padding: 1.1rem; border-radius: 18px; }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .75rem;
+    }
+    .page-header .btn { width: 100%; text-align: center; }
+
+    .action-row { flex-direction: column; }
+    .action-row .btn { width: 100%; text-align: center; }
+
+    .form-grid { grid-template-columns: 1fr !important; }
+    .grid-2 { grid-template-columns: 1fr !important; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+    .tabs { flex-wrap: wrap; }
+    .tabs a { flex: 1 1 auto; text-align: center; }
+
+    .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .list-table, .detail-table, .event-list { min-width: 480px; }
+
+    .qr-actions { gap: .5rem; }
+
+    .btn-pill, .kvb-btn { font-size: .88rem; padding: .85rem 1rem; }
+}
+
+@media (max-width: 480px) {
+    .card { padding: .9rem; border-radius: 14px; }
+    input, select, .form-control { font-size: 16px; }
+}

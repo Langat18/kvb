@@ -21,8 +21,6 @@ $reportModel = new Report();
 $totals       = $reportModel->totals();
 $recentEvents = $eventModel->list([], 5, 0);
 
-$roleLabels = ['admin' => 'Admin', 'staff' => 'Staff', 'ceo' => 'CEO'];
-
 function firstNameOnly(string $fullName): string
 {
     $cleaned = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($fullName));
@@ -44,25 +42,6 @@ $greeting   = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Go
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
 body { display: block; padding: 0; }
-
-.navbar {
-    background: #fff;
-    border-bottom: 1px solid #e8e6df;
-    padding: .85rem 2.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.navbar-brand { display: flex; align-items: center; gap: .6rem; }
-.navbar-brand img { height: 34px; }
-.navbar-brand span { font-weight: 700; font-size: .95rem; color: var(--kvb-green-dark); }
-.navbar-user { display: flex; align-items: center; gap: .85rem; font-size: .85rem; }
-.navbar-user .role-badge {
-    padding: .2rem .6rem; border-radius: 12px; font-size: .72rem; font-weight: 600;
-    background: var(--kvb-green-light); color: var(--kvb-green-dark);
-}
-.navbar-user a { color: var(--text-muted); text-decoration: none; }
-.navbar-user a:hover { color: var(--kvb-red-dark); }
 
 .page-body { max-width: 1100px; margin: 0 auto; padding: 2rem 2.5rem; }
 
@@ -94,23 +73,10 @@ body { display: block; padding: 0; }
 .event-list td { padding: .6rem .6rem; font-size: .87rem; border-bottom: 1px solid #f2f2f2; }
 .event-list tr:hover td { background: #f7faf8; }
 .empty-state { color: var(--text-muted); font-size: .85rem; padding: 1.5rem 0; text-align: center; }
-
-@media (max-width: 780px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
-
-<div class="navbar">
-    <div class="navbar-brand">
-        <img src="/assets/img/kvb_logo.png" alt="Kenya Veterinary Board">
-    </div>
-    <div class="navbar-user">
-        <span><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
-        <span class="role-badge"><?= htmlspecialchars($roleLabels[$user['role']] ?? $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
-        <a href="/account/change_password.php">Change Password</a>
-        <a href="/logout.php">Log Out</a>
-    </div>
-</div>
+<?php require __DIR__ . '/templates/nav.php'; ?>
 
 <div class="page-body">
 
@@ -155,18 +121,39 @@ body { display: block; padding: 0; }
             <div class="title">Points Leaderboard</div>
             <div class="desc">See accumulated points across participants</div>
         </a>
-        <?php if (in_array($user['role'], ['admin', 'ceo'], true)): ?>
+        <?php if (Auth::can('view_reports')): ?>
         <a href="/reports/dashboard.php" class="action-card">
             <span class="icon">&#128202;</span>
             <div class="title">Reports</div>
             <div class="desc">Organisation-wide trends and breakdowns</div>
         </a>
         <?php endif; ?>
-        <?php if ($user['role'] === 'admin'): ?>
+        <?php if (Auth::can('manage_staff')): ?>
         <a href="/staff/index.php" class="action-card">
             <span class="icon">&#128100;</span>
             <div class="title">Manage Staff</div>
             <div class="desc">Add accounts, assign roles, deactivate access</div>
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::can('manage_roles')): ?>
+        <a href="/roles/index.php" class="action-card">
+            <span class="icon">&#128272;</span>
+            <div class="title">Roles &amp; Permissions</div>
+            <div class="desc">Create roles and control what each can access</div>
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::can('manage_departments')): ?>
+        <a href="/departments/index.php" class="action-card">
+            <span class="icon">&#127970;</span>
+            <div class="title">Departments</div>
+            <div class="desc">Manage the list of departments</div>
+        </a>
+        <?php endif; ?>
+        <?php if (Auth::can('manage_lookups')): ?>
+        <a href="/lookups/index.php" class="action-card">
+            <span class="icon">&#128203;</span>
+            <div class="title">Event Settings</div>
+            <div class="desc">Manage event modes, cadres, and session windows</div>
         </a>
         <?php endif; ?>
     </div>
@@ -176,6 +163,7 @@ body { display: block; padding: 0; }
         <?php if (empty($recentEvents)): ?>
             <p class="empty-state">No events created yet.</p>
         <?php else: ?>
+            <div class="table-scroll">
             <table class="event-list">
                 <thead>
                     <tr>
@@ -189,13 +177,14 @@ body { display: block; padding: 0; }
                     <?php foreach ($recentEvents as $e): ?>
                     <tr>
                         <td><?= htmlspecialchars($e['title'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="pill"><?= htmlspecialchars(EVENT_MODES[$e['event_mode']] ?? $e['event_mode'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <td><span class="pill"><?= htmlspecialchars($e['event_mode_label'] ?? $e['event_mode'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= date('d M Y', strtotime($e['start_date'])) ?> &ndash; <?= date('d M Y', strtotime($e['end_date'])) ?></td>
                         <td><a href="/events/view.php?token=<?= urlencode($e['view_token']) ?>" class="btn btn-ghost" style="padding:.3rem .7rem;font-size:.78rem;">View</a></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php endif; ?>
     </div>
 

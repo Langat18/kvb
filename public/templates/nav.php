@@ -1,21 +1,39 @@
 <?php
-/**
- * Shared navbar + breadcrumb partial.
- * Expects $user (from Auth::user()) and optional $breadcrumbs array of ['label' => ..., 'url' => ... or null for current page].
- */
-$roleLabels = ['admin' => 'Admin', 'staff' => 'Staff', 'ceo' => 'CEO'];
 ?>
 <div class="navbar">
     <div class="navbar-brand">
         <img src="/assets/img/kvb_logo.png" alt="KVB">
     </div>
-    <div class="navbar-user">
+    <button type="button" class="navbar-toggle" id="navbarToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="navbarUser">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="navbar-user" id="navbarUser">
         <span><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
-        <span class="role-badge"><?= htmlspecialchars($roleLabels[$user['role']] ?? $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
+        <span class="role-badge"><?= htmlspecialchars($user['role_label'] ?: $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
         <a href="/account/change_password.php">Change Password</a>
         <a href="/logout.php">Log Out</a>
     </div>
 </div>
+
+<script>
+(function () {
+    var toggle = document.getElementById('navbarToggle');
+    var menu   = document.getElementById('navbarUser');
+    if (!toggle || !menu) return;
+
+    toggle.addEventListener('click', function () {
+        var isOpen = menu.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!menu.classList.contains('open')) return;
+        if (menu.contains(e.target) || toggle.contains(e.target)) return;
+        menu.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+    });
+})();
+</script>
 
 <?php if (!empty($breadcrumbs)): ?>
 <div class="page-body-outer">
