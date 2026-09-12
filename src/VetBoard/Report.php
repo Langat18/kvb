@@ -36,7 +36,11 @@ class Report
     public function eventsByMode(): array
     {
         $stmt = $this->pdo->query(
-            'SELECT event_mode, COUNT(*) AS count FROM events GROUP BY event_mode ORDER BY count DESC'
+            'SELECT m.label AS event_mode, COUNT(*) AS count
+             FROM events e
+             JOIN event_modes m ON m.id = e.event_mode_id
+             GROUP BY m.label
+             ORDER BY count DESC'
         );
 
         return $stmt->fetchAll();
