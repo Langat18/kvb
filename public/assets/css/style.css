@@ -612,3 +612,7 @@ input, select {
 
 /* --- Full-width button utility (common on narrow single-column forms) --- */
 .btn-block { width: 100%; }
+
+/* --- Points display helpers (leaderboard + detail) --- */
+.rank { font-weight: 700; color: var(--text-muted); width: 40px; }
+.points-value { font-weight: 700; color: var(--kvb-green-dark); }
