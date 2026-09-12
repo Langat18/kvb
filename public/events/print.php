@@ -11,9 +11,10 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Registration;
+use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
-Auth::requireRole('admin', 'staff');
+Auth::requirePermission('print_attendance_register');
 
 $user = Auth::user();
 
@@ -37,8 +38,9 @@ $selectedDate = $_GET['date'] ?? $dates[0] ?? date('Y-m-d');
 
 $rows = $registrationModel->attendanceRowsForDate((int) $event['id'], $selectedDate);
 
-$startDate = date('d M Y', strtotime($event['start_date']));
-$endDate   = date('d M Y', strtotime($event['end_date']));
+$startDate     = date('d M Y', strtotime($event['start_date']));
+$endDate       = date('d M Y', strtotime($event['end_date']));
+$sessionLabels = (new SessionWindowRepository())->labelMap();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,23 +112,22 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
 <table class="att-table">
     <thead>
         <tr>
-            <th>#</th><th>Reg No</th><th>Full Name</th><th>Cadre</th>
+            <th>#</th><th>Reg No</th><th>Full Name</th>
             <th>Email</th><th>Phone</th><th>Session</th><th>Method</th><th>Location</th><th>Points</th>
         </tr>
     </thead>
     <tbody>
         <?php if (empty($rows)): ?>
-            <tr><td colspan="10" style="text-align:center;padding:.6rem;color:#888;">No attendance records for this date.</td></tr>
+            <tr><td colspan="9" style="text-align:center;padding:.6rem;color:#888;">No attendance records for this date.</td></tr>
         <?php else: ?>
             <?php foreach ($rows as $i => $r): ?>
             <tr>
                 <td><?= $i + 1 ?></td>
                 <td><?= htmlspecialchars($r['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars(CADRE_LABELS[$r['cadre']] ?? $r['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($r['email'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($r['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars(SESSION_LABELS[$r['session']] ?? $r['session'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($sessionLabels[$r['session']] ?? $r['session'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= ucfirst($r['method']) ?></td>
                 <td>
                     <?php if ($r['method'] === 'onsite'): ?>

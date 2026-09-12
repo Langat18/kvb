@@ -9,9 +9,10 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Registration;
+use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
-Auth::requireRole('admin');
+Auth::requirePermission('review_flagged_attendance');
 
 $user = Auth::user();
 
@@ -49,8 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$flagged = $registrationModel->flaggedForEvent((int) $event['id']);
-$success = $_SESSION['success'] ?? null;
+$flagged       = $registrationModel->flaggedForEvent((int) $event['id']);
+$sessionLabels = (new SessionWindowRepository())->labelMap();
+$success       = $_SESSION['success'] ?? null;
 unset($_SESSION['success']);
 ?>
 <!DOCTYPE html>
@@ -58,7 +60,7 @@ unset($_SESSION['success']);
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flagged Attendance — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<title>Flagged Attendance<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -107,7 +109,7 @@ body { display: block; padding: 2.5rem; }
                     <tr>
                         <td><?= htmlspecialchars($f['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars(SESSION_LABELS[$f['session']] ?? $f['session'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars($sessionLabels[$f['session']] ?? $f['session'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= date('d M Y', strtotime($f['attendance_date'])) ?></td>
                         <td><span class="distance-badge"><?= (int) $f['distance_m'] ?>m from venue</span></td>
                         <td><?= date('d M Y H:i', strtotime($f['confirmed_at'])) ?></td>
