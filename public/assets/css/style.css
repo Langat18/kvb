@@ -581,3 +581,24 @@ input, select {
 @media (max-width: 780px) {
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ============================================
+   DESIGN SYSTEM — PHASE 2
+   Form layout components, standardized on the
+   spacing/type scale from Phase 1.
+   ============================================ */
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+.form-grid .form-group.full { grid-column: 1 / -1; }
+
+.form-group { margin-bottom: var(--space-4); }
+
+.action-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+@media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+}
