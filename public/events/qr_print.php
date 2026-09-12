@@ -34,7 +34,7 @@ $endDate   = date('d M Y', strtotime($event['end_date']));
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>QR Code — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+<title>QR Code <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
