@@ -6,6 +6,24 @@ namespace VetBoard;
 
 class Auth
 {
+    /**
+     * Structural permission dependencies. If a role holds the key permission,
+     * it automatically also holds each listed permission — regardless of
+     * whether that permission is explicitly checked on the role's edit page.
+     *
+     * This exists because some permissions are sub-actions within a page
+     * gated by a different permission (e.g. reviewing flagged attendance
+     * happens from the event view page, so it requires view_events too).
+     * Add a new line here whenever a new permission is introduced that only
+     * makes sense to reach through another page.
+     */
+    private const PERMISSION_IMPLIES = [
+        'create_events'              => ['view_events'],
+        'manage_events'              => ['view_events'],
+        'review_flagged_attendance'  => ['view_events'],
+        'print_attendance_register'  => ['view_events'],
+    ];
+
     public static function startSession(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
@@ -75,7 +93,8 @@ class Auth
 
         $roleModel = new Role();
         $roleRow   = $roleModel->findByKey($staff['role']);
-        $_SESSION['user_permissions'] = $roleRow ? $roleModel->getPermissionKeys((int) $roleRow['id']) : [];
+        $rawPermissions = $roleRow ? $roleModel->getPermissionKeys((int) $roleRow['id']) : [];
+        $_SESSION['user_permissions'] = self::expandPermissions($rawPermissions);
 
         $pdo  = Database::getInstance()->getPdo();
         $stmt = $pdo->prepare('UPDATE staff SET last_login_at = now() WHERE id = :id');
@@ -90,7 +109,34 @@ class Auth
 
         $roleModel = new Role();
         $roleRow   = $roleModel->findByKey($_SESSION['user_role']);
-        $_SESSION['user_permissions'] = $roleRow ? $roleModel->getPermissionKeys((int) $roleRow['id']) : [];
+        $rawPermissions = $roleRow ? $roleModel->getPermissionKeys((int) $roleRow['id']) : [];
+        $_SESSION['user_permissions'] = self::expandPermissions($rawPermissions);
+    }
+
+    /**
+     * Expands a raw list of granted permission keys to also include any
+     * permissions implied by them, per PERMISSION_IMPLIES. Runs until no
+     * further expansion happens, so chains of implication resolve fully.
+     */
+    private static function expandPermissions(array $keys): array
+    {
+        $expanded = $keys;
+        $changed  = true;
+
+        while ($changed) {
+            $changed = false;
+
+            foreach ($expanded as $key) {
+                foreach (self::PERMISSION_IMPLIES[$key] ?? [] as $implied) {
+                    if (!in_array($implied, $expanded, true)) {
+                        $expanded[]  = $implied;
+                        $changed     = true;
+                    }
+                }
+            }
+        }
+
+        return $expanded;
     }
 
     public static function logout(): void
