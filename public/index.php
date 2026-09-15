@@ -92,21 +92,27 @@ body { display: block; padding: 0; }
 
     <div class="section-label">Quick Actions</div>
     <div class="action-grid">
+        <?php if (Auth::can('create_events')): ?>
         <a href="/events/create.php" class="action-card">
             <span class="icon">&#128197;</span>
             <div class="title">New Event</div>
             <div class="desc">Create an on-site, virtual, or hybrid event</div>
         </a>
+        <?php endif; ?>
+        <?php if (Auth::can('view_events')): ?>
         <a href="/events/index.php" class="action-card">
             <span class="icon">&#128203;</span>
             <div class="title">All Events</div>
             <div class="desc">Browse, search, and manage events</div>
         </a>
+        <?php endif; ?>
+        <?php if (Auth::can('view_leaderboard')): ?>
         <a href="/points/leaderboard.php" class="action-card">
             <span class="icon">&#127942;</span>
             <div class="title">Points Leaderboard</div>
             <div class="desc">See accumulated points across participants</div>
         </a>
+        <?php endif; ?>
         <?php if (Auth::can('view_reports')): ?>
         <a href="/reports/dashboard.php" class="action-card">
             <span class="icon">&#128202;</span>
