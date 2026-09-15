@@ -10,12 +10,6 @@ class Auth
      * Structural permission dependencies. If a role holds the key permission,
      * it automatically also holds each listed permission — regardless of
      * whether that permission is explicitly checked on the role's edit page.
-     *
-     * This exists because some permissions are sub-actions within a page
-     * gated by a different permission (e.g. reviewing flagged attendance
-     * happens from the event view page, so it requires view_events too).
-     * Add a new line here whenever a new permission is introduced that only
-     * makes sense to reach through another page.
      */
     private const PERMISSION_IMPLIES = [
         'create_events'              => ['view_events'],
@@ -115,8 +109,7 @@ class Auth
 
     /**
      * Expands a raw list of granted permission keys to also include any
-     * permissions implied by them, per PERMISSION_IMPLIES. Runs until no
-     * further expansion happens, so chains of implication resolve fully.
+     * permissions implied by them, per PERMISSION_IMPLIES.
      */
     private static function expandPermissions(array $keys): array
     {
