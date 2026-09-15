@@ -11,7 +11,7 @@ use VetBoard\CadreRepository;
 use VetBoard\Participant;
 
 Auth::startSession();
-Auth::requireLogin();
+Auth::requirePermission('view_leaderboard');
 
 $user = Auth::user();
 
@@ -68,9 +68,12 @@ body { display: block; padding: 0; }
             <h1><?= htmlspecialchars($participant['name'], ENT_QUOTES, 'UTF-8') ?></h1>
             <p><?= htmlspecialchars($participant['reg_no'], ENT_QUOTES, 'UTF-8') ?> &bull; <?= htmlspecialchars($cadreLabels[$participant['cadre']] ?? $participant['cadre'], ENT_QUOTES, 'UTF-8') ?></p>
         </div>
-        <div class="card total-badge">
-            <div class="num"><?= $total ?></div>
-            <div class="label">Total Points</div>
+        <div style="text-align:right;">
+            <div class="card total-badge">
+                <div class="num"><?= $total ?></div>
+                <div class="label">Total Points</div>
+            </div>
+            <a href="/points/print.php?reg_no=<?= urlencode($participant['reg_no']) ?>" class="btn btn-ghost btn-sm" target="_blank" style="margin-top:.5rem;display:inline-block;">Print Statement</a>
         </div>
     </div>
 

@@ -11,7 +11,7 @@ use VetBoard\CadreRepository;
 use VetBoard\Participant;
 
 Auth::startSession();
-Auth::requireLogin();
+Auth::requirePermission('view_leaderboard');
 
 $user = Auth::user();
 
