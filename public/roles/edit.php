@@ -28,6 +28,45 @@ if (!$role) {
 $allPermissions = $permissionModel->list();
 $grantedKeys     = $roleModel->getPermissionKeys($id);
 
+
+$permissionGroups = [
+    'Events' => [
+        'keys'      => ['create_events', 'view_events', 'manage_events', 'review_flagged_attendance', 'print_attendance_register'],
+        'selectAll' => true,
+    ],
+    'Configuration' => [
+        'keys'      => ['manage_departments', 'manage_lookups'],
+        'selectAll' => true,
+    ],
+    'Reporting' => [
+        'keys'      => ['view_reports', 'view_leaderboard'],
+        'selectAll' => true,
+    ],
+    'People' => [
+        'keys'      => ['manage_staff', 'manage_roles'],
+        'selectAll' => false,
+    ],
+];
+
+$permissionsByKey = [];
+foreach ($allPermissions as $perm) {
+    $permissionsByKey[$perm['item_key']] = $perm;
+}
+
+// Any permission not covered by an explicit group above still renders,
+// under a catch-all section, so nothing can silently go missing from
+// the UI if a new permission is added before this grouping is updated.
+$groupedKeys = [];
+foreach ($permissionGroups as $group) {
+    foreach ($group['keys'] as $k) {
+        $groupedKeys[] = $k;
+    }
+}
+$ungrouped = array_diff(array_keys($permissionsByKey), $groupedKeys);
+if (!empty($ungrouped)) {
+    $permissionGroups['Other'] = ['keys' => array_values($ungrouped), 'selectAll' => false];
+}
+
 $error = $_SESSION['error'] ?? null;
 unset($_SESSION['error']);
 
@@ -73,7 +112,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 body { display: block; padding: 2.5rem; }
 .container { max-width: 560px; margin: 0 auto; }
 .container h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-.perm-list { display: flex; flex-direction: column; gap: .6rem; margin: .5rem 0 1.25rem; }
+.perm-group { margin-bottom: 1.25rem; }
+.perm-group-header {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-muted); margin-bottom: .5rem; padding-bottom: .3rem;
+    border-bottom: 1px solid #eee;
+}
+.perm-group-header input { width: auto; margin: 0; }
+.perm-list { display: flex; flex-direction: column; gap: .6rem; }
 .perm-item { display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .75rem; border: 1px solid #eee; border-radius: 10px; }
 .perm-item input { width: auto; margin-top: .2rem; }
 .perm-item .perm-label { font-weight: 600; font-size: .87rem; }
@@ -89,7 +136,7 @@ body { display: block; padding: 2.5rem; }
     <?php endif; ?>
 
     <div class="card">
-        <form method="POST" action="/roles/edit.php?id=<?= (int) $role['id'] ?>">
+        <form method="POST" action="/roles/edit.php?id=<?= (int) $role['id'] ?>" id="role-form">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="id" value="<?= (int) $role['id'] ?>">
 
@@ -111,21 +158,39 @@ body { display: block; padding: 2.5rem; }
 
             <div class="form-group">
                 <label>Permissions</label>
-                <div class="perm-list">
-                    <?php foreach ($allPermissions as $perm): ?>
-                        <label class="perm-item">
-                            <input type="checkbox" name="permissions[]" value="<?= (int) $perm['id'] ?>"
-                                   <?= in_array($perm['item_key'], $grantedKeys, true) ? 'checked' : '' ?>
-                                   <?= $role['is_system'] ? 'disabled' : '' ?>>
-                            <span>
-                                <div class="perm-label"><?= htmlspecialchars($perm['label'], ENT_QUOTES, 'UTF-8') ?></div>
-                                <?php if (!empty($perm['description'])): ?>
-                                    <div class="perm-desc"><?= htmlspecialchars($perm['description'], ENT_QUOTES, 'UTF-8') ?></div>
-                                <?php endif; ?>
-                            </span>
-                        </label>
-                    <?php endforeach; ?>
-                </div>
+
+                <?php foreach ($permissionGroups as $groupLabel => $group): ?>
+                    <?php
+                        $groupPerms = array_filter($group['keys'], fn($k) => isset($permissionsByKey[$k]));
+                        if (empty($groupPerms)) continue;
+                    ?>
+                    <div class="perm-group">
+                        <div class="perm-group-header">
+                            <?php if ($group['selectAll'] && !$role['is_system']): ?>
+                                <input type="checkbox" class="group-toggle" data-group="<?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?>">
+                            <?php endif; ?>
+                            <span><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                        </div>
+                        <div class="perm-list">
+                            <?php foreach ($groupPerms as $key): ?>
+                                <?php $perm = $permissionsByKey[$key]; ?>
+                                <label class="perm-item">
+                                    <input type="checkbox" name="permissions[]" value="<?= (int) $perm['id'] ?>"
+                                           class="perm-checkbox" data-group="<?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?>"
+                                           <?= in_array($perm['item_key'], $grantedKeys, true) ? 'checked' : '' ?>
+                                           <?= $role['is_system'] ? 'disabled' : '' ?>>
+                                    <span>
+                                        <div class="perm-label"><?= htmlspecialchars($perm['label'], ENT_QUOTES, 'UTF-8') ?></div>
+                                        <?php if (!empty($perm['description'])): ?>
+                                            <div class="perm-desc"><?= htmlspecialchars($perm['description'], ENT_QUOTES, 'UTF-8') ?></div>
+                                        <?php endif; ?>
+                                    </span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+
                 <?php if ($role['is_system']): ?>
                     <small style="color:var(--text-muted);">This is a system role and always has every permission.</small>
                 <?php endif; ?>
@@ -139,5 +204,26 @@ body { display: block; padding: 2.5rem; }
         <a href="/roles/index.php" class="btn btn-secondary">&larr; Back to Roles</a>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('.group-toggle').forEach(function (toggle) {
+    const group = toggle.dataset.group;
+    const checkboxes = document.querySelectorAll('.perm-checkbox[data-group="' + group + '"]');
+
+    function syncToggleState() {
+        const total   = checkboxes.length;
+        const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+        toggle.checked       = total > 0 && checked === total;
+        toggle.indeterminate = checked > 0 && checked < total;
+    }
+
+    toggle.addEventListener('change', function () {
+        checkboxes.forEach(cb => { cb.checked = toggle.checked; });
+    });
+
+    checkboxes.forEach(cb => cb.addEventListener('change', syncToggleState));
+    syncToggleState();
+});
+</script>
 </body>
 </html>
