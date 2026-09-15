@@ -12,7 +12,7 @@ use VetBoard\Event;
 use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
-Auth::requireLogin();
+Auth::requirePermission('view_events');
 
 $user = Auth::user();
 

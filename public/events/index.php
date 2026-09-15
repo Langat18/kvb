@@ -11,7 +11,7 @@ use VetBoard\Event;
 use VetBoard\EventModeRepository;
 
 Auth::startSession();
-Auth::requireLogin();
+Auth::requirePermission('view_events');
 
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => '/index.php'],

@@ -12,7 +12,7 @@ use VetBoard\Event;
 use VetBoard\EventModeRepository;
 
 Auth::startSession();
-Auth::requireLogin();
+Auth::requirePermission('create_events');
 
 $breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Events', 'url' => '/events/index.php'], ['label' => 'New Event', 'url' => null]];
 

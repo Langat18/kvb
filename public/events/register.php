@@ -268,7 +268,7 @@ function lockFields(data) {
     ['name', 'email', 'phone'].forEach(id => {
         document.getElementById(id).setAttribute('readonly', true);
     });
-    lookupStatus.textContent = 'Returning participant — details locked. Please enter your ID number to confirm.';
+    lookupStatus.textContent = 'Please enter your ID number to confirm.';
     lookupStatus.style.color = 'var(--kvb-green-dark)';
 }
 
