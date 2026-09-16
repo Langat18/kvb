@@ -141,6 +141,13 @@ body { display: block; padding: 0; }
             <div class="desc">Manage the list of departments</div>
         </a>
         <?php endif; ?>
+        <?php if (Auth::can('manage_providers')): ?>
+        <a href="/providers/index.php" class="action-card">
+            <span class="icon">&#127973;</span>
+            <div class="title">Providers</div>
+            <div class="desc">Manage CPD providers and accreditation numbers</div>
+        </a>
+        <?php endif; ?>
         <?php if (Auth::can('manage_lookups')): ?>
         <a href="/lookups/index.php" class="action-card">
             <span class="icon">&#128203;</span>
