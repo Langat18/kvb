@@ -7,12 +7,11 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
-use VetBoard\Department;
 use VetBoard\Event;
 use VetBoard\EventModeRepository;
 
 Auth::startSession();
-Auth::requireLogin();
+Auth::requirePermission('view_events');
 
 $breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Events', 'url' => '/events/index.php'], ['label' => 'Edit Event', 'url' => null]];
 
@@ -39,10 +38,8 @@ if (!$canEdit) {
     die('Access denied.');
 }
 
-$eventModeRepo    = new EventModeRepository();
-$departmentModel  = new Department();
-$eventModes       = $eventModeRepo->list(true);
-$departments      = $departmentModel->list(true);
+$eventModeRepo   = new EventModeRepository();
+$eventModes      = $eventModeRepo->list(true);
 
 $error    = $_SESSION['error']     ?? null;
 $formData = $_SESSION['form_data'] ?? [];
@@ -56,21 +53,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $data = [
-        'title'             => trim($_POST['title']             ?? ''),
-        'event_code'        => trim($_POST['event_code']        ?? ''),
-        'event_mode_id'     => $_POST['event_mode_id']  !== '' ? (int) $_POST['event_mode_id'] : null,
-        'venue'             => trim($_POST['venue']              ?? ''),
-        'department_id'     => $_POST['department_id'] !== '' ? (int) $_POST['department_id'] : null,
-        'coordinator'       => trim($_POST['coordinator']        ?? ''),
-        'program_assistant' => trim($_POST['program_assistant'] ?? ''),
-        'start_date'        => $_POST['start_date']              ?? '',
-        'end_date'          => $_POST['end_date']                ?? '',
-        'geo_lat'           => $_POST['geo_lat']    !== '' ? (float) $_POST['geo_lat']    : null,
-        'geo_lng'           => $_POST['geo_lng']    !== '' ? (float) $_POST['geo_lng']    : null,
-        'geo_radius_m'      => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
-        'points_morning'     => $_POST['points_morning']     !== '' ? (int) $_POST['points_morning']     : null,
-        'points_mid_morning' => $_POST['points_mid_morning'] !== '' ? (int) $_POST['points_mid_morning'] : null,
-        'points_afternoon'   => $_POST['points_afternoon']   !== '' ? (int) $_POST['points_afternoon']   : null,
+        'title'                     => trim($_POST['title']             ?? ''),
+        'event_code'                => trim($_POST['event_code']        ?? ''),
+        'event_mode_id'             => $_POST['event_mode_id']  !== '' ? (int) $_POST['event_mode_id'] : null,
+        'venue'                     => trim($_POST['venue']              ?? ''),
+        'provider_id'               => $_POST['provider_id']    !== '' ? (int) $_POST['provider_id'] : null,
+        'provider_accreditation_no' => $_POST['provider_accreditation_no'] ?? '',
+        'coordinator'               => trim($_POST['coordinator']        ?? ''),
+        'start_date'                => $_POST['start_date']              ?? '',
+        'end_date'                  => $_POST['end_date']                ?? '',
+        'geo_lat'                   => $_POST['geo_lat']    !== '' ? (float) $_POST['geo_lat']    : null,
+        'geo_lng'                   => $_POST['geo_lng']    !== '' ? (float) $_POST['geo_lng']    : null,
+        'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
+        'session_points'            => $_POST['session_points'] ?? [],
     ];
 
     try {
@@ -95,6 +90,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $v = empty($formData) ? $event : array_merge($event, $formData);
+
+$sessionPointsRows = $eventModel->getSessionPoints((int) $event['id']);
+if (isset($formData['session_points'])) {
+    foreach ($sessionPointsRows as &$row) {
+        $row['points'] = (int) ($formData['session_points'][$row['id']] ?? 0);
+    }
+    unset($row);
+}
+
+$providerNameDisplay = empty($formData) ? ($event['provider_name'] ?? '') : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -124,6 +129,7 @@ body { display: block; padding: 2.5rem; }
     <div class="card">
         <form method="POST" action="/events/edit.php?token=<?= urlencode($event['view_token']) ?>" id="event-form">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="provider_id" id="provider_id" value="<?= htmlspecialchars((string) ($v['provider_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
 
             <div class="form-grid">
                 <div class="form-group full">
@@ -133,7 +139,7 @@ body { display: block; padding: 2.5rem; }
                 </div>
 
                 <div class="form-group">
-                    <label for="event_code">Event Code</label>
+                    <label for="event_code">Registration No. of Activity</label>
                     <input type="text" id="event_code" name="event_code"
                            value="<?= htmlspecialchars($v['event_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 </div>
@@ -171,27 +177,22 @@ body { display: block; padding: 2.5rem; }
                 </div>
 
                 <div class="form-group">
-                    <label for="coordinator">Coordinator</label>
+                    <label for="coordinator">Supervisor</label>
                     <input type="text" id="coordinator" name="coordinator"
                            value="<?= htmlspecialchars($v['coordinator'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                 </div>
 
                 <div class="form-group">
-                    <label for="program_assistant">Program Assistant</label>
-                    <input type="text" id="program_assistant" name="program_assistant"
-                           value="<?= htmlspecialchars($v['program_assistant'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    <label for="provider_accreditation_no">Provider Accreditation No.</label>
+                    <input type="text" id="provider_accreditation_no" name="provider_accreditation_no"
+                           placeholder="e.g. ACC/CPD-P/001/2013"
+                           value="<?= htmlspecialchars($v['provider_accreditation_no'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    <small id="provider-status" style="color:var(--text-muted);"></small>
                 </div>
 
                 <div class="form-group">
-                    <label for="department_id">Department <span class="required">*</span></label>
-                    <select id="department_id" name="department_id" required>
-                        <option value="">-- Select --</option>
-                        <?php foreach ($departments as $dept): ?>
-                            <option value="<?= (int) $dept['id'] ?>" <?= (int) ($v['department_id'] ?? 0) === (int) $dept['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label for="provider_name_display">Provider Name</label>
+                    <input type="text" id="provider_name_display" readonly value="<?= htmlspecialchars($providerNameDisplay, ENT_QUOTES, 'UTF-8') ?>" placeholder="Fills in automatically">
                 </div>
             </div>
 
@@ -227,21 +228,15 @@ body { display: block; padding: 2.5rem; }
                 <div class="form-group full">
                     <label>Points per Session <span style="font-weight:normal;color:var(--text-muted);">(total across all sessions cannot exceed 8)</span></label>
                 </div>
-                <div class="form-group">
-                    <label for="points_morning">Morning</label>
-                    <input type="number" min="0" id="points_morning" name="points_morning"
-                           value="<?= htmlspecialchars((string) ($v['points_morning'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-                <div class="form-group">
-                    <label for="points_mid_morning">Mid-Morning</label>
-                    <input type="number" min="0" id="points_mid_morning" name="points_mid_morning"
-                           value="<?= htmlspecialchars((string) ($v['points_mid_morning'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-                <div class="form-group">
-                    <label for="points_afternoon">Afternoon</label>
-                    <input type="number" min="0" id="points_afternoon" name="points_afternoon"
-                           value="<?= htmlspecialchars((string) ($v['points_afternoon'] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
-                </div>
+                <?php foreach ($sessionPointsRows as $sw): ?>
+                    <div class="form-group">
+                        <label for="session_points_<?= (int) $sw['id'] ?>"><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></label>
+                        <input type="number" min="0" class="session-points-input"
+                               id="session_points_<?= (int) $sw['id'] ?>"
+                               name="session_points[<?= (int) $sw['id'] ?>]"
+                               value="<?= (int) $sw['points'] ?>">
+                    </div>
+                <?php endforeach; ?>
                 <div class="form-group full">
                     <span id="points-total" style="font-size:.85rem;color:var(--text-muted);">Total: 0 / 8</span>
                 </div>

@@ -48,6 +48,7 @@ $choiceUrl    = $appUrl . '/events/choice.php?token=' . urlencode($event['token'
 $startDate    = date('d M Y', strtotime($event['start_date']));
 $endDate      = date('d M Y', strtotime($event['end_date']));
 $participants = $eventModel->getParticipants((int) $event['id']);
+$sessionPointsRows = $eventModel->getSessionPoints((int) $event['id']);
 
 $flaggedTotal = 0;
 foreach ($participants as $p) {
@@ -89,6 +90,9 @@ body { display: block; padding: 2rem 2.5rem; }
 
 .session-badges { display: flex; flex-wrap: wrap; gap: .3rem; max-width: 320px; }
 .session-badges .pill { white-space: nowrap; font-size: .72rem; padding: .18rem .55rem; }
+
+.points-breakdown { font-size: .8rem; color: var(--text-muted); }
+.points-breakdown span { display: inline-block; margin-right: .75rem; }
 </style>
 </head>
 <body>
@@ -129,12 +133,35 @@ body { display: block; padding: 2rem 2.5rem; }
         <div class="card">
             <div class="section-label">Event Details</div>
             <table class="detail-table">
-                <tr><th>Event Code</th><td><?= htmlspecialchars($event['event_code'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
+                <tr><th>Registration No.</th><td><?= htmlspecialchars($event['event_code'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
                 <tr><th>Dates</th><td><?= $startDate ?> &ndash; <?= $endDate ?></td></tr>
                 <tr><th>Venue</th><td><?= htmlspecialchars($event['venue'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
-                <tr><th>Department</th><td><?= htmlspecialchars($event['department_name'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
-                <tr><th>Coordinator</th><td><?= htmlspecialchars($event['coordinator'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
-                <tr><th>Program Assistant</th><td><?= htmlspecialchars($event['program_assistant'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
+                <tr><th>Supervisor</th><td><?= htmlspecialchars($event['coordinator'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
+                <tr>
+                    <th>Provider</th>
+                    <td>
+                        <?php if (!empty($event['provider_name'])): ?>
+                            <?= htmlspecialchars($event['provider_name'], ENT_QUOTES, 'UTF-8') ?>
+                            <span style="color:var(--text-muted);font-size:.8rem;">(<?= htmlspecialchars($event['provider_accreditation_no'], ENT_QUOTES, 'UTF-8') ?>)</span>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Points per Session</th>
+                    <td class="points-breakdown">
+                        <?php if (empty($sessionPointsRows) || array_sum(array_column($sessionPointsRows, 'points')) === 0): ?>
+                            —
+                        <?php else: ?>
+                            <?php foreach ($sessionPointsRows as $sw): ?>
+                                <?php if ((int) $sw['points'] > 0): ?>
+                                    <span><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?>: <?= (int) $sw['points'] ?></span>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </td>
+                </tr>
                 <?php if ($event['event_mode'] !== 'virtual'): ?>
                 <tr>
                     <th>Geofence</th>
