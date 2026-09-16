@@ -12,6 +12,14 @@ use VetBoard\Provider;
 Auth::startSession();
 Auth::requirePermission('manage_providers');
 
+$user = Auth::user();
+
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/index.php'],
+    ['label' => 'Providers', 'url' => '/providers/index.php'],
+    ['label' => 'Import CSV', 'url' => null],
+];
+
 $error  = null;
 $result = null;
 
@@ -27,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         try {
             $providerModel = new Provider();
-            $result = $providerModel->importFromCsv($_FILES['csv_file']['tmp_name']);
+            $result        = $providerModel->importFromCsv($_FILES['csv_file']['tmp_name']);
         } catch (\RuntimeException $e) {
             $error = $e->getMessage();
         }
@@ -51,48 +59,49 @@ body { display: block; padding: 2.5rem; }
 </style>
 </head>
 <body>
+<?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="container">
-    <h1>Import Providers</h1>
+<h1>Import Providers</h1>
 
-    <?php if ($error): ?>
-        <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
-    <?php endif; ?>
+<?php if ($error): ?>
+<div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+<?php endif; ?>
 
-    <?php if ($result): ?>
-        <div class="alert alert-success">
+<?php if ($result): ?>
+<div class="alert alert-success">
             Imported <?= (int) $result['imported'] ?> new provider(s). Skipped <?= (int) $result['skipped'] ?> already-existing accreditation number(s).
-        </div>
-        <?php if (!empty($result['errors'])): ?>
-            <div class="alert alert-danger">
+</div>
+<?php if (!empty($result['errors'])): ?>
+<div class="alert alert-danger">
                 Some rows could not be imported:
-                <div class="result-list">
-                    <?php foreach ($result['errors'] as $err): ?>
-                        <div><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-        <?php endif; ?>
-    <?php endif; ?>
+<div class="result-list">
+<?php foreach ($result['errors'] as $err): ?>
+<div><?= htmlspecialchars($err, ENT_QUOTES, 'UTF-8') ?></div>
+<?php endforeach; ?>
+</div>
+</div>
+<?php endif; ?>
+<?php endif; ?>
 
-    <div class="card">
-        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem;">
-            Upload a CSV file with two columns: accreditation number, provider name. A header row is fine and will be skipped automatically. Existing accreditation numbers are never overwritten - safe to re-run with an updated list.
-        </p>
-        <form method="POST" action="/providers/import.php" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+<div class="card">
+<p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem;">
+            Upload a CSV with up to five columns, in order: No (accreditation number), Name, Contact Person, Phone No, Email. A header row is fine and will be skipped automatically. Contact Person, Phone No, and Email are optional. Existing accreditation numbers are never overwritten - safe to re-run with an updated list.
+</p>
+<form method="POST" action="/providers/import.php" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 
-            <div class="form-group">
-                <label for="csv_file">CSV File</label>
-                <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
-            </div>
+<div class="form-group">
+<label for="csv_file">CSV File</label>
+<input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+</div>
 
-            <button type="submit" class="btn btn-primary btn-block">Import</button>
-        </form>
-    </div>
+<button type="submit" class="btn btn-primary btn-block">Import</button>
+</form>
+</div>
 
-    <div style="margin-top:1rem;">
-        <a href="/providers/index.php" class="btn btn-secondary">&larr; Back to Providers</a>
-    </div>
+<div style="margin-top:1rem;">
+<a href="/providers/index.php" class="btn btn-secondary">&larr; Back to Providers</a>
+</div>
 </div>
 </body>
 </html>
