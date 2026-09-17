@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE providers RENAME COLUMN address TO email;
+ALTER TABLE providers ADD COLUMN phone TEXT;
+COMMIT;

@@ -1,0 +1,3 @@
+BEGIN;
+ALTER TABLE events DROP COLUMN IF EXISTS department_id;
+COMMIT;
