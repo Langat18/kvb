@@ -92,13 +92,9 @@ document.addEventListener('DOMContentLoaded', function () {
     window.addEventListener('pageshow', toggleGeoFields);
     toggleGeoFields();
 
-    const pointsInputs = [
-        document.getElementById('points_morning'),
-        document.getElementById('points_mid_morning'),
-        document.getElementById('points_afternoon'),
-    ];
-    const pointsTotal = document.getElementById('points-total');
-    const submitBtn   = document.getElementById('submit-btn');
+    const pointsInputs = Array.from(document.querySelectorAll('.session-points-input'));
+    const pointsTotal  = document.getElementById('points-total');
+    const submitBtn    = document.getElementById('submit-btn');
 
     function updatePointsTotal() {
         const total = pointsInputs.reduce((sum, el) => sum + (parseInt(el.value, 10) || 0), 0);
@@ -114,4 +110,39 @@ document.addEventListener('DOMContentLoaded', function () {
 
     pointsInputs.forEach(el => el.addEventListener('input', updatePointsTotal));
     updatePointsTotal();
+
+    const accInput = document.getElementById('provider_accreditation_no');
+    if (accInput) {
+        const providerIdInput     = document.getElementById('provider_id');
+        const providerNameDisplay = document.getElementById('provider_name_display');
+        const providerStatus      = document.getElementById('provider-status');
+        let providerTimer;
+
+        accInput.addEventListener('input', function () {
+            clearTimeout(providerTimer);
+            providerIdInput.value = '';
+            providerNameDisplay.value = '';
+            providerStatus.textContent = '';
+
+            const acc = accInput.value.trim();
+            if (acc.length < 3) return;
+
+            providerTimer = setTimeout(function () {
+                fetch('/events/provider_lookup.php?accreditation_no=' + encodeURIComponent(acc))
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d.found) {
+                            providerIdInput.value = d.id;
+                            providerNameDisplay.value = d.name;
+                            providerStatus.textContent = 'Provider found.';
+                            providerStatus.style.color = 'var(--kvb-green-dark)';
+                        } else {
+                            providerStatus.textContent = 'No matching provider found for this accreditation number.';
+                            providerStatus.style.color = 'var(--kvb-red-dark)';
+                        }
+                    })
+                    .catch(() => {});
+            }, 500);
+        });
+    }
 });
