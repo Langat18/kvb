@@ -152,6 +152,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'flag_reason'     => $flagReason,
         ]);
 
+        $pointsStatus = $registrationModel->getPointsStatus((int) $registration['id'], $session);
+
+        if ($pointsStatus === 'pending_quiz') {
+            $_SESSION['quiz_context'] = [
+                'token'            => $token,
+                'session'          => $session,
+                'event_id'         => (int) $event['id'],
+                'registration_id'  => (int) $registration['id'],
+                'reg_no'           => $regNo,
+            ];
+            header('Location: /events/quiz.php?token=' . urlencode($token) . '&session=' . urlencode($session));
+            exit;
+        }
+
         $_SESSION['attend_success'] = true;
         $_SESSION['attend_session'] = $session;
         $_SESSION['attend_flagged'] = $flagged;
@@ -209,7 +223,7 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
             <p>Your <?= htmlspecialchars($sessionLabels[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
             <?php if ($attendFlagged): ?>
                 <p style="font-size:.82rem;color:var(--kvb-red-dark);margin-top:.75rem;">
-                    Your location was outside the expected event radius. This record has been flagged for admin review.
+                    Your location was outside the expected event radius. This record has been flagged for admin review before points are released.
                 </p>
             <?php endif; ?>
         </div>

@@ -36,6 +36,21 @@ $endDate       = date('d M Y', strtotime($event['end_date']));
 $format        = $_GET['format'] ?? 'print';
 $sessionLabels = (new SessionWindowRepository())->labelMap();
 
+$providerName = $event['provider_name'] ?: '-';
+$providerAcc  = $event['provider_accreditation_no'] ?: '-';
+
+$sessionPointsRows = $eventModel->getSessionPoints((int) $event['id']);
+$pointsParts       = [];
+foreach ($sessionPointsRows as $sw) {
+    if ((int) $sw['points'] > 0) {
+        $pointsParts[] = $sw['label'] . ': ' . (int) $sw['points'];
+    }
+}
+$pointsLine = !empty($pointsParts) ? implode(', ', $pointsParts) : '-';
+
+$supervisorLine = $event['coordinator'] ?: '-';
+$modeLine       = $event['event_mode_label'] ?? $event['event_mode'] ?? '-';
+
 $pdo = VetBoard\Database::getInstance()->getPdo();
 foreach ($participants as &$p) {
     $sigStmt = $pdo->prepare('SELECT signature_image FROM registrations WHERE id = :id');
@@ -84,6 +99,9 @@ if ($format === 'word') {
     $metaRows = [
         ['Event', str_replace('&', 'and', $event['title']), 'Event Code', $event['event_code'] ?? '-'],
         ['Venue', $event['venue'] ?? '-', 'Dates', $startDate . ' - ' . $endDate],
+        ['Provider', str_replace('&', 'and', $providerName), 'Accreditation No.', $providerAcc],
+        ['Supervisor', $supervisorLine, 'Mode', $modeLine],
+        ['Points/Session', $pointsLine, '', ''],
     ];
 
     foreach ($metaRows as $row) {
@@ -177,16 +195,32 @@ if ($format === 'excel') {
     $sheet->setCellValue('A2', ($event['venue'] ?? '') . ' | ' . $startDate . ' - ' . $endDate);
     $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
+    $sheet->mergeCells('A3:H3');
+    $sheet->setCellValue(
+        'A3',
+        'Provider: ' . $providerName
+        . '   |   Accreditation No.: ' . $providerAcc
+        . '   |   Supervisor: ' . $supervisorLine
+        . '   |   Mode: ' . $modeLine
+    );
+    $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
+    $sheet->getStyle('A3')->getFont()->setItalic(true)->setSize(9);
+
+    $sheet->mergeCells('A4:H4');
+    $sheet->setCellValue('A4', 'Points per Session: ' . $pointsLine);
+    $sheet->getStyle('A4')->getAlignment()->setHorizontal('center');
+    $sheet->getStyle('A4')->getFont()->setItalic(true)->setSize(9);
+
     $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions Signed', 'Points', 'Flagged'];
     foreach ($headers as $col => $h) {
-        $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1) . '3';
+        $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1) . '5';
         $sheet->setCellValue($cell, $h);
         $sheet->getStyle($cell)->getFont()->setBold(true);
         $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB('D9D9D9');
     }
 
     foreach ($participants as $i => $p) {
-        $row            = $i + 4;
+        $row            = $i + 6;
         $sessionsSigned = count($p['attendance']);
         $flaggedRows    = array_filter($p['attendance'], fn($a) => $a['flagged']);
         $flaggedText    = '';
@@ -278,6 +312,17 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
     <tr>
         <th>Venue</th><td><?= htmlspecialchars($event['venue'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
         <th>Dates</th><td><?= $startDate ?> &ndash; <?= $endDate ?></td>
+    </tr>
+    <tr>
+        <th>Provider</th><td><?= htmlspecialchars($providerName, ENT_QUOTES, 'UTF-8') ?></td>
+        <th>Accreditation No.</th><td><?= htmlspecialchars($providerAcc, ENT_QUOTES, 'UTF-8') ?></td>
+    </tr>
+    <tr>
+        <th>Supervisor</th><td><?= htmlspecialchars($supervisorLine, ENT_QUOTES, 'UTF-8') ?></td>
+        <th>Mode</th><td><?= htmlspecialchars($modeLine, ENT_QUOTES, 'UTF-8') ?></td>
+    </tr>
+    <tr>
+        <th>Points/Session</th><td colspan="3"><?= htmlspecialchars($pointsLine, ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
 </table>
 

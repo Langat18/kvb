@@ -41,6 +41,11 @@ $rows = $registrationModel->attendanceRowsForDate((int) $event['id'], $selectedD
 $startDate     = date('d M Y', strtotime($event['start_date']));
 $endDate       = date('d M Y', strtotime($event['end_date']));
 $sessionLabels = (new SessionWindowRepository())->labelMap();
+
+$providerName   = $event['provider_name'] ?: '-';
+$providerAcc    = $event['provider_accreditation_no'] ?: '-';
+$supervisorLine = $event['coordinator'] ?: '-';
+$modeLine       = $event['event_mode_label'] ?? $event['event_mode'] ?? '-';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -92,6 +97,14 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
     <tr>
         <th>Venue</th><td><?= htmlspecialchars($event['venue'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
         <th>Dates</th><td><?= $startDate ?> &ndash; <?= $endDate ?></td>
+    </tr>
+    <tr>
+        <th>Provider</th><td><?= htmlspecialchars($providerName, ENT_QUOTES, 'UTF-8') ?></td>
+        <th>Accreditation No.</th><td><?= htmlspecialchars($providerAcc, ENT_QUOTES, 'UTF-8') ?></td>
+    </tr>
+    <tr>
+        <th>Supervisor</th><td><?= htmlspecialchars($supervisorLine, ENT_QUOTES, 'UTF-8') ?></td>
+        <th>Mode</th><td><?= htmlspecialchars($modeLine, ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
 </table>
 

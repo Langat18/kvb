@@ -49,8 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $attendanceId = (int) ($_POST['attendance_id'] ?? 0);
 
     if ($attendanceId > 0) {
-        $registrationModel->clearFlag($attendanceId);
-        $_SESSION['success'] = 'Record cleared and approved.';
+        // approveFlagged() clears the flag AND attempts to award points
+        // (points still won't post if a quiz is configured and unpassed —
+        // this just removes the geofence hold, matching the "supervisor
+        // approves flagged attendance" permission model).
+        $registrationModel->approveFlagged($attendanceId);
+        $_SESSION['success'] = 'Record approved. Points will post automatically once any other requirements (e.g. a session quiz) are met.';
     }
 
     header('Location: /events/flagged.php?token=' . urlencode($event['view_token']));
@@ -118,7 +122,7 @@ body { display: block; padding: 2.5rem; }
                             <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="attendance_id" value="<?= (int) $f['attendance_id'] ?>">
-                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this attendance record despite the location flag?')">Approve</button>
+                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this attendance record despite the location flag? Points will be released if all other requirements (e.g. a session quiz) are already met.')">Approve</button>
                             </form>
                         </td>
                     </tr>

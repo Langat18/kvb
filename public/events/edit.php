@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\EventModeRepository;
+use VetBoard\EventQuiz;
 
 Auth::startSession();
 Auth::requirePermission('view_events');
@@ -38,12 +39,92 @@ if (!$canEdit) {
     die('Access denied.');
 }
 
-$eventModeRepo   = new EventModeRepository();
-$eventModes      = $eventModeRepo->list(true);
+$eventModeRepo = new EventModeRepository();
+$eventModes    = $eventModeRepo->list(true);
+$quizModel     = new EventQuiz();
 
 $error    = $_SESSION['error']     ?? null;
+$success  = $_SESSION['success']   ?? null;
 $formData = $_SESSION['form_data'] ?? [];
-unset($_SESSION['error'], $_SESSION['form_data']);
+unset($_SESSION['error'], $_SESSION['success'], $_SESSION['form_data']);
+
+/**
+ * Parses the raw quiz[] POST block into a clean, save-ready structure:
+ * [ session_window_id => ['clear' => bool, 'questions' => [...]] ]
+ * A session is omitted entirely if its panel was left blank — untouched
+ * quizzes are never wiped just because the form re-submits empty fields.
+ *
+ * Also runs an integrity check: compares the browser's reported question
+ * count (stamped fresh from the DOM right before submit) against what
+ * actually arrived server-side, logging any mismatch immediately.
+ */
+function parseQuizSubmission(array $post, int $eventId): array
+{
+    $result = [];
+
+    foreach ($post as $swid => $swdata) {
+        $swid = (int) $swid;
+
+        $expectedCount = (int) ($swdata['expected_count'] ?? 0);
+        $actualCount   = count($swdata['questions'] ?? []);
+
+        if ($expectedCount !== $actualCount) {
+            error_log(
+                "Quiz integrity mismatch — event {$eventId}, session_window {$swid}: " .
+                "browser reported {$expectedCount} question block(s) at submit time, " .
+                "server received {$actualCount} distinct question(s) in \$_POST. " .
+                "This usually means two question blocks shared an array index client-side."
+            );
+        }
+
+        if (!empty($swdata['clear'])) {
+            $result[$swid] = ['clear' => true, 'questions' => []];
+            continue;
+        }
+
+        $questions = [];
+
+        foreach (($swdata['questions'] ?? []) as $qdata) {
+            $text = trim($qdata['text'] ?? '');
+
+            if ($text === '') {
+                continue;
+            }
+
+            $options    = [];
+            $correctIdx = (string) ($qdata['correct'] ?? '');
+
+            foreach (($qdata['options'] ?? []) as $idx => $optText) {
+                $optText = trim((string) $optText);
+
+                if ($optText === '') {
+                    continue;
+                }
+
+                $options[] = [
+                    'text'    => $optText,
+                    'correct' => ((string) $idx === $correctIdx),
+                ];
+            }
+
+            if (!empty($options)) {
+                $questions[] = ['text' => $text, 'options' => $options];
+            }
+        }
+
+        if (!empty($questions)) {
+            $result[$swid] = ['clear' => false, 'questions' => $questions];
+        }
+    }
+
+    return $result;
+}
+
+/** True for a PDO boolean column value regardless of driver representation (real bool vs 't'/'f'). */
+function isTruthyDbBool($value): bool
+{
+    return $value === true || $value === 't' || $value === 1 || $value === '1';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -70,20 +151,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         $eventModel->update((int) $event['id'], $data);
-        $_SESSION['success'] = 'Event updated successfully.';
-        header('Location: /events/view.php?token=' . urlencode($event['view_token']));
-        exit;
-
     } catch (\InvalidArgumentException $e) {
         $_SESSION['error']     = $e->getMessage();
         $_SESSION['form_data'] = $data;
         header('Location: /events/edit.php?token=' . urlencode($event['view_token']));
         exit;
-
     } catch (\Throwable $e) {
         error_log('Event update error: ' . $e->getMessage());
         $_SESSION['error']     = 'A system error occurred. Please try again.';
         $_SESSION['form_data'] = $data;
+        header('Location: /events/edit.php?token=' . urlencode($event['view_token']));
+        exit;
+    }
+
+    try {
+        foreach (parseQuizSubmission($_POST['quiz'] ?? [], (int) $event['id']) as $swid => $q) {
+            $quizModel->saveQuestions((int) $event['id'], $swid, $q['questions']);
+        }
+
+        $_SESSION['success'] = 'Event updated successfully.';
+        header('Location: /events/view.php?token=' . urlencode($event['view_token']));
+        exit;
+
+    } catch (\InvalidArgumentException $e) {
+        $_SESSION['error'] = 'Event details were saved, but a quiz could not be saved (' . $e->getMessage() . '). Please fix it below and save again.';
+        header('Location: /events/edit.php?token=' . urlencode($event['view_token']));
+        exit;
+
+    } catch (\Throwable $e) {
+        error_log('Quiz save error: ' . $e->getMessage());
+        $_SESSION['error'] = 'Event details were saved, but the quiz could not be saved due to a system error. Please try again below.';
         header('Location: /events/edit.php?token=' . urlencode($event['view_token']));
         exit;
     }
@@ -100,6 +197,11 @@ if (isset($formData['session_points'])) {
 }
 
 $providerNameDisplay = empty($formData) ? ($event['provider_name'] ?? '') : '';
+
+$quizBySession = [];
+foreach ($sessionPointsRows as $sw) {
+    $quizBySession[$sw['id']] = $quizModel->getQuestions((int) $event['id'], (int) $sw['id'], true);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -115,6 +217,25 @@ $providerNameDisplay = empty($formData) ? ($event['provider_name'] ?? '') : '';
 body { display: block; padding: 2.5rem; }
 .container { max-width: 680px; margin: 0 auto; }
 .container h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
+.quiz-panel { margin-top: 1.5rem; }
+.quiz-panel > .form-group.full > label { font-weight: 600; }
+.quiz-session {
+    border: 1.5px solid #d8dde3; border-radius: 12px; padding: 1rem;
+    margin-bottom: 1rem; background: #fafbfc;
+}
+.quiz-session-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+.quiz-session-header strong { font-size: .92rem; }
+.quiz-clear-label { font-size: .78rem; color: var(--text-muted); display: flex; align-items: center; gap: .35rem; cursor: pointer; }
+.quiz-question-block {
+    border: 1px dashed #c8ced6; border-radius: 10px; padding: .85rem;
+    margin-bottom: .75rem; background: #fff;
+}
+.quiz-question-block .form-group { margin-bottom: .5rem; }
+.quiz-option-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
+.quiz-option-row input[type="radio"] { accent-color: var(--kvb-green-dark); width: 16px; height: 16px; flex-shrink: 0; }
+.quiz-option-row input[type="text"] { flex: 1; }
+.quiz-question-actions { display: flex; gap: .5rem; margin-top: .5rem; }
+.quiz-remove-question { color: var(--kvb-red-dark); }
 </style>
 </head>
 <body>
@@ -124,6 +245,9 @@ body { display: block; padding: 2.5rem; }
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
+    <?php if ($success): ?>
+        <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
     <div class="card">
@@ -242,6 +366,62 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
+            <div class="quiz-panel">
+                <div class="form-group full">
+                    <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);">(optional — if set, points for that session only post once a participant passes with 90% or higher, up to 2 attempts)</span></label>
+                </div>
+
+                <?php foreach ($sessionPointsRows as $sw):
+                    $existingQuestions = $quizBySession[$sw['id']] ?? [];
+                ?>
+                    <div class="quiz-session" data-swid="<?= (int) $sw['id'] ?>">
+                        <input type="hidden" class="quiz-expected-count" name="quiz[<?= (int) $sw['id'] ?>][expected_count]" value="<?= count($existingQuestions) ?>">
+                        <div class="quiz-session-header">
+                            <strong><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></strong>
+                            <?php if (!empty($existingQuestions)): ?>
+                                <label class="quiz-clear-label">
+                                    <input type="checkbox" name="quiz[<?= (int) $sw['id'] ?>][clear]" value="1">
+                                    Remove all quiz questions for this session
+                                </label>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="quiz-questions-list">
+                            <?php foreach ($existingQuestions as $qIdx => $q): ?>
+                                <div class="quiz-question-block" data-qidx="<?= $qIdx ?>">
+                                    <div class="form-group">
+                                        <label>Question</label>
+                                        <input type="text"
+                                               name="quiz[<?= (int) $sw['id'] ?>][questions][<?= $qIdx ?>][text]"
+                                               value="<?= htmlspecialchars($q['question_text'], ENT_QUOTES, 'UTF-8') ?>">
+                                    </div>
+                                    <p style="font-size:.75rem;color:var(--text-muted);margin:.3rem 0;">Click the circle beside the correct answer &mdash; exactly one is required.</p>
+                                    <div class="quiz-options" data-swid="<?= (int) $sw['id'] ?>" data-qidx="<?= $qIdx ?>">
+                                        <?php foreach ($q['options'] as $oIdx => $opt): ?>
+                                            <div class="quiz-option-row">
+                                                <input type="radio"
+                                                       name="quiz[<?= (int) $sw['id'] ?>][questions][<?= $qIdx ?>][correct]"
+                                                       value="<?= $oIdx ?>" required
+                                                       <?= isTruthyDbBool($opt['is_correct']) ? 'checked' : '' ?>>
+                                                <input type="text"
+                                                       name="quiz[<?= (int) $sw['id'] ?>][questions][<?= $qIdx ?>][options][<?= $oIdx ?>]"
+                                                       value="<?= htmlspecialchars($opt['option_text'], ENT_QUOTES, 'UTF-8') ?>">
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <div class="quiz-question-actions">
+                                        <button type="button" class="btn btn-ghost btn-sm add-option-btn">+ Add Option</button>
+                                        <button type="button" class="btn btn-ghost btn-sm quiz-remove-question remove-question-btn">Remove Question</button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <button type="button" class="btn btn-ghost btn-sm add-question-btn">+ Add Question</button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
             <div style="margin-top:1.5rem;display:flex;gap:.6rem;">
                 <button type="submit" class="btn btn-primary" id="submit-btn">Save Changes</button>
                 <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Cancel</a>
@@ -252,5 +432,6 @@ body { display: block; padding: 2.5rem; }
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js"></script>
+<script src="/assets/js/quiz-builder.js"></script>
 </body>
 </html>
