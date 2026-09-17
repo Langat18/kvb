@@ -115,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $distanceM    = null;
     $flagged      = false;
     $flagReason   = null;
+    $pointsDenied = false;
 
     if ($isOnsiteSubmission) {
         $lat = $_POST['geo_lat'] ?? '';
@@ -129,13 +130,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $submittedLat = (float) $lat;
         $submittedLng = (float) $lng;
 
-        $geoCheck = $eventModel->isWithinGeofence($event, $submittedLat, $submittedLng);
+        $geoCheck    = $eventModel->isWithinGeofence($event, $submittedLat, $submittedLng);
         $geoVerified = $geoCheck['within'];
         $distanceM   = $geoCheck['distance_m'];
 
         if (!$geoVerified) {
-            $flagged    = true;
-            $flagReason = 'Outside geofence radius (' . $distanceM . 'm from venue)';
+            $flagged = true;
+
+            // Layer 1 has two tiers: merely outside the radius (held for
+            // supervisor review, may still be approved) versus far enough
+            // outside it that no review is possible (permanently denied —
+            // see OFFSITE_HARD_REJECT_EXCESS_M in config/constants.php).
+            $excessM = $distanceM - (int) $event['geo_radius_m'];
+
+            if ($excessM > OFFSITE_HARD_REJECT_EXCESS_M) {
+                $pointsDenied = true;
+                $flagReason   = 'Too far from venue to qualify for points (' . $excessM . 'm beyond the allowed radius) — not eligible for supervisor review';
+            } else {
+                $flagReason = 'Outside geofence radius (' . $distanceM . 'm from venue)';
+            }
         }
     }
 
@@ -150,7 +163,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'distance_m'      => $distanceM,
             'flagged'         => $flagged,
             'flag_reason'     => $flagReason,
+            'points_denied'   => $pointsDenied,
         ]);
+
+        if ($pointsDenied) {
+            // No quiz, no review — this outcome is final. Skip straight to
+            // the success page with the denial message; there is nothing
+            // further for the participant to do here.
+            $_SESSION['attend_success']       = true;
+            $_SESSION['attend_session']       = $session;
+            $_SESSION['attend_flagged']       = false;
+            $_SESSION['attend_points_denied'] = true;
+            header('Location: /events/attend.php?token=' . urlencode($token) . '&done=1');
+            exit;
+        }
 
         $pointsStatus = $registrationModel->getPointsStatus((int) $registration['id'], $session);
 
@@ -166,9 +192,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $_SESSION['attend_success'] = true;
-        $_SESSION['attend_session'] = $session;
-        $_SESSION['attend_flagged'] = $flagged;
+        $_SESSION['attend_success']       = true;
+        $_SESSION['attend_session']       = $session;
+        $_SESSION['attend_flagged']       = $flagged;
+        $_SESSION['attend_points_denied'] = false;
         header('Location: /events/attend.php?token=' . urlencode($token) . '&done=1');
         exit;
 
@@ -180,10 +207,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$attendSuccess = $_SESSION['attend_success'] ?? false;
-$attendSession = $_SESSION['attend_session'] ?? '';
-$attendFlagged = $_SESSION['attend_flagged'] ?? false;
-unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['attend_flagged']);
+$attendSuccess      = $_SESSION['attend_success']       ?? false;
+$attendSession      = $_SESSION['attend_session']       ?? '';
+$attendFlagged      = $_SESSION['attend_flagged']       ?? false;
+$attendPointsDenied = $_SESSION['attend_points_denied'] ?? false;
+unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['attend_flagged'], $_SESSION['attend_points_denied']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -218,13 +246,20 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
 
     <?php if ($attendSuccess): ?>
         <div class="card" style="text-align:center;padding:2rem;">
-            <div style="font-size:3rem;">&#10003;</div>
-            <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Attendance Recorded</h2>
-            <p>Your <?= htmlspecialchars($sessionLabels[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
-            <?php if ($attendFlagged): ?>
-                <p style="font-size:.82rem;color:var(--kvb-red-dark);margin-top:.75rem;">
-                    Your location was outside the expected event radius. This record has been flagged for admin review before points are released.
-                </p>
+            <?php if ($attendPointsDenied): ?>
+                <div style="font-size:3rem;">&#9888;</div>
+                <h2 style="color:var(--kvb-red-dark);margin:.5rem 0;">Attendance Recorded</h2>
+                <p style="font-weight:600;color:var(--kvb-red-dark);">Points are not awarded — offsite.</p>
+                <p style="font-size:.82rem;color:var(--text-muted);margin-top:.5rem;">Your check-in was too far from the venue to qualify for CPD points.</p>
+            <?php else: ?>
+                <div style="font-size:3rem;">&#10003;</div>
+                <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Attendance Recorded</h2>
+                <p>Your <?= htmlspecialchars($sessionLabels[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
+                <?php if ($attendFlagged): ?>
+                    <p style="font-size:.82rem;color:var(--kvb-red-dark);margin-top:.75rem;">
+                        Your location was outside the expected event radius. This record has been flagged for admin review before points are released.
+                    </p>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     <?php else: ?>
