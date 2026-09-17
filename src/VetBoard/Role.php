@@ -103,8 +103,10 @@ class Role
         $stmt = $this->pdo->prepare(
             'UPDATE roles SET active = :active, updated_at = now() WHERE id = :id'
         );
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':active', $active, PDO::PARAM_BOOL);
 
-        return $stmt->execute([':id' => $id, ':active' => $active]);
+        return $stmt->execute();
     }
 
     public function getPermissionKeys(int $roleId): array

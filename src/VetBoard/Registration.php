@@ -86,7 +86,7 @@ class Registration
         $attendanceId = (int) $stmt->fetchColumn();
 
         if ($data['method'] !== 'virtual') {
-            $this->awardPoints($attendanceId, (int) $data['registration_id'], $data['session']);
+            $this->maybeAwardPoints((int) $data['registration_id'], $data['session']);
         }
 
         return $attendanceId;
@@ -123,19 +123,169 @@ class Registration
         $update = $this->pdo->prepare('UPDATE attendance SET reconfirmed_at = now() WHERE id = :id');
         $update->execute([':id' => $row['id']]);
 
-        $this->awardPoints((int) $row['id'], (int) $row['registration_id'], $session);
+        $this->maybeAwardPoints((int) $row['registration_id'], $session);
 
-        return ['ok' => true, 'message' => 'Attendance reconfirmed. Points have been awarded.'];
+        return ['ok' => true, 'message' => 'Attendance reconfirmed. Points have been awarded if all requirements are met.'];
+    }
+
+    /**
+     * Approves a flagged (out-of-geofence) check-in. Only a supervisor
+     * action should call this. Clears the flag and then attempts to award
+     * points — which still won't happen yet if a quiz is configured for
+     * this session and hasn't been passed.
+     */
+    public function approveFlagged(int $attendanceId): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT registration_id, session FROM attendance WHERE id = :id');
+        $stmt->execute([':id' => $attendanceId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return false;
+        }
+
+        $clear = $this->pdo->prepare('UPDATE attendance SET flagged = false, flag_reason = NULL WHERE id = :id');
+        $result = $clear->execute([':id' => $attendanceId]);
+
+        $this->maybeAwardPoints((int) $row['registration_id'], $row['session']);
+
+        return $result;
+    }
+
+    /**
+     * Kept for any existing callers that just want to clear a flag without
+     * touching points. Prefer approveFlagged() for the supervisor-review
+     * workflow, since it also releases points once conditions are met.
+     */
+    public function clearFlag(int $attendanceId): bool
+    {
+        $stmt = $this->pdo->prepare('UPDATE attendance SET flagged = false, flag_reason = NULL WHERE id = :id');
+
+        return $stmt->execute([':id' => $attendanceId]);
+    }
+
+    private function findAttendanceId(int $registrationId, string $session): ?int
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT id FROM attendance
+             WHERE registration_id = :rid AND session = :session AND attendance_date = CURRENT_DATE
+             ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute([':rid' => $registrationId, ':session' => $session]);
+        $id = $stmt->fetchColumn();
+
+        return $id !== false ? (int) $id : null;
+    }
+
+    /**
+     * Central gate for whether points can post for a given check-in.
+     * Points are held back if the check-in is still flagged, or if a quiz
+     * is configured for this event+session and hasn't been passed yet.
+     * Safe to call repeatedly — it no-ops if points were already awarded.
+     */
+    public function maybeAwardPoints(int $registrationId, string $session): void
+    {
+        $attendanceId = $this->findAttendanceId($registrationId, $session);
+
+        if ($attendanceId === null) {
+            return;
+        }
+
+        $stmt = $this->pdo->prepare(
+            'SELECT a.flagged, r.event_id, sw.id AS session_window_id
+             FROM attendance a
+             JOIN registrations r ON r.id = a.registration_id
+             JOIN session_windows sw ON sw.item_key = a.session
+             WHERE a.id = :attendance_id'
+        );
+        $stmt->execute([':attendance_id' => $attendanceId]);
+        $row = $stmt->fetch();
+
+        if (!$row || $row['flagged']) {
+            return;
+        }
+
+        $quizModel = new EventQuiz();
+
+        if ($quizModel->hasQuiz((int) $row['event_id'], (int) $row['session_window_id'])) {
+            $attemptModel = new QuizAttempt();
+
+            if (!$attemptModel->hasPassed($registrationId, (int) $row['session_window_id'])) {
+                return;
+            }
+        }
+
+        $alreadyStmt = $this->pdo->prepare('SELECT EXISTS(SELECT 1 FROM points_ledger WHERE attendance_id = :attendance_id)');
+        $alreadyStmt->execute([':attendance_id' => $attendanceId]);
+
+        if ((bool) $alreadyStmt->fetchColumn()) {
+            return;
+        }
+
+        $this->awardPoints($attendanceId, $registrationId, $session);
+    }
+
+    /**
+     * Reports why points haven't posted yet for a check-in, for display in
+     * the UI (e.g. "Pending quiz", "Pending review"). Returns one of:
+     * awarded, pending_review, pending_quiz, quiz_failed, not_applicable.
+     */
+    public function getPointsStatus(int $registrationId, string $session): string
+    {
+        $attendanceId = $this->findAttendanceId($registrationId, $session);
+
+        if ($attendanceId === null) {
+            return 'not_applicable';
+        }
+
+        $alreadyStmt = $this->pdo->prepare('SELECT EXISTS(SELECT 1 FROM points_ledger WHERE attendance_id = :attendance_id)');
+        $alreadyStmt->execute([':attendance_id' => $attendanceId]);
+
+        if ((bool) $alreadyStmt->fetchColumn()) {
+            return 'awarded';
+        }
+
+        $stmt = $this->pdo->prepare(
+            'SELECT a.flagged, r.event_id, sw.id AS session_window_id
+             FROM attendance a
+             JOIN registrations r ON r.id = a.registration_id
+             JOIN session_windows sw ON sw.item_key = a.session
+             WHERE a.id = :attendance_id'
+        );
+        $stmt->execute([':attendance_id' => $attendanceId]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return 'not_applicable';
+        }
+
+        if ($row['flagged']) {
+            return 'pending_review';
+        }
+
+        $quizModel = new EventQuiz();
+
+        if ($quizModel->hasQuiz((int) $row['event_id'], (int) $row['session_window_id'])) {
+            $attemptModel = new QuizAttempt();
+
+            if ($attemptModel->hasPassed($registrationId, (int) $row['session_window_id'])) {
+                return 'awarded';
+            }
+
+            if ($attemptModel->attemptCount($registrationId, (int) $row['session_window_id']) >= QuizAttempt::MAX_ATTEMPTS) {
+                return 'quiz_failed';
+            }
+
+            return 'pending_quiz';
+        }
+
+        return 'not_applicable';
     }
 
     private function awardPoints(int $attendanceId, int $registrationId, string $session): void
     {
         $regStmt = $this->pdo->prepare(
-            'SELECT r.event_id, r.reg_no,
-                    e.points_morning, e.points_mid_morning, e.points_afternoon
-             FROM registrations r
-             JOIN events e ON e.id = r.event_id
-             WHERE r.id = :registration_id'
+            'SELECT r.event_id, r.reg_no FROM registrations r WHERE r.id = :registration_id'
         );
         $regStmt->execute([':registration_id' => $registrationId]);
         $row = $regStmt->fetch();
@@ -144,13 +294,14 @@ class Registration
             return;
         }
 
-        $sessionPointsMap = [
-            'morning'     => $row['points_morning'],
-            'mid_morning' => $row['points_mid_morning'],
-            'afternoon'   => $row['points_afternoon'],
-        ];
-
-        $sessionPoints = (int) ($sessionPointsMap[$session] ?? 0);
+        $pointsStmt = $this->pdo->prepare(
+            'SELECT esp.points
+             FROM event_session_points esp
+             JOIN session_windows sw ON sw.id = esp.session_window_id
+             WHERE esp.event_id = :event_id AND sw.item_key = :session'
+        );
+        $pointsStmt->execute([':event_id' => $row['event_id'], ':session' => $session]);
+        $sessionPoints = (int) $pointsStmt->fetchColumn();
 
         if ($sessionPoints <= 0) {
             return;
@@ -186,7 +337,6 @@ class Registration
             ':reason'        => ucfirst(str_replace('_', '-', $session)) . ' session attendance',
         ]);
     }
-
 
     public function attendanceDatesForEvent(int $eventId): array
     {
@@ -233,12 +383,5 @@ class Registration
         $stmt->execute([':event_id' => $eventId]);
 
         return $stmt->fetchAll();
-    }
-
-    public function clearFlag(int $attendanceId): bool
-    {
-        $stmt = $this->pdo->prepare('UPDATE attendance SET flagged = false, flag_reason = NULL WHERE id = :id');
-
-        return $stmt->execute([':id' => $attendanceId]);
     }
 }

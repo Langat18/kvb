@@ -126,8 +126,10 @@ class Staff
     public function setActive(int $id, bool $active): bool
     {
         $stmt = $this->pdo->prepare('UPDATE staff SET is_active = :active WHERE id = :id');
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':active', $active, PDO::PARAM_BOOL);
 
-        return $stmt->execute([':id' => $id, ':active' => $active]);
+        return $stmt->execute();
     }
 
     public function resetPassword(int $id, string $newPassword): bool

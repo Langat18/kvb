@@ -126,8 +126,10 @@ abstract class LookupRepository
         $stmt  = $this->pdo->prepare(
             "UPDATE {$table} SET active = :active, updated_at = now() WHERE id = :id"
         );
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':active', $active, PDO::PARAM_BOOL);
 
-        $result = $stmt->execute([':id' => $id, ':active' => $active]);
+        $result = $stmt->execute();
 
         $this->clearCache();
 
