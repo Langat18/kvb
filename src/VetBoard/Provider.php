@@ -19,6 +19,9 @@ class Provider
     {
         $accreditationNo = trim($data['accreditation_no'] ?? '');
         $name            = trim($data['name'] ?? '');
+        $contactPerson   = trim($data['contact_person'] ?? '');
+        $phone           = trim($data['phone'] ?? '');
+        $email           = trim($data['email'] ?? '');
 
         if ($accreditationNo === '' || $name === '') {
             throw new \InvalidArgumentException('Accreditation number and name are required.');
@@ -29,11 +32,43 @@ class Provider
         }
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO providers (accreditation_no, name) VALUES (:acc, :name) RETURNING id'
+            'INSERT INTO providers (accreditation_no, name, contact_person, phone, email)
+             VALUES (:acc, :name, :contact_person, :phone, :email) RETURNING id'
         );
-        $stmt->execute([':acc' => $accreditationNo, ':name' => $name]);
+        $stmt->execute([
+            ':acc'            => $accreditationNo,
+            ':name'           => $name,
+            ':contact_person' => $contactPerson !== '' ? $contactPerson : null,
+            ':phone'          => $phone !== '' ? $phone : null,
+            ':email'          => $email !== '' ? $email : null,
+        ]);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    public function update(int $id, array $data): bool
+    {
+        $name          = trim($data['name'] ?? '');
+        $contactPerson = trim($data['contact_person'] ?? '');
+        $phone         = trim($data['phone'] ?? '');
+        $email         = trim($data['email'] ?? '');
+
+        if ($name === '') {
+            throw new \InvalidArgumentException('Name is required.');
+        }
+
+        $stmt = $this->pdo->prepare(
+            'UPDATE providers SET name = :name, contact_person = :contact_person, phone = :phone, email = :email, updated_at = now()
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            ':id'             => $id,
+            ':name'           => $name,
+            ':contact_person' => $contactPerson !== '' ? $contactPerson : null,
+            ':phone'          => $phone !== '' ? $phone : null,
+            ':email'          => $email !== '' ? $email : null,
+        ]);
     }
 
     public function findByAccreditationNo(string $accreditationNo): ?array
@@ -85,14 +120,18 @@ class Provider
     public function setActive(int $id, bool $active): bool
     {
         $stmt = $this->pdo->prepare('UPDATE providers SET active = :active, updated_at = now() WHERE id = :id');
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':active', $active, PDO::PARAM_BOOL);
 
-        return $stmt->execute([':id' => $id, ':active' => $active]);
+        return $stmt->execute();
     }
 
     /**
-     * Imports providers from an uploaded CSV file. Expects two columns per
-     * row: accreditation number, name (a header row is auto-detected and
-     * skipped if its first cell doesn't look like an accreditation number).
+     * Imports providers from an uploaded CSV file. Expects up to five
+     * columns per row, in order: No (accreditation number), Name,
+     * Contact Person, Phone No, Email. Only the first two are required.
+     * A header row is auto-detected and skipped if the first cell
+     * doesn't look like an accreditation number.
      */
     public function importFromCsv(string $filePath): array
     {
@@ -106,7 +145,7 @@ class Provider
         }
 
         $rowNum = 0;
-        while (($row = fgetcsv($handle)) !== false) {
+        while (($row = fgetcsv($handle, 0, ',', '"', '\\\\')) !== false) {
             $rowNum++;
 
             if (count($row) < 2) {
@@ -115,6 +154,9 @@ class Provider
 
             $accreditationNo = trim($row[0]);
             $name            = trim($row[1]);
+            $contactPerson   = trim($row[2] ?? '');
+            $phone           = trim($row[3] ?? '');
+            $email           = trim($row[4] ?? '');
 
             if ($rowNum === 1 && (stripos($accreditationNo, 'no') === 0 || stripos($accreditationNo, 'accreditation') !== false)) {
                 continue;
@@ -131,7 +173,13 @@ class Provider
             }
 
             try {
-                $this->create(['accreditation_no' => $accreditationNo, 'name' => $name]);
+                $this->create([
+                    'accreditation_no' => $accreditationNo,
+                    'name'             => $name,
+                    'contact_person'   => $contactPerson,
+                    'phone'            => $phone,
+                    'email'            => $email,
+                ]);
                 $imported++;
             } catch (\InvalidArgumentException $e) {
                 $errors[] = "Row {$rowNum}: " . $e->getMessage();

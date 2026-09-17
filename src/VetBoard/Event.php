@@ -10,87 +10,150 @@ class Event
 {
     private PDO $pdo;
     private EventModeRepository $eventModeRepo;
-    private Department $departmentModel;
 
     public function __construct()
     {
-        $this->pdo             = Database::getInstance()->getPdo();
-        $this->eventModeRepo   = new EventModeRepository();
-        $this->departmentModel = new Department();
+        $this->pdo           = Database::getInstance()->getPdo();
+        $this->eventModeRepo = new EventModeRepository();
     }
 
     public function create(array $data): int
     {
         $this->validate($data);
 
-        $stmt = $this->pdo->prepare(
-            'INSERT INTO events
-                (title, event_code, event_mode_id, venue, department_id, coordinator, program_assistant,
-                 start_date, end_date, geo_lat, geo_lng, geo_radius_m,
-                 points_morning, points_mid_morning, points_afternoon, token, view_token, created_by)
-             VALUES
-                (:title, :event_code, :event_mode_id, :venue, :department_id, :coordinator, :program_assistant,
-                 :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m,
-                 :points_morning, :points_mid_morning, :points_afternoon, :token, :view_token, :created_by)
-             RETURNING id'
-        );
+        $this->pdo->beginTransaction();
 
-        $stmt->execute([
-            ':title'             => trim($data['title']),
-            ':event_code'        => trim($data['event_code'] ?? ''),
-            ':event_mode_id'     => (int) $data['event_mode_id'],
-            ':venue'             => trim($data['venue'] ?? ''),
-            ':department_id'     => (int) $data['department_id'],
-            ':coordinator'       => trim($data['coordinator'] ?? ''),
-            ':program_assistant' => trim($data['program_assistant'] ?? ''),
-            ':start_date'        => $data['start_date'],
-            ':end_date'          => $data['end_date'],
-            ':geo_lat'           => $data['geo_lat']      ?? null,
-            ':geo_lng'           => $data['geo_lng']      ?? null,
-            ':geo_radius_m'      => $data['geo_radius_m'] ?? null,
-            ':points_morning'     => $data['points_morning']     ?? null,
-            ':points_mid_morning' => $data['points_mid_morning'] ?? null,
-            ':points_afternoon'   => $data['points_afternoon']   ?? null,
-            ':token'             => bin2hex(random_bytes(16)),
-            ':view_token'        => bin2hex(random_bytes(16)),
-            ':created_by'        => $data['created_by'] ?? null,
-        ]);
+        try {
+            $stmt = $this->pdo->prepare(
+                'INSERT INTO events
+                    (title, event_code, event_mode_id, venue, provider_id, coordinator,
+                     start_date, end_date, geo_lat, geo_lng, geo_radius_m, token, view_token, created_by)
+                 VALUES
+                    (:title, :event_code, :event_mode_id, :venue, :provider_id, :coordinator,
+                     :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m, :token, :view_token, :created_by)
+                 RETURNING id'
+            );
 
-        return (int) $stmt->fetchColumn();
+            $stmt->execute([
+                ':title'         => trim($data['title']),
+                ':event_code'    => trim($data['event_code'] ?? ''),
+                ':event_mode_id' => (int) $data['event_mode_id'],
+                ':venue'         => trim($data['venue'] ?? ''),
+                ':provider_id'   => !empty($data['provider_id']) ? (int) $data['provider_id'] : null,
+                ':coordinator'   => trim($data['coordinator'] ?? ''),
+                ':start_date'    => $data['start_date'],
+                ':end_date'      => $data['end_date'],
+                ':geo_lat'       => $data['geo_lat']      ?? null,
+                ':geo_lng'       => $data['geo_lng']      ?? null,
+                ':geo_radius_m'  => $data['geo_radius_m'] ?? null,
+                ':token'         => bin2hex(random_bytes(16)),
+                ':view_token'    => bin2hex(random_bytes(16)),
+                ':created_by'    => $data['created_by'] ?? null,
+            ]);
+
+            $eventId = (int) $stmt->fetchColumn();
+
+            $this->saveSessionPoints($eventId, $data['session_points'] ?? []);
+
+            $this->pdo->commit();
+
+            return $eventId;
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
     }
 
     public function update(int $id, array $data): bool
     {
         $this->validate($data);
 
-        $stmt = $this->pdo->prepare(
-            'UPDATE events SET
-                title = :title, event_code = :event_code, event_mode_id = :event_mode_id,
-                venue = :venue, department_id = :department_id, coordinator = :coordinator,
-                program_assistant = :program_assistant, start_date = :start_date, end_date = :end_date,
-                geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m,
-                points_morning = :points_morning, points_mid_morning = :points_mid_morning, points_afternoon = :points_afternoon
-             WHERE id = :id'
+        $this->pdo->beginTransaction();
+
+        try {
+            $stmt = $this->pdo->prepare(
+                'UPDATE events SET
+                    title = :title, event_code = :event_code, event_mode_id = :event_mode_id,
+                    venue = :venue, provider_id = :provider_id,
+                    coordinator = :coordinator, start_date = :start_date, end_date = :end_date,
+                    geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m
+                 WHERE id = :id'
+            );
+
+            $result = $stmt->execute([
+                ':id'            => $id,
+                ':title'         => trim($data['title']),
+                ':event_code'    => trim($data['event_code'] ?? ''),
+                ':event_mode_id' => (int) $data['event_mode_id'],
+                ':venue'         => trim($data['venue'] ?? ''),
+                ':provider_id'   => !empty($data['provider_id']) ? (int) $data['provider_id'] : null,
+                ':coordinator'   => trim($data['coordinator'] ?? ''),
+                ':start_date'    => $data['start_date'],
+                ':end_date'      => $data['end_date'],
+                ':geo_lat'       => $data['geo_lat']      ?? null,
+                ':geo_lng'       => $data['geo_lng']      ?? null,
+                ':geo_radius_m'  => $data['geo_radius_m'] ?? null,
+            ]);
+
+            $this->saveSessionPoints($id, $data['session_points'] ?? []);
+
+            $this->pdo->commit();
+
+            return $result;
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Replaces all session-point rows for an event in one transaction.
+     * Zero-point sessions are simply not stored (equivalent to "no points
+     * for this session"), keeping the table free of meaningless rows.
+     */
+    private function saveSessionPoints(int $eventId, array $sessionPoints): void
+    {
+        $del = $this->pdo->prepare('DELETE FROM event_session_points WHERE event_id = :event_id');
+        $del->execute([':event_id' => $eventId]);
+
+        $ins = $this->pdo->prepare(
+            'INSERT INTO event_session_points (event_id, session_window_id, points)
+             VALUES (:event_id, :session_window_id, :points)'
         );
 
-        return $stmt->execute([
-            ':id'                => $id,
-            ':title'             => trim($data['title']),
-            ':event_code'        => trim($data['event_code'] ?? ''),
-            ':event_mode_id'     => (int) $data['event_mode_id'],
-            ':venue'             => trim($data['venue'] ?? ''),
-            ':department_id'     => (int) $data['department_id'],
-            ':coordinator'       => trim($data['coordinator'] ?? ''),
-            ':program_assistant' => trim($data['program_assistant'] ?? ''),
-            ':start_date'        => $data['start_date'],
-            ':end_date'          => $data['end_date'],
-            ':geo_lat'           => $data['geo_lat']      ?? null,
-            ':geo_lng'           => $data['geo_lng']      ?? null,
-            ':geo_radius_m'      => $data['geo_radius_m'] ?? null,
-            ':points_morning'     => $data['points_morning']     ?? null,
-            ':points_mid_morning' => $data['points_mid_morning'] ?? null,
-            ':points_afternoon'   => $data['points_afternoon']   ?? null,
-        ]);
+        foreach ($sessionPoints as $sessionWindowId => $points) {
+            $points = (int) $points;
+
+            if ($points <= 0) {
+                continue;
+            }
+
+            $ins->execute([
+                ':event_id'          => $eventId,
+                ':session_window_id' => (int) $sessionWindowId,
+                ':points'            => $points,
+            ]);
+        }
+    }
+
+    /**
+     * Returns every active session window alongside this event's configured
+     * points for it (0 if none set). Used to render the dynamic points form
+     * and to prefill it on edit, and to render points-per-session on
+     * printed/exported documents.
+     */
+    public function getSessionPoints(int $eventId): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT sw.id, sw.item_key, sw.label, COALESCE(esp.points, 0) AS points
+             FROM session_windows sw
+             LEFT JOIN event_session_points esp ON esp.session_window_id = sw.id AND esp.event_id = :event_id
+             WHERE sw.active = TRUE
+             ORDER BY sw.sort_order ASC, sw.label ASC'
+        );
+        $stmt->execute([':event_id' => $eventId]);
+
+        return $stmt->fetchAll();
     }
 
     private function validate(array $data): void
@@ -105,8 +168,11 @@ class Event
             throw new \InvalidArgumentException('A valid event mode is required.');
         }
 
-        if (empty($data['department_id']) || !$this->departmentModel->findById((int) $data['department_id'])) {
-            throw new \InvalidArgumentException('A valid department is required.');
+        if (!empty($data['provider_id'])) {
+            $providerModel = new Provider();
+            if (!$providerModel->findById((int) $data['provider_id'])) {
+                throw new \InvalidArgumentException('The selected provider could not be found. Please re-select it using the accreditation number lookup.');
+            }
         }
 
         if (empty($data['start_date']) || empty($data['end_date'])) {
@@ -123,30 +189,38 @@ class Event
             }
         }
 
-        $pointsTotal = (int) ($data['points_morning'] ?? 0)
-            + (int) ($data['points_mid_morning'] ?? 0)
-            + (int) ($data['points_afternoon'] ?? 0);
+        $sessionPoints = $data['session_points'] ?? [];
+        $pointsTotal   = 0;
+
+        foreach ($sessionPoints as $points) {
+            $points = (int) $points;
+
+            if ($points < 0) {
+                throw new \InvalidArgumentException('Points cannot be negative.');
+            }
+
+            $pointsTotal += $points;
+        }
 
         if ($pointsTotal > 8) {
             throw new \InvalidArgumentException('Total points across all sessions cannot exceed 8 per day.');
         }
+    }
 
-        foreach (['points_morning', 'points_mid_morning', 'points_afternoon'] as $field) {
-            if (isset($data[$field]) && $data[$field] !== null && (int) $data[$field] < 0) {
-                throw new \InvalidArgumentException('Points cannot be negative.');
-            }
-        }
+    private function baseSelect(): string
+    {
+        return 'SELECT e.*, m.item_key AS event_mode, m.label AS event_mode_label,
+                        pr.name AS provider_name, pr.accreditation_no AS provider_accreditation_no,
+                        pr.contact_person AS provider_contact_person, pr.phone AS provider_phone,
+                        pr.email AS provider_email
+                 FROM events e
+                 LEFT JOIN event_modes m ON m.id = e.event_mode_id
+                 LEFT JOIN providers pr ON pr.id = e.provider_id';
     }
 
     public function findById(int $id): ?array
     {
-        $stmt = $this->pdo->prepare(
-            'SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
-             FROM events e
-             LEFT JOIN departments d ON d.id = e.department_id
-             LEFT JOIN event_modes m ON m.id = e.event_mode_id
-             WHERE e.id = :id'
-        );
+        $stmt = $this->pdo->prepare($this->baseSelect() . ' WHERE e.id = :id');
         $stmt->execute([':id' => $id]);
 
         $result = $stmt->fetch();
@@ -156,13 +230,7 @@ class Event
 
     public function findByToken(string $token): ?array
     {
-        $stmt = $this->pdo->prepare(
-            'SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
-             FROM events e
-             LEFT JOIN departments d ON d.id = e.department_id
-             LEFT JOIN event_modes m ON m.id = e.event_mode_id
-             WHERE e.token = :token'
-        );
+        $stmt = $this->pdo->prepare($this->baseSelect() . ' WHERE e.token = :token');
         $stmt->execute([':token' => trim($token)]);
 
         $result = $stmt->fetch();
@@ -172,13 +240,7 @@ class Event
 
     public function findByViewToken(string $viewToken): ?array
     {
-        $stmt = $this->pdo->prepare(
-            'SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
-             FROM events e
-             LEFT JOIN departments d ON d.id = e.department_id
-             LEFT JOIN event_modes m ON m.id = e.event_mode_id
-             WHERE e.view_token = :view_token'
-        );
+        $stmt = $this->pdo->prepare($this->baseSelect() . ' WHERE e.view_token = :view_token');
         $stmt->execute([':view_token' => trim($viewToken)]);
 
         $result = $stmt->fetch();
@@ -209,12 +271,7 @@ class Event
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
         $stmt = $this->pdo->prepare(
-            "SELECT e.*, d.name AS department_name, m.item_key AS event_mode, m.label AS event_mode_label
-             FROM events e
-             LEFT JOIN departments d ON d.id = e.department_id
-             LEFT JOIN event_modes m ON m.id = e.event_mode_id
-             {$whereSql}
-             ORDER BY e.start_date DESC LIMIT :limit OFFSET :offset"
+            $this->baseSelect() . " {$whereSql} ORDER BY e.start_date DESC LIMIT :limit OFFSET :offset"
         );
 
         foreach ($params as $key => $value) {
