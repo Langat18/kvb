@@ -27,28 +27,32 @@ class Event
             $stmt = $this->pdo->prepare(
                 'INSERT INTO events
                     (title, event_code, event_mode_id, venue, provider_id, coordinator,
-                     start_date, end_date, geo_lat, geo_lng, geo_radius_m, token, view_token, created_by)
+                     start_date, end_date, geo_lat, geo_lng, geo_radius_m,
+                     meeting_provider, meeting_link, token, view_token, created_by)
                  VALUES
                     (:title, :event_code, :event_mode_id, :venue, :provider_id, :coordinator,
-                     :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m, :token, :view_token, :created_by)
+                     :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m,
+                     :meeting_provider, :meeting_link, :token, :view_token, :created_by)
                  RETURNING id'
             );
 
             $stmt->execute([
-                ':title'         => trim($data['title']),
-                ':event_code'    => trim($data['event_code'] ?? ''),
-                ':event_mode_id' => (int) $data['event_mode_id'],
-                ':venue'         => trim($data['venue'] ?? ''),
-                ':provider_id'   => !empty($data['provider_id']) ? (int) $data['provider_id'] : null,
-                ':coordinator'   => trim($data['coordinator'] ?? ''),
-                ':start_date'    => $data['start_date'],
-                ':end_date'      => $data['end_date'],
-                ':geo_lat'       => $data['geo_lat']      ?? null,
-                ':geo_lng'       => $data['geo_lng']      ?? null,
-                ':geo_radius_m'  => $data['geo_radius_m'] ?? null,
-                ':token'         => bin2hex(random_bytes(16)),
-                ':view_token'    => bin2hex(random_bytes(16)),
-                ':created_by'    => $data['created_by'] ?? null,
+                ':title'            => trim($data['title']),
+                ':event_code'       => trim($data['event_code'] ?? ''),
+                ':event_mode_id'    => (int) $data['event_mode_id'],
+                ':venue'            => trim($data['venue'] ?? ''),
+                ':provider_id'      => !empty($data['provider_id']) ? (int) $data['provider_id'] : null,
+                ':coordinator'      => trim($data['coordinator'] ?? ''),
+                ':start_date'       => $data['start_date'],
+                ':end_date'         => $data['end_date'],
+                ':geo_lat'          => $data['geo_lat']      ?? null,
+                ':geo_lng'          => $data['geo_lng']      ?? null,
+                ':geo_radius_m'     => $data['geo_radius_m'] ?? null,
+                ':meeting_provider' => !empty($data['meeting_provider']) ? $data['meeting_provider'] : null,
+                ':meeting_link'     => !empty($data['meeting_link']) ? trim($data['meeting_link']) : null,
+                ':token'            => bin2hex(random_bytes(16)),
+                ':view_token'       => bin2hex(random_bytes(16)),
+                ':created_by'       => $data['created_by'] ?? null,
             ]);
 
             $eventId = (int) $stmt->fetchColumn();
@@ -76,23 +80,26 @@ class Event
                     title = :title, event_code = :event_code, event_mode_id = :event_mode_id,
                     venue = :venue, provider_id = :provider_id,
                     coordinator = :coordinator, start_date = :start_date, end_date = :end_date,
-                    geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m
+                    geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m,
+                    meeting_provider = :meeting_provider, meeting_link = :meeting_link
                  WHERE id = :id'
             );
 
             $result = $stmt->execute([
-                ':id'            => $id,
-                ':title'         => trim($data['title']),
-                ':event_code'    => trim($data['event_code'] ?? ''),
-                ':event_mode_id' => (int) $data['event_mode_id'],
-                ':venue'         => trim($data['venue'] ?? ''),
-                ':provider_id'   => !empty($data['provider_id']) ? (int) $data['provider_id'] : null,
-                ':coordinator'   => trim($data['coordinator'] ?? ''),
-                ':start_date'    => $data['start_date'],
-                ':end_date'      => $data['end_date'],
-                ':geo_lat'       => $data['geo_lat']      ?? null,
-                ':geo_lng'       => $data['geo_lng']      ?? null,
-                ':geo_radius_m'  => $data['geo_radius_m'] ?? null,
+                ':id'               => $id,
+                ':title'            => trim($data['title']),
+                ':event_code'       => trim($data['event_code'] ?? ''),
+                ':event_mode_id'    => (int) $data['event_mode_id'],
+                ':venue'            => trim($data['venue'] ?? ''),
+                ':provider_id'      => !empty($data['provider_id']) ? (int) $data['provider_id'] : null,
+                ':coordinator'      => trim($data['coordinator'] ?? ''),
+                ':start_date'       => $data['start_date'],
+                ':end_date'         => $data['end_date'],
+                ':geo_lat'          => $data['geo_lat']      ?? null,
+                ':geo_lng'          => $data['geo_lng']      ?? null,
+                ':geo_radius_m'     => $data['geo_radius_m'] ?? null,
+                ':meeting_provider' => !empty($data['meeting_provider']) ? $data['meeting_provider'] : null,
+                ':meeting_link'     => !empty($data['meeting_link']) ? trim($data['meeting_link']) : null,
             ]);
 
             $this->saveSessionPoints($id, $data['session_points'] ?? []);
@@ -106,11 +113,6 @@ class Event
         }
     }
 
-    /**
-     * Replaces all session-point rows for an event in one transaction.
-     * Zero-point sessions are simply not stored (equivalent to "no points
-     * for this session"), keeping the table free of meaningless rows.
-     */
     private function saveSessionPoints(int $eventId, array $sessionPoints): void
     {
         $del = $this->pdo->prepare('DELETE FROM event_session_points WHERE event_id = :event_id');
@@ -136,12 +138,6 @@ class Event
         }
     }
 
-    /**
-     * Returns every active session window alongside this event's configured
-     * points for it (0 if none set). Used to render the dynamic points form
-     * and to prefill it on edit, and to render points-per-session on
-     * printed/exported documents.
-     */
     public function getSessionPoints(int $eventId): array
     {
         $stmt = $this->pdo->prepare(
@@ -154,6 +150,36 @@ class Event
         $stmt->execute([':event_id' => $eventId]);
 
         return $stmt->fetchAll();
+    }
+
+    // Finds a recently-created event with a matching title, so create.php
+    // can warn instead of silently allowing a second copy of a mistyped
+    // or resubmitted event. Not a hard uniqueness constraint — recurring
+    // events legitimately reuse titles — so this is a lookup, not a guard.
+    public function findRecentSimilarTitle(string $title, int $withinHours = 24, ?int $excludeId = null): ?array
+    {
+        $sql = "SELECT id, title, event_code, start_date, end_date, created_at
+                FROM events
+                WHERE lower(trim(title)) = lower(trim(:title))
+                  AND created_at >= now() - (:hours || ' hours')::interval";
+
+        if ($excludeId !== null) {
+            $sql .= ' AND id != :exclude_id';
+        }
+
+        $sql .= ' ORDER BY created_at DESC LIMIT 1';
+
+        $stmt   = $this->pdo->prepare($sql);
+        $params = [':title' => $title, ':hours' => $withinHours];
+
+        if ($excludeId !== null) {
+            $params[':exclude_id'] = $excludeId;
+        }
+
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+
+        return $result ?: null;
     }
 
     private function validate(array $data): void
@@ -186,6 +212,19 @@ class Event
         if ($mode['item_key'] !== 'virtual') {
             if (empty($data['geo_lat']) || empty($data['geo_lng']) || empty($data['geo_radius_m'])) {
                 throw new \InvalidArgumentException('Location and radius are required for on-site or hybrid events.');
+            }
+        }
+
+        // Any event with a virtual component needs a place for virtual attendees to go.
+        if ($mode['item_key'] !== 'onsite') {
+            $link = trim($data['meeting_link'] ?? '');
+
+            if ($link === '') {
+                throw new \InvalidArgumentException('A meeting link is required for virtual or hybrid events.');
+            }
+
+            if (!preg_match('#^https?://#i', $link)) {
+                throw new \InvalidArgumentException('The meeting link must be a valid URL starting with http:// or https://.');
             }
         }
 
