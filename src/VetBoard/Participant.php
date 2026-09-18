@@ -48,6 +48,13 @@ class Participant
             throw new \InvalidArgumentException('This email address is already registered under a different RegNo.');
         }
 
+        $existingByIdNumber = $this->findByIdNumber($data['id_number']);
+        if ($existingByIdNumber) {
+            throw new \InvalidArgumentException(
+                'This ID number is already registered under Reg. No. ' . $existingByIdNumber['reg_no'] . '. Please use that number to sign in instead.'
+            );
+        }
+
         $stmt = $this->pdo->prepare(
             'INSERT INTO participants (reg_no, name, id_number, email, phone)
              VALUES (:reg_no, :name, :id_number, :email, :phone)'
@@ -113,6 +120,16 @@ class Participant
     {
         $stmt = $this->pdo->prepare('SELECT * FROM participants WHERE email = :email');
         $stmt->execute([':email' => strtolower(trim($email))]);
+
+        $result = $stmt->fetch();
+
+        return $result ?: null;
+    }
+
+    public function findByIdNumber(string $idNumber): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM participants WHERE id_number = :id_number');
+        $stmt->execute([':id_number' => trim($idNumber)]);
 
         $result = $stmt->fetch();
 
