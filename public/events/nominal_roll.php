@@ -10,6 +10,7 @@ require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
 use VetBoard\Event;
+use VetBoard\Security;
 use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
@@ -144,9 +145,9 @@ if ($format === 'word') {
         $table->addRow();
         $table->addCell($colWidths[0])->addText((string) ($i + 1), $cStyle, $cCenter);
         $table->addCell($colWidths[1])->addText($p['reg_no'], $cStyle);
-        $table->addCell($colWidths[2])->addText(str_replace('&', 'and', $p['name']), $cStyle);
-        $table->addCell($colWidths[3])->addText($p['email'], $cStyle);
-        $table->addCell($colWidths[4])->addText($p['phone'] ?? '', $cStyle);
+        $table->addCell($colWidths[2])->addText(Security::excelSafe(str_replace('&', 'and', $p['name'])), $cStyle);
+        $table->addCell($colWidths[3])->addText(Security::excelSafe($p['email']), $cStyle);
+        $table->addCell($colWidths[4])->addText(Security::excelSafe($p['phone'] ?? ''), $cStyle);
         $table->addCell($colWidths[5])->addText((string) $sessionsSigned, $cStyle, $cCenter);
         $table->addCell($colWidths[6])->addText((string) ($p['points_earned'] ?? 0), $cStyle, $cCenter);
         $table->addCell($colWidths[7])->addText($flaggedText, $cStyle);
@@ -230,9 +231,9 @@ if ($format === 'excel') {
 
         $sheet->setCellValue('A' . $row, $i + 1);
         $sheet->setCellValue('B' . $row, $p['reg_no']);
-        $sheet->setCellValue('C' . $row, $p['name']);
-        $sheet->setCellValue('D' . $row, $p['email']);
-        $sheet->getCell('E' . $row)->setValueExplicit($p['phone'] ?? '', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('C' . $row, Security::excelSafe($p['name']));
+        $sheet->setCellValue('D' . $row, Security::excelSafe($p['email']));
+        $sheet->getCell('E' . $row)->setValueExplicit(Security::excelSafe($p['phone'] ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         $sheet->setCellValue('F' . $row, $sessionsSigned);
         $sheet->setCellValue('G' . $row, (int) ($p['points_earned'] ?? 0));
         $sheet->setCellValue('H' . $row, $flaggedText ?: 'None');
@@ -370,7 +371,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                 </td>
                 <td>
                     <?php if (!empty($p['signature']) && str_starts_with($p['signature'], 'data:image/')): ?>
-                        <img src="<?= htmlspecialchars($p['signature'], ENT_QUOTES, 'UTF-8') ?>" class="sig-img" alt="Signature">
+                        <img src="<?= htmlspecialchars($p['signature'], ENT_QUOTES, 'UTF-8') ?>" class="sig-img" alt="Signature" loading="lazy">
                     <?php else: ?>
                         <span style="color:#999;font-size:7.5pt;font-style:italic;">No signature</span>
                     <?php endif; ?>

@@ -81,6 +81,15 @@ if ($sessionInfo['window'] !== null && !$isPureOnsite) {
     $virtualSignInOpensAt = date('g:i A', $thresholdTs);
 }
 
+// Registration confirms interest, not presence 
+
+$existingRegNo   = strtoupper(trim($_GET['reg_no'] ?? ''));
+$isRegisteredView = false;
+if ($existingRegNo !== '' && Participant::isValidRegNo($existingRegNo)) {
+    $existingReg = (new Registration())->find((int) $event['id'], $existingRegNo);
+    $isRegisteredView = (bool) $existingReg;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!Auth::validateCsrf($_POST['csrf_token'] ?? '')) {
@@ -339,6 +348,29 @@ unset(
 
         <?php if ($error): ?>
             <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+
+        <?php if (!$isRegisteredView && !$isPureOnsite): ?>
+            <div class="card" style="padding:1rem 1.25rem;margin-bottom:1rem;">
+                <p style="font-size:.85rem;margin-bottom:.5rem;">Already registered? Enter your registration number to find your meeting link.</p>
+                <form method="GET" action="/events/attend.php" style="display:flex;gap:.5rem;">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="text" name="reg_no" placeholder="e.g. 1234 or VTA1234" required style="flex:1;">
+                    <button type="submit" class="btn btn-secondary">Find Link</button>
+                </form>
+                <?php if ($existingRegNo !== '' && !$isRegisteredView): ?>
+                    <p style="font-size:.8rem;color:var(--kvb-red-dark);margin-top:.5rem;">No registration found for that number. Please check it or register first.</p>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($isRegisteredView && !$isPureOnsite && !empty($event['meeting_link'])): ?>
+            <div class="card" style="text-align:center;padding:1.25rem;margin-bottom:1rem;">
+                <p style="margin-bottom:.6rem;font-size:.88rem;">You're registered for this event.</p>
+                <a href="<?= htmlspecialchars($event['meeting_link'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-block">
+                    Join <?= htmlspecialchars(meetingProviderLabel($event['meeting_provider'] ?? null), ENT_QUOTES, 'UTF-8') ?>
+                </a>
+            </div>
         <?php endif; ?>
 
         <?php if (!$isPureOnsite && $sessionInfo['window'] !== null && !$virtualSignInOpen): ?>

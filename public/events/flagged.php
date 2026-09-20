@@ -55,6 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($attendanceId > 0 && $action === 'override_quiz') {
         $registrationModel->approveQuizOverride($attendanceId, $user['id'] ?? null);
         $_SESSION['success'] = 'Quiz requirement overridden. Points have been released for this check-in.';
+    } elseif ($attendanceId > 0 && ($action === 'deny_flag' || $action === 'deny_quiz')) {
+        $denied = $registrationModel->denyAttendance($attendanceId, $user['id'] ?? null);
+        $_SESSION['success'] = $denied
+            ? 'Record denied. Points will not be awarded for this check-in.'
+            : 'Could not deny — points were already awarded for this record.';
     }
 
     header('Location: /events/flagged.php?token=' . urlencode($event['view_token']));
@@ -83,6 +88,8 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .score-badge { color: var(--kvb-red-dark); font-weight: 600; font-size: .82rem; }
 .section-heading { font-size: 1rem; font-weight: 700; color: var(--kvb-green-dark); margin: 1.75rem 0 .6rem; }
 .section-heading:first-of-type { margin-top: 0; }
+.review-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.review-actions form { display: inline; }
 </style>
 </head>
 <body class="has-app-sidebar">
@@ -102,6 +109,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <div class="app-card"><p class="empty-state">No flagged records for this event.</p></div>
     <?php else: ?>
         <div class="app-card card-flush">
+            <div class="table-scroll">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -124,17 +132,26 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <td><span class="distance-badge"><?= (int) $f['distance_m'] ?>m from venue</span></td>
                         <td><?= date('d M Y H:i', strtotime($f['confirmed_at'])) ?></td>
                         <td>
+                            <div class="review-actions">
                             <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="action" value="approve_flag">
                                 <input type="hidden" name="attendance_id" value="<?= (int) $f['attendance_id'] ?>">
                                 <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this attendance record despite the location flag? Points will be released if all other requirements (e.g. a session quiz) are already met.')">Approve</button>
                             </form>
+                            <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="action" value="deny_flag">
+                                <input type="hidden" name="attendance_id" value="<?= (int) $f['attendance_id'] ?>">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Deny this record? No points will be awarded for this check-in.')">Deny</button>
+                            </form>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         </div>
     <?php endif; ?>
 
@@ -143,6 +160,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <div class="app-card"><p class="empty-state">No unresolved quiz failures for this event.</p></div>
     <?php else: ?>
         <div class="app-card card-flush">
+            <div class="table-scroll">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -165,17 +183,26 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <td><span class="score-badge"><?= $q['best_score'] !== null ? number_format((float) $q['best_score'], 0) . '%' : '&mdash;' ?></span></td>
                         <td><?= date('d M Y H:i', strtotime($q['confirmed_at'])) ?></td>
                         <td>
+                            <div class="review-actions">
                             <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="action" value="override_quiz">
                                 <input type="hidden" name="attendance_id" value="<?= (int) $q['attendance_id'] ?>">
                                 <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Override the quiz requirement and release points for this check-in despite the failed quiz? This is recorded against your account.')">Override &amp; Award</button>
                             </form>
+                            <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="action" value="deny_quiz">
+                                <input type="hidden" name="attendance_id" value="<?= (int) $q['attendance_id'] ?>">
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Deny this record? No points will be awarded for this check-in.')">Deny</button>
+                            </form>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         </div>
     <?php endif; ?>
 </div>

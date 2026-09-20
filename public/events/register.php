@@ -31,6 +31,9 @@ $error   = $_SESSION['reg_error']   ?? null;
 $success = $_SESSION['reg_success'] ?? null;
 unset($_SESSION['reg_error'], $_SESSION['reg_success']);
 
+$justRegistered = isset($_GET['done']);
+$showMeetingLink = ($event['event_mode'] !== 'onsite') && !empty($event['meeting_link']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!Auth::validateCsrf($_POST['csrf_token'] ?? '')) {
@@ -51,8 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if (!Participant::isValidRegNo($regNo)) {
-        $_SESSION['reg_error'] = 'Invalid registration number format. Expected XXXX, VTAXXXX, VTBXXXX or VTCXXXX.';
+    if (!Participant::isValidNewRegNo($regNo)) {
+        $_SESSION['reg_error'] = 'Invalid registration number format. Expected XXXX, VTAXXXXX, VTBXXXXX or VTCXXXXX.';
         header('Location: /events/register.php?token=' . urlencode($token));
         exit;
     }
@@ -104,8 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $registrationModel->create((int) $event['id'], $regNo, $signature);
-        $_SESSION['reg_success'] = 'Registration successful. You may now sign your attendance.';
-        header('Location: /events/attend.php?token=' . urlencode($token));
+
+        // Registration confirms interest, not presence 
+        // It persists on reload (queried fresh from $event each
+        // time), not a one-time session flash.
+        $_SESSION['reg_success'] = 'Registration successful.';
+        header('Location: /events/register.php?token=' . urlencode($token) . '&done=1');
         exit;
 
     } catch (\InvalidArgumentException $e) {
@@ -156,6 +163,23 @@ $isOnsite  = $event['event_mode'] === 'onsite';
     <?php endif; ?>
     <?php if ($success): ?>
         <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
+
+    <?php if ($justRegistered): ?>
+        <div class="card" style="text-align:center;padding:1.5rem;margin-bottom:1rem;">
+            <?php if ($showMeetingLink): ?>
+                <p style="margin-bottom:.75rem;">You're registered. Save this link &mdash; you'll need it to join the meeting, and can return to this page any time to find it again.</p>
+                <a href="<?= htmlspecialchars($event['meeting_link'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-block">
+                    Join <?= htmlspecialchars(MEETING_PROVIDERS[$event['meeting_provider']] ?? 'the meeting', ENT_QUOTES, 'UTF-8') ?>
+                </a>
+            <?php elseif ($event['event_mode'] !== 'onsite'): ?>
+                <p style="color:var(--kvb-red-dark);font-size:.85rem;">No meeting link has been set for this event yet. Please contact the organizer.</p>
+            <?php endif; ?>
+            <p style="margin-top:1rem;font-size:.85rem;">
+                <a href="/events/attend.php?token=<?= urlencode($token) ?>&reg_no=<?= urlencode($regNo) ?>" style="color:var(--kvb-green-dark);">Sign Attendance &rarr;</a>
+                (opens during the last <?= (int) VIRTUAL_SIGNIN_LEAD_MINUTES ?> minutes of each session)
+            </p>
+        </div>
     <?php endif; ?>
 
     <div class="card">
