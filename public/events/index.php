@@ -38,11 +38,13 @@ if ($dateFilter !== '') $filters['date']       = $dateFilter;
 
 $events     = $eventModel->list($filters, $perPage, $offset);
 $total      = $eventModel->count($filters);
-$totalPages = (int) ceil($total / $perPage);
+$totalPages = max(1, (int) ceil($total / $perPage));
 
 $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -54,22 +56,19 @@ unset($_SESSION['success'], $_SESSION['error']);
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 0; }
-.container { max-width: 1100px; margin: 0 auto; padding: 1.25rem 2.5rem 2.5rem; }
-.filter-bar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1.25rem; }
+.filter-bar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: var(--space-4); }
 .filter-bar .form-group { margin-bottom: 0; flex: 1; min-width: 160px; }
 .filter-bar select, .filter-bar input { width: 100%; }
-.pagination { display: flex; gap: .4rem; margin-top: 1rem; }
-.pagination a, .pagination span { padding: .3rem .65rem; border-radius: 6px; text-decoration: none; font-size: .82rem; }
-.pagination a { background: #eee; color: var(--text-main); }
-.pagination span.active { background: var(--kvb-green-dark); color: #fff; }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <div class="page-header">
-        <h1>Events</h1>
+<div class="page-with-sidebar">
+    <div class="app-page-hero">
+        <div>
+            <h1>Events</h1>
+            <div class="sub">Browse and manage all events</div>
+        </div>
         <a href="/events/create.php" class="btn btn-primary">+ New Event</a>
     </div>
 
@@ -106,9 +105,10 @@ body { display: block; padding: 0; }
     </form>
 
     <?php if (empty($events)): ?>
-        <div class="card"><p class="empty-state">No events found.</p></div>
+        <div class="app-card"><p class="empty-state">No events found.</p></div>
     <?php else: ?>
-        <div class="card card-flush">
+        <div class="app-card card-flush">
+            <div class="table-scroll">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -137,20 +137,25 @@ body { display: block; padding: 0; }
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination">
+                    <span>Page <?= $page ?> of <?= $totalPages ?> (<?= $total ?> events)</span>
+                    <div class="pagination-links">
+                        <?php $baseParams = ['per_page' => $perPage, 'search' => $search, 'event_mode' => $modeFilter, 'date' => $dateFilter]; ?>
+                        <a href="?<?= http_build_query(['page' => $page - 1] + $baseParams) ?>" class="<?= $page <= 1 ? 'disabled' : '' ?>">&lsaquo; Prev</a>
+                        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+                            <?php if ($p === $page): ?>
+                                <span class="current"><?= $p ?></span>
+                            <?php else: ?>
+                                <a href="?<?= http_build_query(['page' => $p] + $baseParams) ?>"><?= $p ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        <a href="?<?= http_build_query(['page' => $page + 1] + $baseParams) ?>" class="<?= $page >= $totalPages ? 'disabled' : '' ?>">Next &rsaquo;</a>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
-
-        <?php if ($totalPages > 1): ?>
-        <div class="pagination">
-            <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-                <?php $qp = http_build_query(['page' => $p, 'per_page' => $perPage, 'search' => $search, 'event_mode' => $modeFilter, 'date' => $dateFilter]); ?>
-                <?php if ($p === $page): ?>
-                    <span class="active"><?= $p ?></span>
-                <?php else: ?>
-                    <a href="?<?= $qp ?>"><?= $p ?></a>
-                <?php endif; ?>
-            <?php endfor; ?>
-        </div>
-        <?php endif; ?>
     <?php endif; ?>
 </div>
 </body>

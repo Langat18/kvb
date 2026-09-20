@@ -23,21 +23,15 @@ $eventModeRepo    = new EventModeRepository();
 $eventModes       = $eventModeRepo->list(true);
 $sessionWindows   = (new SessionWindowRepository())->list(true);
 
-$error    = $_SESSION['error']     ?? null;
-$formData = $_SESSION['form_data'] ?? [];
-unset($_SESSION['error'], $_SESSION['form_data']);
+$error            = $_SESSION['error']            ?? null;
+$duplicateWarning = $_SESSION['duplicate_warning'] ?? null;
+$formData         = $_SESSION['form_data']         ?? [];
+unset($_SESSION['error'], $_SESSION['duplicate_warning'], $_SESSION['form_data']);
 
-/**
- * Parses the raw quiz[] POST block into a clean, save-ready structure:
- * [ session_window_id => ['clear' => bool, 'questions' => [...]] ]
- * A session is omitted entirely if its panel was left blank.
- *
- * Also runs an integrity check: compares the browser's reported question
- * count (submitted alongside the data, stamped fresh from the DOM right
- * before submit) against what actually arrived server-side. Any mismatch
- * is logged immediately rather than silently dropping data — see
- * quiz-builder.js for why this exists.
- */
+require __DIR__ . '/../templates/sidebar_data.php';
+
+// Parses quiz[] POST into [session_window_id => ['clear' => bool, 'questions' => [...]]].
+// Logs if the browser's pre-submit question count doesn't match what arrived server-side.
 function parseQuizSubmission(array $post, int $eventId): array
 {
     $result = [];
@@ -49,12 +43,7 @@ function parseQuizSubmission(array $post, int $eventId): array
         $actualCount   = count($swdata['questions'] ?? []);
 
         if ($expectedCount !== $actualCount) {
-            error_log(
-                "Quiz integrity mismatch — event {$eventId}, session_window {$swid}: " .
-                "browser reported {$expectedCount} question block(s) at submit time, " .
-                "server received {$actualCount} distinct question(s) in \$_POST. " .
-                "This usually means two question blocks shared an array index client-side."
-            );
+            error_log("Quiz integrity mismatch — event {$eventId}, session_window {$swid}: expected {$expectedCount}, got {$actualCount}.");
         }
 
         if (!empty($swdata['clear'])) {
@@ -81,10 +70,7 @@ function parseQuizSubmission(array $post, int $eventId): array
                     continue;
                 }
 
-                $options[] = [
-                    'text'    => $optText,
-                    'correct' => ((string) $idx === $correctIdx),
-                ];
+                $options[] = ['text' => $optText, 'correct' => ((string) $idx === $correctIdx)];
             }
 
             if (!empty($options)) {
@@ -120,11 +106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_lat'                   => $_POST['geo_lat']    !== '' ? (float) $_POST['geo_lat']    : null,
         'geo_lng'                   => $_POST['geo_lng']    !== '' ? (float) $_POST['geo_lng']    : null,
         'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
+        'meeting_provider'          => $_POST['meeting_provider'] ?? '',
+        'meeting_link'              => $_POST['meeting_link']      ?? '',
         'session_points'            => $_POST['session_points'] ?? [],
         'created_by'                => $user['id'],
     ];
 
     $eventModel = new Event();
+
+    if (empty($_POST['confirm_duplicate'])) {
+        $similar = $eventModel->findRecentSimilarTitle($data['title']);
+
+        if ($similar) {
+            $_SESSION['duplicate_warning'] = $similar;
+            $_SESSION['form_data']         = $data;
+            header('Location: /events/create.php');
+            exit;
+        }
+    }
 
     try {
         $eventId = $eventModel->create($data);
@@ -144,10 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $created = $eventModel->findById($eventId);
 
     try {
-        $quizModel = new EventQuiz();
+        // Quizzes only apply to virtual/hybrid — never save them for a pure onsite event.
+        if (($created['event_mode'] ?? '') !== 'onsite') {
+            $quizModel = new EventQuiz();
 
-        foreach (parseQuizSubmission($_POST['quiz'] ?? [], $eventId) as $swid => $q) {
-            $quizModel->saveQuestions($eventId, $swid, $q['questions']);
+            foreach (parseQuizSubmission($_POST['quiz'] ?? [], $eventId) as $swid => $q) {
+                $quizModel->saveQuestions($eventId, $swid, $q['questions']);
+            }
         }
 
         $_SESSION['success'] = 'Event created successfully.';
@@ -180,9 +182,6 @@ $v = $formData;
 <link rel="stylesheet" href="/assets/css/style.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 680px; margin: 0 auto; }
-.container h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
 .quiz-panel { margin-top: 1.5rem; }
 .quiz-panel > .form-group.full > label { font-weight: 600; }
 .quiz-session {
@@ -204,16 +203,29 @@ body { display: block; padding: 2.5rem; }
 .quiz-remove-question { color: var(--kvb-red-dark); }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <h1>New Event</h1>
+<div class="page-with-sidebar">
+    <div class="app-page-hero"><div><h1>New Event</h1></div></div>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="card">
+    <?php if ($duplicateWarning): ?>
+        <div class="alert alert-warning">
+            An event titled "<?= htmlspecialchars($duplicateWarning['title'], ENT_QUOTES, 'UTF-8') ?>"
+            (ID <?= (int) $duplicateWarning['id'] ?>, code <?= htmlspecialchars($duplicateWarning['event_code'], ENT_QUOTES, 'UTF-8') ?>,
+            <?= htmlspecialchars($duplicateWarning['start_date'], ENT_QUOTES, 'UTF-8') ?> &ndash; <?= htmlspecialchars($duplicateWarning['end_date'], ENT_QUOTES, 'UTF-8') ?>)
+            was created recently. Did you mean to
+            <a href="/events/edit.php?token=" onclick="return false;">edit that one</a> instead?
+            <label style="display:block;margin-top:.5rem;font-weight:normal;">
+                <input type="checkbox" name="confirm_duplicate" value="1"> No, create this as a separate event anyway
+            </label>
+        </div>
+    <?php endif; ?>
+
+    <div class="app-card">
         <form method="POST" action="/events/create.php" id="event-form">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="provider_id" id="provider_id" value="<?= htmlspecialchars((string) ($v['provider_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
@@ -283,6 +295,27 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
+            <div class="form-grid" id="meeting-fields">
+                <div class="form-group full">
+                    <label>Virtual Meeting <span style="font-weight:normal;color:var(--text-muted);">(required for virtual/hybrid)</span></label>
+                </div>
+                <div class="form-group">
+                    <label for="meeting_provider">Provider</label>
+                    <select id="meeting_provider" name="meeting_provider">
+                        <?php foreach (MEETING_PROVIDERS as $key => $label): ?>
+                            <option value="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" <?= ($v['meeting_provider'] ?? '') === $key ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="meeting_link">Meeting Link</label>
+                    <input type="url" id="meeting_link" name="meeting_link" placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                           value="<?= htmlspecialchars($v['meeting_link'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+            </div>
+
             <div class="form-grid geo-fields" id="geo-fields">
                 <div class="form-group full">
                     <label>Location <span class="required">*</span> <span style="font-weight:normal;color:var(--text-muted);">(required for on-site/hybrid events)</span></label>
@@ -313,7 +346,7 @@ body { display: block; padding: 2.5rem; }
 
             <div class="form-grid" style="margin-top:1rem;">
                 <div class="form-group full">
-                    <label>Points per Session <span style="font-weight:normal;color:var(--text-muted);">(total across all sessions cannot exceed 8)</span></label>
+                    <label>Points per Session <span style="font-weight:normal;color:var(--text-muted);"></span></label>
                 </div>
                 <?php foreach ($sessionWindows as $sw): ?>
                     <div class="form-group">
@@ -329,9 +362,9 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
-            <div class="quiz-panel">
+            <div class="quiz-panel" id="quiz-panel">
                 <div class="form-group full">
-                    <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);">(optional — if set, points for that session only post once a participant passes with 90% or higher, up to 2 attempts)</span></label>
+                    <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);"></span></label>
                 </div>
 
                 <?php foreach ($sessionWindows as $sw): ?>
@@ -356,5 +389,25 @@ body { display: block; padding: 2.5rem; }
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js"></script>
 <script src="/assets/js/quiz-builder.js"></script>
+<script>
+// Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.
+(function () {
+    var modeSelect    = document.getElementById('event_mode_id');
+    var quizPanel     = document.getElementById('quiz-panel');
+    var meetingFields = document.getElementById('meeting-fields');
+    if (!modeSelect) return;
+
+    function toggle() {
+        var selected = modeSelect.options[modeSelect.selectedIndex];
+        var key = selected ? selected.getAttribute('data-key') : '';
+        var hide = (key === 'onsite') ? 'none' : '';
+        if (quizPanel)     quizPanel.style.display = hide;
+        if (meetingFields) meetingFields.style.display = hide;
+    }
+
+    modeSelect.addEventListener('change', toggle);
+    toggle();
+})();
+</script>
 </body>
 </html>

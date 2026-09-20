@@ -64,6 +64,8 @@ if ($format === 'excel') {
     $writer->save('php://output');
     exit;
 }
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -75,22 +77,19 @@ if ($format === 'excel') {
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 0; }
-.container { max-width: 900px; margin: 0 auto; padding: 1.25rem 2.5rem 2.5rem; }
 .filter-bar { display: flex; gap: .6rem; margin-bottom: 1.25rem; }
 .filter-bar input { flex: 1; }
 @media print {
-    .navbar, .no-print { display: none !important; }
-    body { padding: 0; }
-    .container { padding: 1cm; max-width: none; }
+    .navbar, .app-sidebar, .no-print { display: none !important; }
+    .page-with-sidebar { margin-left: 0; padding: 1cm; max-width: none; }
 }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <div class="page-header">
-        <h1>Points Leaderboard</h1>
+<div class="page-with-sidebar">
+    <div class="app-page-hero">
+        <div><h1>Points Leaderboard</h1></div>
         <div class="no-print" style="display:flex;gap:.5rem;">
             <a href="?search=<?= urlencode($search) ?>&format=excel" class="btn btn-secondary">Download Excel</a>
             <button type="button" class="btn btn-secondary" onclick="window.print()">Print / Save as PDF</button>
@@ -102,10 +101,11 @@ body { display: block; padding: 0; }
         <button type="submit" class="btn btn-secondary">Search</button>
     </form>
 
-    <div class="card card-flush">
+    <div class="app-card card-flush">
         <?php if (empty($leaderboard)): ?>
             <p class="empty-state">No participants found.</p>
         <?php else: ?>
+        <div class="table-scroll">
         <table class="data-table">
             <thead>
                 <tr>
@@ -128,6 +128,7 @@ body { display: block; padding: 0; }
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
         <?php endif; ?>
     </div>
 </div>

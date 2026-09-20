@@ -31,12 +31,11 @@ if (!$event) {
 $today = date('Y-m-d');
 if ($today < $event['start_date'] || $today > $event['end_date']) {
     http_response_code(403);
-    $msg = $today < $event['start_date']
-        ? 'This event has not started yet.'
-        : 'This event has ended.';
+    $msg = $today < $event['start_date'] ? 'This event has not started yet.' : 'This event has ended.';
     die($msg);
 }
 
+// Returns the active session window row, or null if outside all session hours.
 function detectSession(): array
 {
     $now     = date('H:i:s');
@@ -44,11 +43,26 @@ function detectSession(): array
 
     foreach ($windows as $w) {
         if ($now >= $w['start_time'] && $now <= $w['end_time']) {
-            return ['session' => $w['item_key'], 'flagged' => false, 'reason' => null];
+            return ['session' => $w['item_key'], 'window' => $w];
         }
     }
 
-    return ['session' => null, 'flagged' => true, 'reason' => 'Outside all session hours'];
+    return ['session' => null, 'window' => null];
+}
+
+// Virtual sign-in opens VIRTUAL_SIGNIN_LEAD_MINUTES before the window's end_time,
+// clamped so it never falls before the window's own start_time.
+function virtualSignInThreshold(array $window): int
+{
+    $endTs   = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
+    $startTs = strtotime(date('Y-m-d') . ' ' . $window['start_time']);
+
+    return max($endTs - (VIRTUAL_SIGNIN_LEAD_MINUTES * 60), $startTs);
+}
+
+function meetingProviderLabel(?string $key): string
+{
+    return $key !== null ? (MEETING_PROVIDERS[$key] ?? 'the meeting') : 'the meeting';
 }
 
 $sessionLabels = (new SessionWindowRepository())->labelMap();
@@ -58,6 +72,14 @@ $isPureOnsite  = $eventMode === 'onsite';
 $isHybrid      = $eventMode === 'hybrid';
 $error         = $_SESSION['attend_error'] ?? null;
 unset($_SESSION['attend_error']);
+
+$virtualSignInOpen    = true;
+$virtualSignInOpensAt = null;
+if ($sessionInfo['window'] !== null && !$isPureOnsite) {
+    $thresholdTs          = virtualSignInThreshold($sessionInfo['window']);
+    $virtualSignInOpen    = time() >= $thresholdTs;
+    $virtualSignInOpensAt = date('g:i A', $thresholdTs);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -109,95 +131,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $geoVerified  = null;
-    $submittedLat = null;
-    $submittedLng = null;
-    $distanceM    = null;
-    $flagged      = false;
-    $flagReason   = null;
-    $pointsDenied = false;
-
-    if ($isOnsiteSubmission) {
-        $lat = $_POST['geo_lat'] ?? '';
-        $lng = $_POST['geo_lng'] ?? '';
-
-        if ($lat === '' || $lng === '') {
-            $_SESSION['attend_error'] = 'Location access is required to sign attendance on-site.';
-            header('Location: /events/attend.php?token=' . urlencode($token));
-            exit;
-        }
-
-        $submittedLat = (float) $lat;
-        $submittedLng = (float) $lng;
-
-        $geoCheck    = $eventModel->isWithinGeofence($event, $submittedLat, $submittedLng);
-        $geoVerified = $geoCheck['within'];
-        $distanceM   = $geoCheck['distance_m'];
-
-        if (!$geoVerified) {
-            $flagged = true;
-
-            // Layer 1 has two tiers: merely outside the radius (held for
-            // supervisor review, may still be approved) versus far enough
-            // outside it that no review is possible (permanently denied —
-            // see OFFSITE_HARD_REJECT_EXCESS_M in config/constants.php).
-            $excessM = $distanceM - (int) $event['geo_radius_m'];
-
-            if ($excessM > OFFSITE_HARD_REJECT_EXCESS_M) {
-                $pointsDenied = true;
-                $flagReason   = 'Too far from venue to qualify for points (' . $excessM . 'm beyond the allowed radius) — not eligible for supervisor review';
-            } else {
-                $flagReason = 'Outside geofence radius (' . $distanceM . 'm from venue)';
-            }
-        }
-    }
-
     try {
-        $registrationModel->recordAttendance([
-            'registration_id' => (int) $registration['id'],
-            'session'         => $session,
-            'method'          => $method,
-            'geo_verified'    => $geoVerified,
-            'submitted_lat'   => $submittedLat,
-            'submitted_lng'   => $submittedLng,
-            'distance_m'      => $distanceM,
-            'flagged'         => $flagged,
-            'flag_reason'     => $flagReason,
-            'points_denied'   => $pointsDenied,
-        ]);
 
-        if ($pointsDenied) {
-            // No quiz, no review — this outcome is final. Skip straight to
-            // the success page with the denial message; there is nothing
-            // further for the participant to do here.
+        if ($isOnsiteSubmission) {
+
+            // Onsite integrity = geofence only. No timing gate, no quiz.
+            $lat = $_POST['geo_lat'] ?? '';
+            $lng = $_POST['geo_lng'] ?? '';
+
+            if ($lat === '' || $lng === '') {
+                $_SESSION['attend_error'] = 'Location access is required to sign attendance on-site.';
+                header('Location: /events/attend.php?token=' . urlencode($token));
+                exit;
+            }
+
+            $submittedLat = (float) $lat;
+            $submittedLng = (float) $lng;
+
+            $geoCheck    = $eventModel->isWithinGeofence($event, $submittedLat, $submittedLng);
+            $geoVerified = $geoCheck['within'];
+            $distanceM   = $geoCheck['distance_m'];
+            $flagged      = false;
+            $flagReason   = null;
+            $pointsDenied = false;
+
+            if (!$geoVerified) {
+                $flagged = true;
+                $excessM = $distanceM - (int) $event['geo_radius_m'];
+
+                if ($excessM > OFFSITE_HARD_REJECT_EXCESS_M) {
+                    $pointsDenied = true;
+                    $flagReason   = 'Too far from venue to qualify for points (' . $excessM . 'm beyond radius) — not eligible for review';
+                } else {
+                    $flagReason = 'Outside geofence radius (' . $distanceM . 'm from venue)';
+                }
+            }
+
+            $registrationModel->recordAttendance([
+                'registration_id' => (int) $registration['id'],
+                'session'         => $session,
+                'method'          => 'onsite',
+                'geo_verified'    => $geoVerified,
+                'submitted_lat'   => $submittedLat,
+                'submitted_lng'   => $submittedLng,
+                'distance_m'      => $distanceM,
+                'flagged'         => $flagged,
+                'flag_reason'     => $flagReason,
+                'points_denied'   => $pointsDenied,
+            ]);
+
             $_SESSION['attend_success']       = true;
             $_SESSION['attend_session']       = $session;
-            $_SESSION['attend_flagged']       = false;
-            $_SESSION['attend_points_denied'] = true;
+            $_SESSION['attend_flagged']       = $flagged;
+            $_SESSION['attend_points_denied'] = $pointsDenied;
+            $_SESSION['attend_method']        = 'onsite';
+            header('Location: /events/attend.php?token=' . urlencode($token) . '&done=1');
+            exit;
+
+        } else {
+
+            // Virtual integrity = timing gate + quiz (if configured). No geofence.
+            if ($sessionInfo['window'] !== null) {
+                $thresholdTs = virtualSignInThreshold($sessionInfo['window']);
+
+                if (time() < $thresholdTs) {
+                    $_SESSION['attend_error'] = 'Virtual attendance for the ' . ($sessionLabels[$session] ?? $session) .
+                        ' session opens at ' . date('g:i A', $thresholdTs) . '. Please stay connected and return then.';
+                    header('Location: /events/attend.php?token=' . urlencode($token));
+                    exit;
+                }
+            }
+
+            $registrationModel->recordAttendance([
+                'registration_id' => (int) $registration['id'],
+                'session'         => $session,
+                'method'          => 'virtual',
+                'geo_verified'    => null,
+                'submitted_lat'   => null,
+                'submitted_lng'   => null,
+                'distance_m'      => null,
+                'flagged'         => false,
+                'flag_reason'     => null,
+                'points_denied'   => false,
+            ]);
+
+            $pointsStatus = $registrationModel->getPointsStatus((int) $registration['id'], $session);
+            $quizPending  = ($pointsStatus === 'pending_quiz');
+
+            $_SESSION['attend_success']          = true;
+            $_SESSION['attend_session']          = $session;
+            $_SESSION['attend_flagged']          = false;
+            $_SESSION['attend_points_denied']    = false;
+            $_SESSION['attend_method']           = 'virtual';
+            $_SESSION['attend_meeting_link']     = $event['meeting_link']     ?? null;
+            $_SESSION['attend_meeting_provider'] = $event['meeting_provider'] ?? null;
+            $_SESSION['attend_quiz_pending']     = $quizPending;
             header('Location: /events/attend.php?token=' . urlencode($token) . '&done=1');
             exit;
         }
-
-        $pointsStatus = $registrationModel->getPointsStatus((int) $registration['id'], $session);
-
-        if ($pointsStatus === 'pending_quiz') {
-            $_SESSION['quiz_context'] = [
-                'token'            => $token,
-                'session'          => $session,
-                'event_id'         => (int) $event['id'],
-                'registration_id'  => (int) $registration['id'],
-                'reg_no'           => $regNo,
-            ];
-            header('Location: /events/quiz.php?token=' . urlencode($token) . '&session=' . urlencode($session));
-            exit;
-        }
-
-        $_SESSION['attend_success']       = true;
-        $_SESSION['attend_session']       = $session;
-        $_SESSION['attend_flagged']       = $flagged;
-        $_SESSION['attend_points_denied'] = false;
-        header('Location: /events/attend.php?token=' . urlencode($token) . '&done=1');
-        exit;
 
     } catch (\Throwable $e) {
         error_log('Attendance error: ' . $e->getMessage());
@@ -207,11 +238,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$attendSuccess      = $_SESSION['attend_success']       ?? false;
-$attendSession      = $_SESSION['attend_session']       ?? '';
-$attendFlagged      = $_SESSION['attend_flagged']       ?? false;
-$attendPointsDenied = $_SESSION['attend_points_denied'] ?? false;
-unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['attend_flagged'], $_SESSION['attend_points_denied']);
+$attendSuccess         = $_SESSION['attend_success']          ?? false;
+$attendSession         = $_SESSION['attend_session']          ?? '';
+$attendFlagged         = $_SESSION['attend_flagged']          ?? false;
+$attendPointsDenied    = $_SESSION['attend_points_denied']    ?? false;
+$attendMethod          = $_SESSION['attend_method']           ?? '';
+$attendMeetingLink     = $_SESSION['attend_meeting_link']     ?? null;
+$attendMeetingProvider = $_SESSION['attend_meeting_provider'] ?? null;
+$attendQuizPending     = $_SESSION['attend_quiz_pending']     ?? false;
+unset(
+    $_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['attend_flagged'],
+    $_SESSION['attend_points_denied'], $_SESSION['attend_method'], $_SESSION['attend_meeting_link'],
+    $_SESSION['attend_meeting_provider'], $_SESSION['attend_quiz_pending']
+);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -234,6 +273,12 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
 .method-choice label:hover { border-color: var(--kvb-green); }
 .method-choice label.selected { border-color: var(--kvb-green-dark); background: var(--kvb-green-light); font-weight: 600; }
 #submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+.meeting-cta { display: flex; flex-direction: column; gap: .6rem; margin-top: 1.25rem; }
+.meeting-cta .btn { width: 100%; }
+.timing-notice {
+    font-size: .82rem; color: var(--kvb-green-dark); background: var(--kvb-green-light);
+    border-radius: 8px; padding: .6rem .75rem; margin-bottom: 1rem;
+}
 </style>
 </head>
 <body>
@@ -251,14 +296,34 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
                 <h2 style="color:var(--kvb-red-dark);margin:.5rem 0;">Attendance Recorded</h2>
                 <p style="font-weight:600;color:var(--kvb-red-dark);">Points are not awarded — offsite.</p>
                 <p style="font-size:.82rem;color:var(--text-muted);margin-top:.5rem;">Your check-in was too far from the venue to qualify for CPD points.</p>
+
             <?php else: ?>
                 <div style="font-size:3rem;">&#10003;</div>
                 <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Attendance Recorded</h2>
                 <p>Your <?= htmlspecialchars($sessionLabels[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
+
                 <?php if ($attendFlagged): ?>
                     <p style="font-size:.82rem;color:var(--kvb-red-dark);margin-top:.75rem;">
                         Your location was outside the expected event radius. This record has been flagged for admin review before points are released.
                     </p>
+                <?php endif; ?>
+
+                <?php if ($attendMethod === 'virtual'): ?>
+                    <div class="meeting-cta">
+                        <?php if (!empty($attendMeetingLink)): ?>
+                            <a href="<?= htmlspecialchars($attendMeetingLink, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                                Join <?= htmlspecialchars(meetingProviderLabel($attendMeetingProvider), ENT_QUOTES, 'UTF-8') ?>
+                            </a>
+                        <?php else: ?>
+                            <p style="font-size:.82rem;color:var(--kvb-red-dark);">No meeting link has been set for this event yet. Please contact the organizer.</p>
+                        <?php endif; ?>
+
+                        <?php if ($attendQuizPending): ?>
+                            <a href="/events/quiz.php?token=<?= urlencode($token) ?>&session=<?= urlencode($attendSession) ?>" class="btn btn-ghost">
+                                Take the Session Quiz to Confirm Your Points
+                            </a>
+                        <?php endif; ?>
+                    </div>
                 <?php endif; ?>
             <?php endif; ?>
         </div>
@@ -274,6 +339,12 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
 
         <?php if ($error): ?>
             <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+        <?php endif; ?>
+
+        <?php if (!$isPureOnsite && $sessionInfo['window'] !== null && !$virtualSignInOpen): ?>
+            <div class="timing-notice">
+                Virtual attendance opens at <strong><?= htmlspecialchars($virtualSignInOpensAt, ENT_QUOTES, 'UTF-8') ?></strong> for this session &mdash; this confirms real participation rather than just a click at the start. <?= $isHybrid ? 'On-site check-in below is unaffected.' : 'Please stay connected and return at that time.' ?>
+            </div>
         <?php endif; ?>
 
         <div class="card">
@@ -300,7 +371,9 @@ unset($_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['atten
                     <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block" id="submit-btn" style="margin-top:.5rem;" <?= ($isPureOnsite || $isHybrid) ? 'disabled' : '' ?>>
+                <button type="submit" class="btn btn-primary btn-block" id="submit-btn" style="margin-top:.5rem;"
+                    <?= ($isPureOnsite || $isHybrid) ? 'disabled' : '' ?>
+                    <?= (!$isPureOnsite && !$isHybrid && !$virtualSignInOpen) ? 'disabled' : '' ?>>
                     Sign Attendance
                 </button>
             </form>
@@ -317,6 +390,7 @@ const latInput   = document.getElementById('geo_lat');
 const lngInput   = document.getElementById('geo_lng');
 const isHybrid   = <?= $isHybrid ? 'true' : 'false' ?>;
 const isPureOnsite = <?= $isPureOnsite ? 'true' : 'false' ?>;
+const virtualSignInOpen = <?= $virtualSignInOpen ? 'true' : 'false' ?>;
 
 function onGeoSuccess(position) {
     latInput.value = position.coords.latitude;
@@ -333,14 +407,8 @@ function onGeoError() {
 }
 
 function requestLocation() {
-    if (!navigator.geolocation) {
-        onGeoError();
-        return;
-    }
-    navigator.geolocation.getCurrentPosition(onGeoSuccess, onGeoError, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-    });
+    if (!navigator.geolocation) { onGeoError(); return; }
+    navigator.geolocation.getCurrentPosition(onGeoSuccess, onGeoError, { enableHighAccuracy: true, timeout: 10000 });
 }
 
 if (isPureOnsite) {
@@ -355,6 +423,10 @@ if (isPureOnsite) {
     }
 }
 
+if (!isPureOnsite && !isHybrid) {
+    geoStatus.style.display = 'none';
+}
+
 if (isHybrid) {
     const radios = document.querySelectorAll('input[name="attendance_method"]');
     radios.forEach(radio => {
@@ -363,9 +435,10 @@ if (isHybrid) {
             radio.closest('label').classList.add('selected');
 
             if (radio.value === 'virtual') {
-                geoStatus.className = '';
-                submitBtn.disabled = false;
+                geoStatus.style.display = 'none';
+                submitBtn.disabled = !virtualSignInOpen;
             } else {
+                geoStatus.style.display = '';
                 geoStatus.className = 'status-box pending';
                 geoStatus.textContent = 'Checking location access…';
                 submitBtn.disabled = true;

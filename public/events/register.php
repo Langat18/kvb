@@ -166,6 +166,12 @@ $isOnsite  = $event['event_mode'] === 'onsite';
             <?php endif; ?>
         </p>
 
+        <?php if ($event['event_mode'] !== 'onsite'): ?>
+        <p class="notice-box" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);">
+            Virtual attendance is signed near the end of each session, not at the start &mdash; this confirms real participation. Sign-in opens in the final <?= (int) VIRTUAL_SIGNIN_LEAD_MINUTES ?> minutes of each session.
+        </p>
+        <?php endif; ?>
+
         <?php if ($isOnsite): ?>
             <div id="geo-status" class="status-box pending">Checking location access&hellip;</div>
         <?php endif; ?>

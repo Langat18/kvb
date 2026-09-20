@@ -29,6 +29,12 @@ if (!$target) {
     exit;
 }
 
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/index.php'],
+    ['label' => 'Staff', 'url' => '/staff/index.php'],
+    ['label' => 'Reset Password', 'url' => null],
+];
+
 $error   = $_SESSION['error']   ?? null;
 $success = $_SESSION['success'] ?? null;
 unset($_SESSION['error'], $_SESSION['success']);
@@ -51,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['error'] = $e->getMessage();
     }
 }
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -61,23 +69,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
-<style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 420px; margin: 0 auto; }
-.container h1 { font-size: 1.15rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .3rem; }
-.container p.sub { font-size: .85rem; color: var(--text-muted); margin-bottom: 1rem; }
-</style>
 </head>
-<body>
-<div class="container">
-    <h1>Reset Password</h1>
-    <p class="sub">For <?= htmlspecialchars($target['name'], ENT_QUOTES, 'UTF-8') ?> (<?= htmlspecialchars($target['email'], ENT_QUOTES, 'UTF-8') ?>)</p>
+<body class="has-app-sidebar">
+<?php require __DIR__ . '/../templates/nav.php'; ?>
+<div class="page-with-sidebar">
+    <div class="app-page-hero">
+        <div>
+            <h1>Reset Password</h1>
+            <div class="sub">For <?= htmlspecialchars($target['name'], ENT_QUOTES, 'UTF-8') ?> (<?= htmlspecialchars($target['email'], ENT_QUOTES, 'UTF-8') ?>)</div>
+        </div>
+    </div>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="card">
+    <div class="app-card">
         <form method="POST" action="/staff/reset_password.php?id=<?= $targetId ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 

@@ -39,6 +39,8 @@ $breadcrumbs = [
 $cadreLabels = (new CadreRepository())->labelMap();
 $summary     = $participantModel->pointsSummary($regNo);
 $total       = $participantModel->totalPoints($regNo);
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -50,9 +52,7 @@ $total       = $participantModel->totalPoints($regNo);
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 0; }
-.container { max-width: 800px; margin: 0 auto; padding: 1.25rem 2.5rem 2.5rem; }
-.profile-card { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.profile-card { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem; }
 .profile-card h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .2rem; }
 .profile-card p { font-size: .85rem; color: var(--text-muted); }
 .total-badge { text-align: center; padding: 1rem 1.5rem; }
@@ -60,16 +60,16 @@ body { display: block; padding: 0; }
 .total-badge .label { font-size: .78rem; color: var(--text-muted); }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
+<div class="page-with-sidebar">
     <div class="profile-card">
         <div>
             <h1><?= htmlspecialchars($participant['name'], ENT_QUOTES, 'UTF-8') ?></h1>
             <p><?= htmlspecialchars($participant['reg_no'], ENT_QUOTES, 'UTF-8') ?> &bull; <?= htmlspecialchars($cadreLabels[$participant['cadre']] ?? $participant['cadre'], ENT_QUOTES, 'UTF-8') ?></p>
         </div>
         <div style="text-align:right;">
-            <div class="card total-badge">
+            <div class="app-card total-badge">
                 <div class="num"><?= $total ?></div>
                 <div class="label">Total Points</div>
             </div>
@@ -77,10 +77,11 @@ body { display: block; padding: 0; }
         </div>
     </div>
 
-    <div class="card card-flush">
+    <div class="app-card card-flush">
         <?php if (empty($summary)): ?>
             <p class="empty-state">No points earned yet.</p>
         <?php else: ?>
+        <div class="table-scroll">
         <table class="data-table">
             <thead>
                 <tr>
@@ -101,6 +102,7 @@ body { display: block; padding: 0; }
                 <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
         <?php endif; ?>
     </div>
 </div>

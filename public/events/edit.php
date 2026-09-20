@@ -146,6 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_lat'                   => $_POST['geo_lat']    !== '' ? (float) $_POST['geo_lat']    : null,
         'geo_lng'                   => $_POST['geo_lng']    !== '' ? (float) $_POST['geo_lng']    : null,
         'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
+        'meeting_provider'          => $_POST['meeting_provider'] ?? '',
+        'meeting_link'              => $_POST['meeting_link']      ?? '',
         'session_points'            => $_POST['session_points'] ?? [],
     ];
 
@@ -164,9 +166,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    $updatedMode = $eventModeRepo->findById((int) $data['event_mode_id']);
+    $isOnsiteNow = ($updatedMode['item_key'] ?? '') === 'onsite';
+
     try {
-        foreach (parseQuizSubmission($_POST['quiz'] ?? [], (int) $event['id']) as $swid => $q) {
-            $quizModel->saveQuestions((int) $event['id'], $swid, $q['questions']);
+        if ($isOnsiteNow) {
+            // Quizzes only apply to virtual attendance. If the event was
+            // switched to onsite-only, clear any previously configured
+            // quiz questions rather than leave orphaned rows behind.
+            foreach ($eventModel->getSessionPoints((int) $event['id']) as $sw) {
+                $quizModel->saveQuestions((int) $event['id'], (int) $sw['id'], []);
+            }
+        } else {
+            foreach (parseQuizSubmission($_POST['quiz'] ?? [], (int) $event['id']) as $swid => $q) {
+                $quizModel->saveQuestions((int) $event['id'], $swid, $q['questions']);
+            }
         }
 
         $_SESSION['success'] = 'Event updated successfully.';
@@ -320,6 +334,27 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
+            <div class="form-grid" id="meeting-fields">
+                <div class="form-group full">
+                    <label>Virtual Meeting <span style="font-weight:normal;color:var(--text-muted);">(required for virtual/hybrid — shown to a participant only after they register and sign attendance)</span></label>
+                </div>
+                <div class="form-group">
+                    <label for="meeting_provider">Provider</label>
+                    <select id="meeting_provider" name="meeting_provider">
+                        <?php foreach (MEETING_PROVIDERS as $key => $label): ?>
+                            <option value="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" <?= ($v['meeting_provider'] ?? '') === $key ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="meeting_link">Meeting Link</label>
+                    <input type="url" id="meeting_link" name="meeting_link" placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                           value="<?= htmlspecialchars($v['meeting_link'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                </div>
+            </div>
+
             <div class="form-grid geo-fields" id="geo-fields">
                 <div class="form-group full">
                     <label>Location <span class="required">*</span> <span style="font-weight:normal;color:var(--text-muted);">(required for on-site/hybrid events)</span></label>
@@ -366,9 +401,9 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
-            <div class="quiz-panel">
+            <div class="quiz-panel" id="quiz-panel">
                 <div class="form-group full">
-                    <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);">(optional — if set, points for that session only post once a participant passes with 90% or higher, up to 2 attempts)</span></label>
+                    <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);">(optional, applies to virtual attendance only — on-site attendance is verified by location instead. If set, points for virtual participants post once they pass with 90% or higher, up to 2 attempts)</span></label>
                 </div>
 
                 <?php foreach ($sessionPointsRows as $sw):
@@ -433,5 +468,25 @@ body { display: block; padding: 2.5rem; }
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js"></script>
 <script src="/assets/js/quiz-builder.js"></script>
+<script>
+// Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.
+(function () {
+    var modeSelect    = document.getElementById('event_mode_id');
+    var quizPanel     = document.getElementById('quiz-panel');
+    var meetingFields = document.getElementById('meeting-fields');
+    if (!modeSelect) return;
+
+    function toggle() {
+        var selected = modeSelect.options[modeSelect.selectedIndex];
+        var key = selected ? selected.getAttribute('data-key') : '';
+        var hide = (key === 'onsite') ? 'none' : '';
+        if (quizPanel)     quizPanel.style.display = hide;
+        if (meetingFields) meetingFields.style.display = hide;
+    }
+
+    modeSelect.addEventListener('change', toggle);
+    toggle();
+})();
+</script>
 </body>
 </html>

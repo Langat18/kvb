@@ -55,6 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Location: /account/change_password.php');
     exit;
 }
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,19 +68,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 420px; margin: 0 auto; }
-.container h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
 .form-group { margin-bottom: 1rem; }
 .pw-wrap { position: relative; }
 .pw-wrap input { padding-right: 2.5rem; }
 .pw-toggle { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: .85rem; color: var(--text-muted); padding: 0; }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <h1>Change Password</h1>
+<div class="page-with-sidebar">
+    <div class="app-page-hero">
+        <div>
+            <h1>Change Password</h1>
+            <div class="sub">Update your account password</div>
+        </div>
+    </div>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
@@ -87,7 +91,7 @@ body { display: block; padding: 2.5rem; }
         <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="card">
+    <div class="app-card">
         <form method="POST" action="/account/change_password.php">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
 
@@ -118,9 +122,6 @@ body { display: block; padding: 2.5rem; }
 
             <button type="submit" class="btn btn-primary" style="width:100%;">Update Password</button>
         </form>
-    </div>
-
-    <div style="margin-top:1rem;">
     </div>
 </div>
 

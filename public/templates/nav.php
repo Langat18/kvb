@@ -35,16 +35,78 @@
 })();
 </script>
 
-<?php if (!empty($breadcrumbs)): ?>
-<div class="page-body-outer">
-<div class="breadcrumb">
-    <?php foreach ($breadcrumbs as $i => $crumb): ?>
-        <?php if ($i > 0): ?> &rsaquo; <?php endif; ?>
-        <?php if (!empty($crumb['url'])): ?>
-            <a href="<?= htmlspecialchars($crumb['url'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></a>
-        <?php else: ?>
-            <?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?>
+<?php if (!empty($useAppSidebar)): ?>
+<aside class="app-sidebar">
+    <div class="app-sidebar-brand"><img src="/assets/img/kvb_logo.png" alt="KVB"></div>
+
+    <div class="app-sidebar-body">
+        <?php if (isset($sidebarFlaggedPct)): ?>
+            <div class="ring-card">
+                <div class="ring <?= $sidebarFlaggedPct > 20 ? 'ring-warn' : '' ?>" style="--pct: <?= (int) $sidebarFlaggedPct ?>;">
+                    <span><?= (int) $sidebarFlaggedPct ?>%</span>
+                </div>
+                <div>
+                    <div class="ring-title">Flagged Rate</div>
+                    <div class="ring-sub">of attendance records</div>
+                </div>
+            </div>
         <?php endif; ?>
-    <?php endforeach; ?>
+        <?php if (!empty($sidebarActionGroups)): ?>
+        <details class="app-sidebar-actions" open>
+            <summary>Quick Actions <span class="chev">&rsaquo;</span></summary>
+            <?php foreach ($sidebarActionGroups as $groupLabel => $groupActions): ?>
+                <?php if (empty($groupActions)) { continue; } ?>
+                <details class="app-sidebar-group">
+                    <summary><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> <span class="chev">&rsaquo;</span></summary>
+                    <?php foreach ($groupActions as $a): ?>
+                        <a href="<?= htmlspecialchars($a['url'], ENT_QUOTES, 'UTF-8') ?>" class="app-action-row">
+                            <span class="badge"><?= $a['icon'] ?></span>
+                            <span>
+                                <span class="title"><?= htmlspecialchars($a['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="desc"><?= htmlspecialchars($a['desc'], ENT_QUOTES, 'UTF-8') ?></span>
+                            </span>
+                        </a>
+                    <?php endforeach; ?>
+                </details>
+            <?php endforeach; ?>
+        </details>
+        <?php endif; ?>
+    </div>
+
+    <div class="app-sidebar-profile-wrap">
+        <details>
+            <summary>
+                <span class="avatar"><?php
+                    $__n = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($user['name']));
+                    $__p = array_filter(explode(' ', $__n));
+                    echo htmlspecialchars(implode('', array_map(fn($x) => strtoupper($x[0]), array_slice($__p, 0, 2))) ?: '?', ENT_QUOTES, 'UTF-8');
+                ?></span>
+                <span>
+                    <span class="name"><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="role"><?= htmlspecialchars($user['role_label'] ?: $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
+                </span>
+                <span class="chev">&#9650;</span>
+            </summary>
+            <div class="app-sidebar-profile-menu">
+                <a href="/account/change_password.php">Change Password</a>
+                <a href="/logout.php">Log Out</a>
+            </div>
+        </details>
+    </div>
+</aside>
+<?php endif; ?>
+
+<?php if (!empty($breadcrumbs)): ?>
+<div class="<?= !empty($useAppSidebar) ? 'sidebar-breadcrumb' : 'page-body-outer' ?>">
+    <div class="breadcrumb">
+        <?php foreach ($breadcrumbs as $i => $crumb): ?>
+            <?php if ($i > 0): ?> &rsaquo; <?php endif; ?>
+            <?php if (!empty($crumb['url'])): ?>
+                <a href="<?= htmlspecialchars($crumb['url'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></a>
+            <?php else: ?>
+                <?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
 </div>
 <?php endif; ?>

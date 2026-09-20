@@ -58,6 +58,8 @@ foreach ($participants as $p) {
         }
     }
 }
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,9 +71,6 @@ foreach ($participants as $p) {
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 2rem 2.5rem; }
-.container { max-width: 1000px; margin: 0 auto; }
-
 .page-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
 .page-top h1 { font-size: 1.35rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: .35rem; }
 
@@ -95,9 +94,9 @@ body { display: block; padding: 2rem 2.5rem; }
 .points-breakdown span { display: inline-block; margin-right: .75rem; }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
+<div class="page-with-sidebar">
 
     <?php if ($success): ?>
         <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
@@ -130,7 +129,7 @@ body { display: block; padding: 2rem 2.5rem; }
     </div>
 
     <div class="grid-2">
-        <div class="card">
+        <div class="app-card">
             <div class="section-label">Event Details</div>
             <table class="detail-table">
                 <tr><th>Registration No.</th><td><?= htmlspecialchars($event['event_code'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td></tr>
@@ -175,7 +174,7 @@ body { display: block; padding: 2rem 2.5rem; }
             </table>
         </div>
 
-        <div class="card qr-card">
+        <div class="app-card qr-card">
             <div class="section-label" style="text-align:center;">Attendance QR</div>
             <div id="qrcode"></div>
             <div class="qr-actions">
@@ -185,7 +184,7 @@ body { display: block; padding: 2rem 2.5rem; }
         </div>
     </div>
 
-    <div class="card">
+    <div class="app-card">
         <div class="section-label">Registered Participants (<?= count($participants) ?>)</div>
         <?php if (empty($participants)): ?>
             <p class="empty-state">No participants have registered yet.</p>

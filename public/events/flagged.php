@@ -66,6 +66,8 @@ $quizFailed    = $registrationModel->quizFailedForEvent((int) $event['id']);
 $sessionLabels = (new SessionWindowRepository())->labelMap();
 $success       = $_SESSION['success'] ?? null;
 unset($_SESSION['success']);
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -77,19 +79,17 @@ unset($_SESSION['success']);
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 900px; margin: 0 auto; }
 .distance-badge { color: var(--kvb-red-dark); font-weight: 600; font-size: .82rem; }
 .score-badge { color: var(--kvb-red-dark); font-weight: 600; font-size: .82rem; }
 .section-heading { font-size: 1rem; font-weight: 700; color: var(--kvb-green-dark); margin: 1.75rem 0 .6rem; }
 .section-heading:first-of-type { margin-top: 0; }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <div class="page-header">
-        <h1>Pending Approvals</h1>
+<div class="page-with-sidebar">
+    <div class="app-page-hero">
+        <div><h1>Pending Approvals</h1></div>
         <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">&larr; Back to Event</a>
     </div>
 
@@ -99,9 +99,9 @@ body { display: block; padding: 2.5rem; }
 
     <h2 class="section-heading">Flagged — Outside Geofence</h2>
     <?php if (empty($flagged)): ?>
-        <div class="card"><p class="empty-state">No flagged records for this event.</p></div>
+        <div class="app-card"><p class="empty-state">No flagged records for this event.</p></div>
     <?php else: ?>
-        <div class="card card-flush">
+        <div class="app-card card-flush">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -140,9 +140,9 @@ body { display: block; padding: 2.5rem; }
 
     <h2 class="section-heading">Quiz Failed — Both Attempts Used</h2>
     <?php if (empty($quizFailed)): ?>
-        <div class="card"><p class="empty-state">No unresolved quiz failures for this event.</p></div>
+        <div class="app-card"><p class="empty-state">No unresolved quiz failures for this event.</p></div>
     <?php else: ?>
-        <div class="card card-flush">
+        <div class="app-card card-flush">
             <table class="data-table">
                 <thead>
                     <tr>

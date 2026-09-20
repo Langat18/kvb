@@ -24,6 +24,8 @@ $eventsByMode         = $reportModel->eventsByMode();
 $participantsByCadre  = $reportModel->participantsByCadre();
 $monthlyTrend         = $reportModel->monthlyEventsTrend(6);
 $flaggedByEvent       = $reportModel->flaggedByEvent(5);
+
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -35,56 +37,54 @@ $flaggedByEvent       = $reportModel->flaggedByEvent(5);
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 1100px; margin: 0 auto; }
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
 .chart-card h2 { font-size: .95rem; font-weight: 600; color: var(--kvb-green-dark); margin-bottom: 1rem; }
 @media (max-width: 800px) { .chart-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <div class="page-header">
-        <h1>Reports Dashboard</h1>
+<div class="page-with-sidebar">
+    <div class="app-page-hero">
+        <div><h1>Reports Dashboard</h1></div>
     </div>
 
     <div class="stat-grid">
-        <div class="card stat-card">
+        <div class="app-card stat-card">
             <div class="num"><?= $totals['total_events'] ?></div>
             <div class="label">Total Events</div>
         </div>
-        <div class="card stat-card">
+        <div class="app-card stat-card">
             <div class="num"><?= $totals['total_participants'] ?></div>
             <div class="label">Registered Vets</div>
         </div>
-        <div class="card stat-card">
+        <div class="app-card stat-card">
             <div class="num"><?= $totals['total_attendance'] ?></div>
             <div class="label">Attendance Records</div>
         </div>
-        <div class="card stat-card flagged">
+        <div class="app-card stat-card flagged">
             <div class="num"><?= $totals['flagged_attendance'] ?></div>
             <div class="label">Flagged Records</div>
         </div>
     </div>
 
     <div class="chart-grid">
-        <div class="card chart-card">
+        <div class="app-card chart-card">
             <h2>Events by Mode</h2>
             <canvas id="modeChart"></canvas>
         </div>
-        <div class="card chart-card">
+        <div class="app-card chart-card">
             <h2>Participants by Cadre</h2>
             <canvas id="cadreChart"></canvas>
         </div>
     </div>
 
     <div class="chart-grid">
-        <div class="card chart-card">
+        <div class="app-card chart-card">
             <h2>Events Over Time (last 6 months)</h2>
             <canvas id="trendChart"></canvas>
         </div>
-        <div class="card chart-card">
+        <div class="app-card chart-card">
             <h2>Most Flagged Events</h2>
             <canvas id="flaggedChart"></canvas>
         </div>
