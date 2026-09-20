@@ -12,6 +12,7 @@ services:
       - .env
     volumes:
       - ./storage:/var/www/html/storage
+      - ./.env:/var/www/html/.env:ro
     logging:
       driver: json-file
       options:
