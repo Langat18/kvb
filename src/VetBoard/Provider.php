@@ -104,6 +104,56 @@ class Provider
         return $this->pdo->query($sql)->fetchAll();
     }
 
+    /**
+     * Paginated, searchable listing for the providers admin page.
+     * Separate from list() so existing callers of list() (dropdowns,
+     * lookups elsewhere in the app) keep getting the full unpaginated
+     * result set they already rely on.
+     */
+    public function paginatedList(array $filters = [], int $limit = 20, int $offset = 0): array
+    {
+        $where  = [];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where[]           = '(name ILIKE :search OR accreditation_no ILIKE :search)';
+            $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM providers {$whereSql} ORDER BY name ASC LIMIT :limit OFFSET :offset"
+        );
+
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
+    public function count(array $filters = []): int
+    {
+        $where  = [];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where[]           = '(name ILIKE :search OR accreditation_no ILIKE :search)';
+            $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM providers {$whereSql}");
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function rename(int $id, string $name): bool
     {
         $name = trim($name);

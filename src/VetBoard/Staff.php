@@ -83,17 +83,54 @@ class Staff
         return $staff;
     }
 
-    public function list(): array
+    public function list(array $filters = [], int $limit = 20, int $offset = 0): array
     {
-        $stmt = $this->pdo->query(
-            'SELECT s.id, s.name, s.email, s.role_id, r.item_key AS role, r.label AS role_label,
+        $where  = [];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where[]           = '(s.name ILIKE :search OR s.email ILIKE :search)';
+            $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->pdo->prepare(
+            "SELECT s.id, s.name, s.email, s.role_id, r.item_key AS role, r.label AS role_label,
                     s.is_active, s.last_login_at, s.created_at
              FROM staff s
              JOIN roles r ON r.id = s.role_id
-             ORDER BY s.name ASC'
+             {$whereSql}
+             ORDER BY s.name ASC
+             LIMIT :limit OFFSET :offset"
         );
 
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
         return $stmt->fetchAll();
+    }
+
+    public function count(array $filters = []): int
+    {
+        $where  = [];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $where[]           = '(s.name ILIKE :search OR s.email ILIKE :search)';
+            $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM staff s {$whereSql}");
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
     }
 
     public function findById(int $id): ?array
