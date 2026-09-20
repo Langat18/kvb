@@ -7,6 +7,7 @@ require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\LoginThrottle;
 use VetBoard\Staff;
 
 Auth::startSession();
@@ -29,8 +30,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email']    ?? '');
     $password = trim($_POST['password'] ?? '');
 
+    $throttle = new LoginThrottle();
+
+    if ($throttle->isLocked($email)) {
+        $minutes = $throttle->minutesUntilUnlock($email);
+        $_SESSION['login_error'] = "Too many failed login attempts. Please try again in about {$minutes} minute(s).";
+        header('Location: /login.php');
+        exit;
+    }
+
     $staffModel = new Staff();
     $staff      = $staffModel->verifyPassword($email, $password);
+
+    $throttle->recordAttempt($email, $staff !== null);
 
     if (!$staff) {
         $_SESSION['login_error'] = 'Invalid email or password.';
@@ -122,7 +134,7 @@ body { display: flex; align-items: center; justify-content: center; padding: 1re
                             <label class="form-check-label" for="rememberMe">Remember Me</label>
                         </div>
                     </div>
-                    <a href="mailto:info@kenyavetboard.or.ke"><i class="fa fa-circle-question"></i> Forgot password?</a>
+                    <a href="/account/forgot_password.php"><i class="fa fa-circle-question"></i> Forgot password?</a>
                 </div>
 
                 <button type="submit" class="kvb-btn kvb-btn-primary" id="login-btn">
