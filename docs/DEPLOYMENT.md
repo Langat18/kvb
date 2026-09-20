@@ -12,7 +12,7 @@ Add an A record: `cpdsystem.ksgcm.com` -> `104.248.117.15`
 
 ```
 cd /var/www
-git clone <repo-url> cpd
+git clone https://github.com/Langat18/kvb cpd
 cd cpd
 ```
 
