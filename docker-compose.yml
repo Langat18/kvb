@@ -1,0 +1,36 @@
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cpd_app
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./storage:/var/www/html/storage
+
+  db:
+    image: postgres:17-alpine
+    container_name: cpd_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-vet_event_attendance}
+      POSTGRES_USER: ${DB_USER:-vetadmin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-vetadmin} -d ${DB_NAME:-vet_event_attendance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

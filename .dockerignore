@@ -1,0 +1,12 @@
+vendor/
+.env
+.env.local
+.env.*.local
+.git/
+logs/
+*.log
+*.swp
+*.swo
+.idea/
+.vscode/
+README.md

@@ -1,0 +1,25 @@
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cpd_app
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/var/www/html/storage
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - ksg_default
+
+networks:
+  ksg_default:
+    external: true
