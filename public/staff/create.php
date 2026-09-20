@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\Mailer;
 use VetBoard\Role;
 use VetBoard\Staff;
 
@@ -34,23 +35,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('Invalid security token.');
     }
 
-    $data = [
-        'name'     => trim($_POST['name']     ?? ''),
-        'email'    => trim($_POST['email']    ?? ''),
-        'password' => trim($_POST['password'] ?? ''),
-        'role_id'  => $_POST['role_id'] !== '' ? (int) $_POST['role_id'] : null,
-    ];
+    $name   = trim($_POST['name']  ?? '');
+    $email  = trim($_POST['email'] ?? '');
+    $roleId = $_POST['role_id'] !== '' ? (int) $_POST['role_id'] : 0;
 
     try {
         $staffModel = new Staff();
-        $staffModel->create($data);
-        $_SESSION['success'] = 'Staff account created successfully.';
+        $result     = $staffModel->createWithInvite($name, $email, $roleId);
+
+        if ($result['token'] !== null) {
+            $appUrl        = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8000', '/');
+            $activationUrl = $appUrl . '/account/reset_password.php?token=' . urlencode($result['token']);
+
+            $mailSent = Mailer::sendAccountCreated($email, $name, $activationUrl);
+
+            $_SESSION['success'] = $mailSent
+                ? 'Staff account created. An activation email has been sent to ' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '.'
+                : 'Staff account created, but the activation email failed to send. Use "Resend activation" from the staff list once available, or check mail configuration.';
+        } else {
+            $_SESSION['success'] = 'Staff account created, but an activation token could not be issued. Please contact support.';
+        }
+
         header('Location: /staff/index.php');
         exit;
 
     } catch (\InvalidArgumentException $e) {
         $_SESSION['error']     = $e->getMessage();
-        $_SESSION['form_data'] = $data;
+        $_SESSION['form_data'] = ['name' => $name, 'email' => $email, 'role_id' => $roleId];
         header('Location: /staff/create.php');
         exit;
     }
@@ -91,12 +102,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <div class="form-group">
                 <label for="email">Email <span class="required">*</span></label>
                 <input type="email" id="email" name="email" required value="<?= htmlspecialchars($formData['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-            </div>
-
-            <div class="form-group">
-                <label for="password">Temporary Password <span class="required">*</span></label>
-                <input type="text" id="password" name="password" required minlength="8">
-                <small style="color:var(--text-muted);">Share this with the staff member; they should change it after first login.</small>
+                <small style="color:var(--text-muted);">An activation email with a "set your password" link will be sent to this address.</small>
             </div>
 
             <div class="form-group">
@@ -111,7 +117,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 </select>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+            <button type="submit" class="btn btn-primary btn-block">Create Account &amp; Send Activation Email</button>
         </form>
     </div>
 
