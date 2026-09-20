@@ -44,11 +44,24 @@ openssl rand -base64 24
 
 Put that value into `docker/db/init_cpd_db.sql` (replacing
 `CHANGE_ME_GENERATE_A_PASSWORD`) and into `.env`'s `DB_PASSWORD` — they must
-match. Then run it against the existing `ksg_db` container:
+match. Then run it against the existing `ksg_db` container, connecting as the
+existing app's Postgres superuser and its own database (e.g. `user1` /
+`ksg_reports` — check `ksg`'s `.env` on the VPS for the actual values):
 
 ```
-docker exec -i ksg_db psql -U <existing_superuser> < docker/db/init_cpd_db.sql
+docker exec -i ksg_db psql -U user1 -d ksg_reports < docker/db/init_cpd_db.sql
 ```
+
+**If you already ran this without replacing the placeholder password**, the
+`cpd_user` role now has the literal password `CHANGE_ME_GENERATE_A_PASSWORD`
+in production. Fix it before going further:
+
+```
+docker exec -i ksg_db psql -U user1 -d ksg_reports -c \
+  "ALTER USER cpd_user WITH PASSWORD '<the real generated password>';"
+```
+
+and make sure `.env`'s `DB_PASSWORD` matches.
 
 ## 5. Build and start the app
 
@@ -71,12 +84,16 @@ for f in migrations/*.sql; do
 done
 ```
 
-## 7. Add the nginx vhost
+## 7. Add the nginx vhost (HTTP only, for now)
+
+Don't add the `listen 443 ssl` block yet — the cert doesn't exist until step 8,
+and `nginx -t` will fail if the config points at cert files that aren't there.
 
 Create `/etc/nginx/sites-available/cpdsystem`:
 
 ```nginx
 server {
+    listen 80;
     server_name cpdsystem.ksgcm.com;
 
     gzip off;
@@ -89,20 +106,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
     }
-
-    listen 443 ssl;
-    ssl_certificate /etc/letsencrypt/live/cpdsystem.ksgcm.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/cpdsystem.ksgcm.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-}
-server {
-    if ($host = cpdsystem.ksgcm.com) {
-        return 301 https://$host$request_uri;
-    }
-    listen 80;
-    server_name cpdsystem.ksgcm.com;
-    return 404;
 }
 ```
 
@@ -119,8 +122,11 @@ nginx -t && systemctl reload nginx
 certbot --nginx -d cpdsystem.ksgcm.com
 ```
 
-(certbot will rewrite the `ssl_certificate` lines in step 7's file — that's
-expected, matches the existing `ksgcm` vhost pattern.)
+This is the same way the existing `ksgcm` vhost got its SSL block — certbot
+edits the file in place, adding the `listen 443 ssl` server block (with the
+`ssl_certificate` paths it just created) and the `:80 -> https` redirect
+block. Run `nginx -t && systemctl reload nginx` again afterward if certbot
+doesn't do it for you.
 
 ## 9. Verify
 
