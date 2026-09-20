@@ -154,6 +154,29 @@ class Registration
         return $result;
     }
 
+    // Rejects a pending review item (flagged geofence or quiz failure).
+    
+    public function denyAttendance(int $attendanceId, ?int $deniedByUserId): bool
+    {
+        $alreadyStmt = $this->pdo->prepare('SELECT EXISTS(SELECT 1 FROM points_ledger WHERE attendance_id = :id)');
+        $alreadyStmt->execute([':id' => $attendanceId]);
+
+        if ((bool) $alreadyStmt->fetchColumn()) {
+            return false;
+        }
+
+        $stmt = $this->pdo->prepare(
+            'UPDATE attendance
+             SET points_denied = true, flagged = false, flag_reason = NULL,
+                 denied_by = :denied_by, denied_at = now()
+             WHERE id = :id'
+        );
+        $stmt->bindValue(':id', $attendanceId, PDO::PARAM_INT);
+        $stmt->bindValue(':denied_by', $deniedByUserId, $deniedByUserId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+
+        return $stmt->execute();
+    }
+
     // Clears a flag without touching points. Prefer approveFlagged() for the review workflow.
     public function clearFlag(int $attendanceId): bool
     {
@@ -237,7 +260,9 @@ class Registration
         $this->awardPoints($attendanceId, $registrationId, $session);
     }
 
-    // Returns: awarded, rejected_offsite, pending_review, pending_quiz, quiz_failed, not_applicable.
+    // Returns: awarded, rejected_offsite, denied_by_supervisor, pending_review, pending_quiz, quiz_failed, not_applicable.
+    // rejected_offsite = automatic hard-distance rejection at check-in time.
+    // denied_by_supervisor = a human decision via denyAttendance(), distinguished by denied_by being set.
     public function getPointsStatus(int $registrationId, string $session): string
     {
         $attendanceId = $this->findAttendanceId($registrationId, $session);
@@ -254,7 +279,7 @@ class Registration
         }
 
         $stmt = $this->pdo->prepare(
-            'SELECT a.method, a.flagged, a.points_denied, a.quiz_override_at, r.event_id, sw.id AS session_window_id
+            'SELECT a.method, a.flagged, a.points_denied, a.denied_by, a.quiz_override_at, r.event_id, sw.id AS session_window_id
              FROM attendance a
              JOIN registrations r ON r.id = a.registration_id
              JOIN session_windows sw ON sw.item_key = a.session::text
@@ -268,7 +293,7 @@ class Registration
         }
 
         if ($this->isTruthyDbBool($row['points_denied'])) {
-            return 'rejected_offsite';
+            return $row['denied_by'] !== null ? 'denied_by_supervisor' : 'rejected_offsite';
         }
 
         if ($this->isTruthyDbBool($row['flagged'])) {
@@ -400,6 +425,7 @@ class Registration
     }
 
     // Supervisor queue for quiz overrides. Virtual-only — onsite never gets gated by a quiz.
+    // Excludes denied records (points_denied) so they stop appearing once a supervisor has acted.
     public function quizFailedForEvent(int $eventId): array
     {
         $stmt = $this->pdo->prepare(
@@ -408,7 +434,7 @@ class Registration
              FROM attendance a
              JOIN registrations r ON r.id = a.registration_id
              JOIN participants p ON p.reg_no = r.reg_no
-             WHERE r.event_id = :event_id AND a.method = \'virtual\' AND a.quiz_override_at IS NULL
+             WHERE r.event_id = :event_id AND a.method = \'virtual\' AND a.quiz_override_at IS NULL AND a.points_denied IS NOT TRUE
              ORDER BY a.confirmed_at DESC'
         );
         $stmt->execute([':event_id' => $eventId]);

@@ -55,6 +55,45 @@ class Staff
         return (int) $stmt->fetchColumn();
     }
 
+    // Creates a staff account with no usable password 
+    public function createWithInvite(string $name, string $email, int $roleId): array
+    {
+        if (empty($name)) {
+            throw new \InvalidArgumentException('Name is required.');
+        }
+
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('A valid email is required.');
+        }
+
+        if ($this->findByEmail($email)) {
+            throw new \InvalidArgumentException('An account with this email already exists.');
+        }
+
+        if ($roleId <= 0 || !(new Role())->findById($roleId)) {
+            throw new \InvalidArgumentException('A valid role is required.');
+        }
+
+        $unusablePassword = bin2hex(random_bytes(32));
+
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO staff (name, email, password_hash, role_id)
+             VALUES (:name, :email, :password_hash, :role_id)
+             RETURNING id'
+        );
+        $stmt->execute([
+            ':name'          => trim($name),
+            ':email'         => strtolower(trim($email)),
+            ':password_hash' => password_hash($unusablePassword, PASSWORD_DEFAULT),
+            ':role_id'       => $roleId,
+        ]);
+
+        $staffId  = (int) $stmt->fetchColumn();
+        $rawToken = $this->createPasswordResetToken($email);
+
+        return ['id' => $staffId, 'token' => $rawToken];
+    }
+
     public function findByEmail(string $email): ?array
     {
         $stmt = $this->pdo->prepare(
@@ -181,5 +220,94 @@ class Staff
             ':id'   => $id,
             ':hash' => password_hash($newPassword, PASSWORD_DEFAULT),
         ]);
+    }
+
+    // --- Self-service password reset / account activation ---
+
+    // Creates a single-use, 60-minute reset token for the given email.
+    // Returns null if the email doesn't match an account, or if one was
+    // already issued in the last 5 minutes (basic abuse throttle). The
+    // calling page should show the same generic message either way, to
+    // avoid leaking which emails are registered.
+    public function createPasswordResetToken(string $email): ?string
+    {
+        $staff = $this->findByEmail($email);
+
+        if (!$staff) {
+            return null;
+        }
+
+        $recentStmt = $this->pdo->prepare(
+            'SELECT EXISTS(
+                SELECT 1 FROM password_reset_tokens
+                WHERE staff_id = :staff_id AND created_at > now() - interval \'5 minutes\'
+             )'
+        );
+        $recentStmt->execute([':staff_id' => $staff['id']]);
+
+        if ((bool) $recentStmt->fetchColumn()) {
+            return null;
+        }
+
+        $rawToken  = bin2hex(random_bytes(32));
+        $tokenHash = hash('sha256', $rawToken);
+
+        $insert = $this->pdo->prepare(
+            'INSERT INTO password_reset_tokens (staff_id, token_hash, expires_at)
+             VALUES (:staff_id, :token_hash, now() + interval \'60 minutes\')'
+        );
+        $insert->execute([
+            ':staff_id'   => $staff['id'],
+            ':token_hash' => $tokenHash,
+        ]);
+
+        return $rawToken;
+    }
+
+    // Validates a raw token from the reset/activation link. Returns the
+    // staff row if valid, unexpired, and unused — null otherwise.
+    public function findByResetToken(string $rawToken): ?array
+    {
+        $tokenHash = hash('sha256', $rawToken);
+
+        $stmt = $this->pdo->prepare(
+            'SELECT s.id, s.name, s.email, prt.id AS token_id
+             FROM password_reset_tokens prt
+             JOIN staff s ON s.id = prt.staff_id
+             WHERE prt.token_hash = :hash
+               AND prt.used_at IS NULL
+               AND prt.expires_at > now()'
+        );
+        $stmt->execute([':hash' => $tokenHash]);
+
+        $result = $stmt->fetch();
+
+        return $result ?: null;
+    }
+
+    // Resets the password and marks the token used in one transaction, so
+    // a token can never be reused even if resetPassword() partially fails.
+    public function resetPasswordWithToken(int $tokenId, int $staffId, string $newPassword): bool
+    {
+        $this->pdo->beginTransaction();
+
+        try {
+            $this->resetPassword($staffId, $newPassword);
+
+            $stmt = $this->pdo->prepare('UPDATE password_reset_tokens SET used_at = now() WHERE id = :id');
+            $stmt->execute([':id' => $tokenId]);
+
+            $invalidate = $this->pdo->prepare(
+                'UPDATE password_reset_tokens SET used_at = now() WHERE staff_id = :staff_id AND used_at IS NULL'
+            );
+            $invalidate->execute([':staff_id' => $staffId]);
+
+            $this->pdo->commit();
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
     }
 }

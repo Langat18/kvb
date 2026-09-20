@@ -15,16 +15,26 @@ class Participant
         $this->pdo = Database::getInstance()->getPdo();
     }
 
+    // Lenient format check used for lookup/attendance. Accepts both the
+    // legacy 4-digit VT-prefixed format and the current 5-digit format
     public static function isValidRegNo(string $regNo): bool
     {
-        return (bool) preg_match('/^(\d{4}|VT[ABC]\d{4})$/', $regNo);
+        return (bool) preg_match('/^(\d{4,5}|VT[ABC]\d{4,5})$/', $regNo);
+    }
+
+    // Strict check enforced only when creating a NEW registration. VT-
+    // prefixed codes must be 5 digits going forward (VTAXXXXX / VTBXXXXX /
+    // VTCXXXXX); the plain 4-digit numeric format is unchanged.
+    public static function isValidNewRegNo(string $regNo): bool
+    {
+        return (bool) preg_match('/^(\d{4,5}|VT[ABC]\d{5})$/', $regNo);
     }
 
     public function create(array $data): string
     {
         $regNo = strtoupper(trim($data['reg_no'] ?? ''));
 
-        if (!self::isValidRegNo($regNo)) {
+        if (!self::isValidNewRegNo($regNo)) {
             throw new \InvalidArgumentException('Invalid registration number format.');
         }
 
