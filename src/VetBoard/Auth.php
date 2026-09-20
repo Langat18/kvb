@@ -21,6 +21,26 @@ class Auth
     public static function startSession(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            // Secure by default: unless APP_ENV is explicitly "development",
+            // errors are logged but never displayed to the browser. 
+            $isProduction = ($_ENV['APP_ENV'] ?? 'production') !== 'development';
+
+            error_reporting(E_ALL);
+            ini_set('display_errors', $isProduction ? '0' : '1');
+            ini_set('log_errors', '1');
+
+            $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+
+            session_set_cookie_params([
+                'lifetime' => 0,
+                'path'     => '/',
+                'domain'   => '',
+                'secure'   => $isHttps,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+
             session_start();
         }
     }
