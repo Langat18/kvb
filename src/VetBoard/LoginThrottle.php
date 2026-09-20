@@ -62,9 +62,7 @@ class LoginThrottle
             ':success' => $success,
         ]);
 
-        // A successful login clears the account's failed-attempt history,
-        // so a legitimate user who mistypes a few times isn't still
-        // partway toward a lockout the next time they log in correctly.
+        // A successful login clears the account's failed-attempt history.
         if ($success) {
             $clear = $this->pdo->prepare('DELETE FROM login_attempts WHERE email = :email AND success = false');
             $clear->execute([':email' => $email]);
