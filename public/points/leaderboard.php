@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\CadreRepository;
 use VetBoard\Participant;
+use VetBoard\Security;
 
 Auth::startSession();
 Auth::requirePermission('view_leaderboard');
@@ -47,7 +48,7 @@ if ($format === 'excel') {
         $row = $i + 4;
         $sheet->setCellValue('A' . $row, $i + 1);
         $sheet->setCellValue('B' . $row, $p['reg_no']);
-        $sheet->setCellValue('C' . $row, $p['name']);
+        $sheet->setCellValue('C' . $row, Security::excelSafe($p['name']));
         $sheet->setCellValue('D' . $row, $cadreLabels[$p['cadre']] ?? $p['cadre']);
         $sheet->setCellValue('E' . $row, (int) $p['total_points']);
     }
