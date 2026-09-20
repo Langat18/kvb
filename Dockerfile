@@ -1,6 +1,4 @@
-FROM php:8.4-apache
-
-RUN a2enmod rewrite headers
+FROM php:8.4-cli AS builder
 
 RUN apt-get update && apt-get install -y \
     libpq-dev \
@@ -32,6 +30,26 @@ COPY composer.json composer.lock* ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
 COPY . .
+
+FROM php:8.4-apache AS runtime
+
+RUN a2enmod rewrite headers
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libonig5 \
+    libzip5 \
+    libpng16-16t64 \
+    libjpeg62-turbo \
+    libwebp7 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
+COPY --from=builder /usr/local/etc/php/conf.d/ /usr/local/etc/php/conf.d/
+
+WORKDIR /var/www/html
+COPY --from=builder /var/www/html /var/www/html
 
 COPY docker/apache/cpd.conf /etc/apache2/sites-available/000-default.conf
 
