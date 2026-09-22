@@ -1,5 +1,5 @@
 CREATE TYPE event_mode_t AS ENUM ('onsite', 'virtual', 'hybrid');
-CREATE TYPE session_t    AS ENUM ('morning', 'afternoon');
+CREATE TYPE session_t    AS ENUM ('morning', 'mid_morning', 'afternoon');
 CREATE TYPE method_t     AS ENUM ('onsite', 'virtual');
 CREATE TYPE cadre_t      AS ENUM (
     'veterinary_surgeon',
@@ -17,15 +17,15 @@ CREATE TABLE participants (
     cadre           cadre_t GENERATED ALWAYS AS (
         CASE
             WHEN reg_no ~ '^\d{4}$'    THEN 'veterinary_surgeon'::cadre_t
-            WHEN reg_no ~ '^VTA\d{4}$' THEN 'vet_bachelors'::cadre_t
-            WHEN reg_no ~ '^VTB\d{4}$' THEN 'vet_diploma'::cadre_t
-            WHEN reg_no ~ '^VTC\d{4}$' THEN 'vet_certificate'::cadre_t
+            WHEN reg_no ~ '^VTA\d{5}$' THEN 'vet_bachelors'::cadre_t
+            WHEN reg_no ~ '^VTB\d{5}$' THEN 'vet_diploma'::cadre_t
+            WHEN reg_no ~ '^VTC\d{5}$' THEN 'vet_certificate'::cadre_t
         END
     ) STORED,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT chk_reg_no_format CHECK (reg_no ~ '^(\d{4}|VT[ABC]\d{4})$'),
+    CONSTRAINT chk_reg_no_format CHECK (reg_no ~ '^(\d{4}|VT[ABC]\d{5})$'),
     CONSTRAINT uq_participants_email     UNIQUE (email),
     CONSTRAINT uq_participants_id_number UNIQUE (id_number)
 );
