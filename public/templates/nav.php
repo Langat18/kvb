@@ -4,6 +4,11 @@
     <div class="navbar-brand">
         <img src="/assets/img/kvb_logo.png" alt="KVB">
     </div>
+    <?php if (!empty($useAppSidebar)): ?>
+    <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="appSidebar">
+        <span></span><span></span><span></span>
+    </button>
+    <?php endif; ?>
     <button type="button" class="navbar-toggle" id="navbarToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="navbarUser">
         <span></span><span></span><span></span>
     </button>
@@ -36,7 +41,8 @@
 </script>
 
 <?php if (!empty($useAppSidebar)): ?>
-<aside class="app-sidebar">
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<aside class="app-sidebar" id="appSidebar">
     <div class="app-sidebar-brand"><img src="/assets/img/kvb_logo.png" alt="KVB"></div>
 
     <div class="app-sidebar-body">
@@ -94,6 +100,38 @@
         </details>
     </div>
 </aside>
+<script>
+(function () {
+    var toggle   = document.getElementById('sidebarToggle');
+    var sidebar  = document.getElementById('appSidebar');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    if (!toggle || !sidebar) return;
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('open');
+        document.body.classList.remove('sidebar-open');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        if (backdrop) backdrop.classList.add('open');
+        document.body.classList.add('sidebar-open');
+        toggle.setAttribute('aria-expanded', 'true');
+    }
+
+    toggle.addEventListener('click', function () {
+        sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+    });
+
+    if (backdrop) backdrop.addEventListener('click', closeSidebar);
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeSidebar();
+    });
+})();
+</script>
 <?php endif; ?>
 
 <?php if (!empty($breadcrumbs)): ?>
