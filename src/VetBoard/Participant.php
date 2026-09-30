@@ -163,6 +163,108 @@ class Participant
         ]);
     }
 
+    public function updateDetails(string $oldRegNo, array $data, ?int $staffId, ?int $eventId = null): array
+    {
+        $oldRegNo = strtoupper(trim($oldRegNo));
+        $newRegNo = strtoupper(trim((string) ($data['reg_no'] ?? '')));
+        $name     = trim((string) ($data['name'] ?? ''));
+        $email    = strtolower(trim((string) ($data['email'] ?? '')));
+        $phone    = trim((string) ($data['phone'] ?? ''));
+
+        if ($name === '' || $phone === '') {
+            return ['ok' => false, 'message' => 'Name and phone are required.', 'reg_no' => $oldRegNo];
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'message' => 'Please enter a valid email address.', 'reg_no' => $oldRegNo];
+        }
+
+        if ($newRegNo !== $oldRegNo && !self::isValidNewRegNo($newRegNo)) {
+            return ['ok' => false, 'message' => 'Invalid registration number format. Expected 4 or 5 digits, VTAXXXXX, VTBXXXXX or VTCXXXXX.', 'reg_no' => $oldRegNo];
+        }
+
+        try {
+            $this->pdo->beginTransaction();
+
+            $cur = $this->pdo->prepare('SELECT name, email, phone FROM participants WHERE reg_no = :r FOR UPDATE');
+            $cur->execute([':r' => $oldRegNo]);
+            $row = $cur->fetch();
+
+            if (!$row) {
+                $this->pdo->rollBack();
+                return ['ok' => false, 'message' => 'That attendee no longer exists.', 'reg_no' => $oldRegNo];
+            }
+
+            if ($newRegNo !== $oldRegNo) {
+                $dup = $this->pdo->prepare('SELECT 1 FROM participants WHERE reg_no = :r');
+                $dup->execute([':r' => $newRegNo]);
+
+                if ($dup->fetchColumn()) {
+                    $this->pdo->rollBack();
+                    return ['ok' => false, 'message' => 'Registration number ' . $newRegNo . ' already belongs to another attendee. Two records for one person need a separate fix, not an edit.', 'reg_no' => $oldRegNo];
+                }
+            }
+
+            $dupEmail = $this->pdo->prepare('SELECT reg_no FROM participants WHERE email = :e AND reg_no <> :r');
+            $dupEmail->execute([':e' => $email, ':r' => $oldRegNo]);
+            $other = $dupEmail->fetchColumn();
+
+            if ($other) {
+                $this->pdo->rollBack();
+                return ['ok' => false, 'message' => 'That email address already belongs to attendee ' . $other . '.', 'reg_no' => $oldRegNo];
+            }
+
+            $changes = [];
+            foreach ([
+                ['reg_no', $oldRegNo, $newRegNo],
+                ['name', (string) $row['name'], $name],
+                ['email', (string) $row['email'], $email],
+                ['phone', (string) ($row['phone'] ?? ''), $phone],
+            ] as [$field, $old, $new]) {
+                if ($old !== $new) {
+                    $changes[] = [$field, $old, $new];
+                }
+            }
+
+            if (!$changes) {
+                $this->pdo->rollBack();
+                return ['ok' => true, 'message' => 'No changes were made.', 'reg_no' => $oldRegNo];
+            }
+
+            $upd = $this->pdo->prepare(
+                'UPDATE participants SET reg_no = :new_r, name = :name, email = :email, phone = :phone WHERE reg_no = :old_r'
+            );
+            $upd->execute([':new_r' => $newRegNo, ':name' => $name, ':email' => $email, ':phone' => $phone, ':old_r' => $oldRegNo]);
+
+            $aud = $this->pdo->prepare(
+                'INSERT INTO participant_edit_audit (reg_no_before, reg_no_after, field, old_value, new_value, changed_by, event_id)
+                 VALUES (:b, :a, :f, :o, :n, :s, :e)'
+            );
+            foreach ($changes as [$field, $old, $new]) {
+                $aud->bindValue(':b', $oldRegNo);
+                $aud->bindValue(':a', $newRegNo);
+                $aud->bindValue(':f', $field);
+                $aud->bindValue(':o', $old);
+                $aud->bindValue(':n', $new);
+                $aud->bindValue(':s', $staffId, $staffId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                $aud->bindValue(':e', $eventId, $eventId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                $aud->execute();
+            }
+
+            $this->pdo->commit();
+            error_log(sprintf('[attendee-edit] reg_no=%s->%s staff_id=%s fields=%s', $oldRegNo, $newRegNo, $staffId ?? 'none', implode(',', array_column($changes, 0))));
+
+            return ['ok' => true, 'message' => 'Details updated for ' . $newRegNo . '.', 'reg_no' => $newRegNo];
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            error_log('[attendee-edit] failed for ' . $oldRegNo . ': ' . $e->getMessage());
+
+            return ['ok' => false, 'message' => 'A database error stopped this change. Nothing was changed.', 'reg_no' => $oldRegNo];
+        }
+    }
+
     public function leaderboard(string $search = '', int $limit = 50, int $offset = 0): array
     {
         $where  = '';
