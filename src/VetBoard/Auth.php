@@ -15,7 +15,9 @@ class Auth
         'create_events'              => ['view_events'],
         'manage_events'              => ['view_events'],
         'review_flagged_attendance'  => ['view_events'],
+        'record_manual_attendance'   => ['view_events'],
         'print_attendance_register'  => ['view_events'],
+        'edit_attendee_details'      => ['view_events'],
     ];
 
     public static function startSession(): void
@@ -178,5 +180,30 @@ class Auth
         }
 
         return hash_equals($_SESSION['csrf_token'], $token);
+    }
+
+    // Long-lived device identifier for public self-scan attendance, independent
+    // of the login session. HttpOnly so page JS cannot read or clear it —
+    // deliberately harder to bypass than the earlier localStorage-only check.
+    public static function deviceId(): string
+    {
+        if (!empty($_COOKIE['vb_device_id']) && preg_match('/^[a-f0-9]{32}$/', $_COOKIE['vb_device_id'])) {
+            return $_COOKIE['vb_device_id'];
+        }
+
+        $id = bin2hex(random_bytes(16));
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+
+        setcookie('vb_device_id', $id, [
+            'expires'  => time() + 60 * 60 * 24 * 365,
+            'path'     => '/',
+            'secure'   => $isHttps,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+        $_COOKIE['vb_device_id'] = $id;
+
+        return $id;
     }
 }
