@@ -17,7 +17,7 @@ class Event
         $this->eventModeRepo = new EventModeRepository();
     }
 
-    public function create(array $data): int
+    public function create(array $data): array
     {
         $this->validate($data);
 
@@ -57,18 +57,18 @@ class Event
 
             $eventId = (int) $stmt->fetchColumn();
 
-            $this->saveSessionPoints($eventId, $data['session_points'] ?? []);
+            $sessionIdMap = $this->saveSessions($eventId, $data['sessions'] ?? []);
 
             $this->pdo->commit();
 
-            return $eventId;
+            return ['id' => $eventId, 'session_id_map' => $sessionIdMap];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
             throw $e;
         }
     }
 
-    public function update(int $id, array $data): bool
+    public function update(int $id, array $data): array
     {
         $this->validate($data);
 
@@ -102,51 +102,217 @@ class Event
                 ':meeting_link'     => !empty($data['meeting_link']) ? trim($data['meeting_link']) : null,
             ]);
 
-            $this->saveSessionPoints($id, $data['session_points'] ?? []);
+            $sessionIdMap = $this->saveSessions($id, $data['sessions'] ?? []);
 
             $this->pdo->commit();
 
-            return $result;
+            return ['result' => $result, 'session_id_map' => $sessionIdMap];
         } catch (\Throwable $e) {
             $this->pdo->rollBack();
             throw $e;
         }
     }
 
-    private function saveSessionPoints(int $eventId, array $sessionPoints): void
+    public function saveSessions(int $eventId, array $sessions): array
     {
-        $del = $this->pdo->prepare('DELETE FROM event_session_points WHERE event_id = :event_id');
-        $del->execute([':event_id' => $eventId]);
+        $stmt = $this->pdo->prepare('SELECT id FROM event_sessions WHERE event_id = :event_id AND active = TRUE');
+        $stmt->execute([':event_id' => $eventId]);
+        $currentIds = array_column($stmt->fetchAll(), 'id');
 
-        $ins = $this->pdo->prepare(
-            'INSERT INTO event_session_points (event_id, session_window_id, points)
-             VALUES (:event_id, :session_window_id, :points)'
-        );
+        $idMap   = [];
+        $keptIds = [];
 
-        foreach ($sessionPoints as $sessionWindowId => $points) {
-            $points = (int) $points;
+        foreach ($sessions as $clientId => $s) {
+            $label     = trim($s['label'] ?? '');
+            $startTime = $s['start_time'] ?? '';
+            $endTime   = $s['end_time'] ?? '';
+            $points    = (int) ($s['points'] ?? 0);
+            $sortOrder = (int) ($s['sort_order'] ?? 0);
+            $sessionDate = $this->normalizeSessionDate($s['session_date'] ?? '');
+            $requireLateSignin = !empty($s['require_late_signin']) ? 'true' : 'false';
 
-            if ($points <= 0) {
+            if ($label === '' || $startTime === '' || $endTime === '') {
                 continue;
             }
 
-            $ins->execute([
-                ':event_id'          => $eventId,
-                ':session_window_id' => (int) $sessionWindowId,
-                ':points'            => $points,
-            ]);
+            if (is_numeric($clientId)) {
+                $id = (int) $clientId;
+
+                $upd = $this->pdo->prepare(
+                    'UPDATE event_sessions
+                     SET label = :label, start_time = :start_time, end_time = :end_time,
+                         points = :points, sort_order = :sort_order, session_date = :session_date, require_late_signin = :require_late_signin, updated_at = now()
+                     WHERE id = :id AND event_id = :event_id'
+                );
+                $upd->execute([
+                    ':session_date' => $sessionDate,
+                    ':require_late_signin' => $requireLateSignin,
+                    ':label'      => $label,
+                    ':start_time' => $startTime,
+                    ':end_time'   => $endTime,
+                    ':points'     => $points,
+                    ':sort_order' => $sortOrder,
+                    ':id'         => $id,
+                    ':event_id'   => $eventId,
+                ]);
+
+                $idMap[$clientId] = $id;
+                $keptIds[]        = $id;
+            } else {
+                $ins = $this->pdo->prepare(
+                    'INSERT INTO event_sessions (event_id, label, start_time, end_time, points, sort_order, session_date, require_late_signin)
+                     VALUES (:event_id, :label, :start_time, :end_time, :points, :sort_order, :session_date, :require_late_signin)
+                     RETURNING id'
+                );
+                $ins->execute([
+                    ':session_date' => $sessionDate,
+                    ':require_late_signin' => $requireLateSignin,
+                    ':event_id'   => $eventId,
+                    ':label'      => $label,
+                    ':start_time' => $startTime,
+                    ':end_time'   => $endTime,
+                    ':points'     => $points,
+                    ':sort_order' => $sortOrder,
+                ]);
+
+                $newId            = (int) $ins->fetchColumn();
+                $idMap[$clientId] = $newId;
+                $keptIds[]        = $newId;
+            }
         }
+
+        $removedIds = array_diff($currentIds, $keptIds);
+
+        if (!empty($removedIds)) {
+            $placeholders = implode(',', array_fill(0, count($removedIds), '?'));
+            $deact = $this->pdo->prepare(
+                "UPDATE event_sessions SET active = FALSE, updated_at = now() WHERE id IN ({$placeholders})"
+            );
+            $deact->execute(array_values($removedIds));
+        }
+
+        return $idMap;
     }
 
-    public function getSessionPoints(int $eventId): array
+    private function normalizeSessionDate($value): ?string
     {
-        $stmt = $this->pdo->prepare(
-            'SELECT sw.id, sw.item_key, sw.label, COALESCE(esp.points, 0) AS points
-             FROM session_windows sw
-             LEFT JOIN event_session_points esp ON esp.session_window_id = sw.id AND esp.event_id = :event_id
-             WHERE sw.active = TRUE
-             ORDER BY sw.sort_order ASC, sw.label ASC'
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $parsed = \DateTime::createFromFormat('Y-m-d', $value);
+
+        return ($parsed && $parsed->format('Y-m-d') === $value) ? $value : null;
+    }
+
+    public function signInWhenText(int $eventId): string
+    {
+        $flags = array_map(
+            static fn(array $s): bool => (bool) ($s['require_late_signin'] ?? true),
+            $this->getSessions($eventId)
         );
+
+        $lead = (int) VIRTUAL_SIGNIN_LEAD_MINUTES;
+
+        if ($flags === [] || !in_array(false, $flags, true)) {
+            return 'during the final ' . $lead . ' minutes of each session';
+        }
+
+        if (!in_array(true, $flags, true)) {
+            return 'at any time while a session is running';
+        }
+
+        return 'during each session (some sessions only open sign-in in their final ' . $lead . ' minutes)';
+    }
+
+    public static function pickSignInSession(array $sessions, int $nowTs, int $graceMinutes): array
+    {
+        $none    = ['session_id' => null, 'window' => null, 'late' => false, 'closes_at' => null];
+        $today   = date('Y-m-d', $nowTs);
+        $nowTime = date('H:i:s', $nowTs);
+        $dayEnd  = strtotime($today . ' 23:59:59');
+
+        $todays = [];
+
+        foreach ($sessions as $w) {
+            if (!empty($w['session_date']) && $w['session_date'] !== $today) {
+                continue;
+            }
+
+            $todays[] = $w;
+        }
+
+        foreach ($todays as $w) {
+            if ($nowTime >= $w['start_time'] && $nowTime <= $w['end_time']) {
+                return ['session_id' => (int) $w['id'], 'window' => $w, 'late' => false, 'closes_at' => null];
+            }
+        }
+
+        if ($graceMinutes <= 0) {
+            return $none;
+        }
+
+        $best      = null;
+        $bestEndTs = 0;
+        $bestClose = 0;
+
+        foreach ($todays as $w) {
+            $endTs = strtotime($today . ' ' . $w['end_time']);
+
+            if ($nowTs <= $endTs) {
+                continue;
+            }
+
+            $nextStart = $dayEnd;
+
+            foreach ($todays as $o) {
+                $oStart = strtotime($today . ' ' . $o['start_time']);
+
+                if ($o['start_time'] > $w['start_time'] && $oStart < $nextStart) {
+                    $nextStart = $oStart;
+                }
+            }
+
+            $closesAt = max($endTs, min($endTs + ($graceMinutes * 60), $nextStart));
+
+            if ($nowTs >= $closesAt) {
+                continue;
+            }
+
+            if ($best === null || $endTs > $bestEndTs) {
+                $best      = $w;
+                $bestEndTs = $endTs;
+                $bestClose = $closesAt;
+            }
+        }
+
+        if ($best === null) {
+            return $none;
+        }
+
+        return ['session_id' => (int) $best['id'], 'window' => $best, 'late' => true, 'closes_at' => $bestClose];
+    }
+
+    public function resolveSignInSession(int $eventId): array
+    {
+        $grace = defined('LATE_SIGNIN_GRACE_MINUTES') ? (int) LATE_SIGNIN_GRACE_MINUTES : 60;
+
+        return self::pickSignInSession($this->getSessions($eventId), time(), $grace);
+    }
+
+    public function getSessions(int $eventId, bool $activeOnly = true): array
+    {
+        $sql = 'SELECT * FROM event_sessions WHERE event_id = :event_id';
+
+        if ($activeOnly) {
+            $sql .= ' AND active = TRUE';
+        }
+
+        $sql .= ' ORDER BY sort_order ASC, id ASC';
+
+        $stmt = $this->pdo->prepare($sql);
         $stmt->execute([':event_id' => $eventId]);
 
         return $stmt->fetchAll();
@@ -228,21 +394,57 @@ class Event
             }
         }
 
-        $sessionPoints = $data['session_points'] ?? [];
-        $pointsTotal   = 0;
+        $sessions    = $data['sessions'] ?? [];
+        $recurringTotal = 0;
+        $datedTotals    = [];
+        $validCount  = 0;
 
-        foreach ($sessionPoints as $points) {
-            $points = (int) $points;
+        foreach ($sessions as $s) {
+            $label     = trim($s['label'] ?? '');
+            $startTime = $s['start_time'] ?? '';
+            $endTime   = $s['end_time'] ?? '';
+            $points    = (int) ($s['points'] ?? 0);
+
+            if ($label === '' || $startTime === '' || $endTime === '') {
+                continue;
+            }
+
+            if ($endTime <= $startTime) {
+                throw new \InvalidArgumentException("Session \"{$label}\": end time must be after start time.");
+            }
 
             if ($points < 0) {
                 throw new \InvalidArgumentException('Points cannot be negative.');
             }
 
-            $pointsTotal += $points;
+            $rawDate = trim((string) ($s['session_date'] ?? ''));
+
+            if ($rawDate !== '') {
+                $parsedDate = \DateTime::createFromFormat('Y-m-d', $rawDate);
+
+                if (!$parsedDate || $parsedDate->format('Y-m-d') !== $rawDate) {
+                    throw new \InvalidArgumentException("Session \"{$label}\": the date is not valid.");
+                }
+
+                if ($rawDate < $data['start_date'] || $rawDate > $data['end_date']) {
+                    throw new \InvalidArgumentException("Session \"{$label}\": the date must fall within the event dates.");
+                }
+
+                $datedTotals[$rawDate] = ($datedTotals[$rawDate] ?? 0) + $points;
+            } else {
+                $recurringTotal += $points;
+            }
+            $validCount++;
         }
 
+        if ($validCount < 1) {
+            throw new \InvalidArgumentException('At least one session is required.');
+        }
+
+        $pointsTotal = $recurringTotal + ($datedTotals ? max($datedTotals) : 0);
+
         if ($pointsTotal > 8) {
-            throw new \InvalidArgumentException('Total points across all sessions cannot exceed 8 per day.');
+            throw new \InvalidArgumentException('Total points on any single day cannot exceed 8.');
         }
     }
 
@@ -367,10 +569,11 @@ class Event
 
         foreach ($participants as &$participant) {
             $attStmt = $this->pdo->prepare(
-                'SELECT session, attendance_date, method, flagged, distance_m, flag_reason
-                 FROM attendance
-                 WHERE registration_id = :registration_id
-                 ORDER BY attendance_date ASC, session ASC'
+                'SELECT a.session_id, es.label AS session_label, a.attendance_date, a.method, a.flagged, a.points_denied, a.reviewed_at, a.distance_m, a.flag_reason
+                 FROM attendance a
+                 LEFT JOIN event_sessions es ON es.id = a.session_id
+                 WHERE a.registration_id = :registration_id
+                 ORDER BY a.attendance_date ASC, a.session_id ASC'
             );
             $attStmt->execute([':registration_id' => $participant['registration_id']]);
             $participant['attendance'] = $attStmt->fetchAll();
