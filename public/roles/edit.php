@@ -31,7 +31,7 @@ $grantedKeys     = $roleModel->getPermissionKeys($id);
 
 $permissionGroups = [
     'Events' => [
-        'keys'      => ['create_events', 'view_events', 'manage_events', 'review_flagged_attendance', 'print_attendance_register'],
+        'keys'      => ['create_events', 'view_events', 'manage_events', 'review_flagged_attendance', 'record_manual_attendance', 'print_attendance_register', 'edit_attendee_details'],
         'selectAll' => true,
     ],
     'Configuration' => [
