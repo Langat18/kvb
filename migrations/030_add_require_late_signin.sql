@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE event_sessions ADD COLUMN require_late_signin BOOLEAN NOT NULL DEFAULT TRUE;
+
+COMMIT;
