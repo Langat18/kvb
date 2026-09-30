@@ -32,7 +32,7 @@ class EventQuiz
     public function hasQuiz(int $eventId, int $sessionWindowId): bool
     {
         $stmt = $this->pdo->prepare(
-            'SELECT EXISTS(SELECT 1 FROM event_quiz_questions WHERE event_id = :event_id AND session_window_id = :swid)'
+            'SELECT EXISTS(SELECT 1 FROM event_quiz_questions WHERE event_id = :event_id AND session_id = :swid)'
         );
         $stmt->execute([':event_id' => $eventId, ':swid' => $sessionWindowId]);
 
@@ -49,7 +49,7 @@ class EventQuiz
         $stmt = $this->pdo->prepare(
             'SELECT id, question_text, sort_order
              FROM event_quiz_questions
-             WHERE event_id = :event_id AND session_window_id = :swid
+             WHERE event_id = :event_id AND session_id = :swid
              ORDER BY sort_order ASC, id ASC'
         );
         $stmt->execute([':event_id' => $eventId, ':swid' => $sessionWindowId]);
@@ -82,7 +82,7 @@ class EventQuiz
 
         try {
             $existing = $this->pdo->prepare(
-                'SELECT id FROM event_quiz_questions WHERE event_id = :event_id AND session_window_id = :swid'
+                'SELECT id FROM event_quiz_questions WHERE event_id = :event_id AND session_id = :swid'
             );
             $existing->execute([':event_id' => $eventId, ':swid' => $sessionWindowId]);
             $existingIds = array_column($existing->fetchAll(), 'id');
@@ -94,7 +94,7 @@ class EventQuiz
             }
 
             $qStmt = $this->pdo->prepare(
-                'INSERT INTO event_quiz_questions (event_id, session_window_id, question_text, sort_order)
+                'INSERT INTO event_quiz_questions (event_id, session_id, question_text, sort_order)
                  VALUES (:event_id, :swid, :question_text, :sort_order) RETURNING id'
             );
             $oStmt = $this->pdo->prepare(

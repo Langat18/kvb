@@ -59,7 +59,7 @@ class LoginThrottle
         $stmt->execute([
             ':email'   => $email,
             ':ip'      => $_SERVER['REMOTE_ADDR'] ?? null,
-            ':success' => $success,
+            ':success' => $success ? 1 : 0,
         ]);
 
         // A successful login clears the account's failed-attempt history.

@@ -18,32 +18,32 @@ class QuizAttempt
         $this->pdo = Database::getInstance()->getPdo();
     }
 
-    public function attemptCount(int $registrationId, int $sessionWindowId): int
+    public function attemptCount(int $registrationId, int $sessionId): int
     {
         $stmt = $this->pdo->prepare(
-            'SELECT COUNT(*) FROM quiz_attempts WHERE registration_id = :rid AND session_window_id = :swid'
+            'SELECT COUNT(*) FROM quiz_attempts WHERE registration_id = :rid AND session_id = :sid'
         );
-        $stmt->execute([':rid' => $registrationId, ':swid' => $sessionWindowId]);
+        $stmt->execute([':rid' => $registrationId, ':sid' => $sessionId]);
 
         return (int) $stmt->fetchColumn();
     }
 
-    public function hasPassed(int $registrationId, int $sessionWindowId): bool
+    public function hasPassed(int $registrationId, int $sessionId): bool
     {
         $stmt = $this->pdo->prepare(
-            'SELECT EXISTS(SELECT 1 FROM quiz_attempts WHERE registration_id = :rid AND session_window_id = :swid AND passed = TRUE)'
+            'SELECT EXISTS(SELECT 1 FROM quiz_attempts WHERE registration_id = :rid AND session_id = :sid AND passed = TRUE)'
         );
-        $stmt->execute([':rid' => $registrationId, ':swid' => $sessionWindowId]);
+        $stmt->execute([':rid' => $registrationId, ':sid' => $sessionId]);
 
         return (bool) $stmt->fetchColumn();
     }
 
-    public function bestScore(int $registrationId, int $sessionWindowId): ?float
+    public function bestScore(int $registrationId, int $sessionId): ?float
     {
         $stmt = $this->pdo->prepare(
-            'SELECT MAX(score_percent) FROM quiz_attempts WHERE registration_id = :rid AND session_window_id = :swid'
+            'SELECT MAX(score_percent) FROM quiz_attempts WHERE registration_id = :rid AND session_id = :sid'
         );
-        $stmt->execute([':rid' => $registrationId, ':swid' => $sessionWindowId]);
+        $stmt->execute([':rid' => $registrationId, ':sid' => $sessionId]);
         $val = $stmt->fetchColumn();
 
         return $val !== null ? (float) $val : null;
@@ -54,20 +54,20 @@ class QuizAttempt
      * Returns attempt_number, score_percent, passed, attempts_remaining.
      * Throws if already passed or attempts are exhausted.
      */
-    public function submit(int $registrationId, int $sessionWindowId, int $eventId, array $answers): array
+    public function submit(int $registrationId, int $sessionId, int $eventId, array $answers): array
     {
-        if ($this->hasPassed($registrationId, $sessionWindowId)) {
+        if ($this->hasPassed($registrationId, $sessionId)) {
             throw new \InvalidArgumentException('This quiz has already been passed.');
         }
 
-        $attemptNumber = $this->attemptCount($registrationId, $sessionWindowId) + 1;
+        $attemptNumber = $this->attemptCount($registrationId, $sessionId) + 1;
 
         if ($attemptNumber > self::MAX_ATTEMPTS) {
             throw new \InvalidArgumentException('No attempts remaining for this quiz.');
         }
 
         $quizModel = new EventQuiz();
-        $questions = $quizModel->getQuestions($eventId, $sessionWindowId, true);
+        $questions = $quizModel->getQuestions($eventId, $sessionId, true);
 
         if (empty($questions)) {
             throw new \InvalidArgumentException('No quiz is configured for this session.');
@@ -90,11 +90,11 @@ class QuizAttempt
         $passed       = $scorePercent >= self::PASS_THRESHOLD;
 
         $stmt = $this->pdo->prepare(
-            'INSERT INTO quiz_attempts (registration_id, session_window_id, attempt_number, score_percent, passed, answers)
-             VALUES (:rid, :swid, :attempt_number, :score, :passed, :answers)'
+            'INSERT INTO quiz_attempts (registration_id, session_id, attempt_number, score_percent, passed, answers)
+             VALUES (:rid, :sid, :attempt_number, :score, :passed, :answers)'
         );
         $stmt->bindValue(':rid', $registrationId, PDO::PARAM_INT);
-        $stmt->bindValue(':swid', $sessionWindowId, PDO::PARAM_INT);
+        $stmt->bindValue(':sid', $sessionId, PDO::PARAM_INT);
         $stmt->bindValue(':attempt_number', $attemptNumber, PDO::PARAM_INT);
         $stmt->bindValue(':score', $scorePercent);
         $stmt->bindValue(':passed', $passed, PDO::PARAM_BOOL);
