@@ -807,11 +807,54 @@ body.has-app-sidebar .navbar-toggle { display: none; }
 .app-card.card-flush { padding: 0; }
 .app-card.card-flush .data-table { border-radius: var(--card-radius); overflow: hidden; }
 
+.sidebar-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 34px;
+    height: 34px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+.sidebar-toggle span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    background: var(--text-main);
+    border-radius: 2px;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+    z-index: 190;
+}
+.sidebar-backdrop.open { display: block; }
+
 @media (max-width: 1020px) {
-    .app-sidebar { position: static; width: 100%; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
-    .app-sidebar-profile-links { display: none; }
-    .app-sidebar-actions { width: 100%; order: 3; }
+    .sidebar-toggle { display: flex; }
+
+    .app-sidebar {
+        width: 280px;
+        max-width: 82vw;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        z-index: 200;
+    }
+    .app-sidebar.open {
+        transform: translateX(0);
+        box-shadow: var(--shadow-lg);
+    }
+    .app-sidebar-brand { display: none; }
+
     .page-with-sidebar { margin-left: 0; }
+
+    body.sidebar-open { overflow: hidden; }
 }
 
 @media (max-width: 600px) {
