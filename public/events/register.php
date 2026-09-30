@@ -29,7 +29,8 @@ if (!$event) {
 
 $error   = $_SESSION['reg_error']   ?? null;
 $success = $_SESSION['reg_success'] ?? null;
-unset($_SESSION['reg_error'], $_SESSION['reg_success']);
+$regNo   = $_SESSION['reg_success_regno'] ?? null;
+unset($_SESSION['reg_error'], $_SESSION['reg_success'], $_SESSION['reg_success_regno']);
 
 $justRegistered = isset($_GET['done']);
 $showMeetingLink = ($event['event_mode'] !== 'onsite') && !empty($event['meeting_link']);
@@ -101,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $registrationModel = new Registration();
 
         if ($registrationModel->find((int) $event['id'], $regNo)) {
-            $_SESSION['reg_error'] = 'You are already registered for this event. Please use Sign Attendance instead.';
+            $_SESSION['reg_error'] = 'You are already registered for this event. Please use Earn Session Points instead.';
             header('Location: /events/register.php?token=' . urlencode($token));
             exit;
         }
@@ -111,7 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Registration confirms interest, not presence 
         // It persists on reload (queried fresh from $event each
         // time), not a one-time session flash.
-        $_SESSION['reg_success'] = 'Registration successful.';
+        $_SESSION['reg_success']       = 'Registration successful.';
+        $_SESSION['reg_success_regno'] = $regNo;
         header('Location: /events/register.php?token=' . urlencode($token) . '&done=1');
         exit;
 
@@ -176,23 +178,23 @@ $isOnsite  = $event['event_mode'] === 'onsite';
                 <p style="color:var(--kvb-red-dark);font-size:.85rem;">No meeting link has been set for this event yet. Please contact the organizer.</p>
             <?php endif; ?>
             <p style="margin-top:1rem;font-size:.85rem;">
-                <a href="/events/attend.php?token=<?= urlencode($token) ?>&reg_no=<?= urlencode($regNo) ?>" style="color:var(--kvb-green-dark);">Sign Attendance &rarr;</a>
-                (opens during the last <?= (int) VIRTUAL_SIGNIN_LEAD_MINUTES ?> minutes of each session)
+                <a href="/events/attend.php?token=<?= urlencode($token) ?><?= $regNo ? '&amp;reg_no=' . urlencode($regNo) : '' ?>" style="color:var(--kvb-green-dark);">Earn Session Points &rarr;</a>
+                (opens <?= $eventModel->signInWhenText((int) $event['id']) ?>)
             </p>
         </div>
     <?php endif; ?>
 
     <div class="card">
         <p class="notice-box">
-            Please fill in your official details as they appear in official CPD directory and records.
+            Enter your details exactly as they appear in the CPD directory.
             <?php if ($event['event_mode'] === 'hybrid'): ?>
-                <br>This event supports both on-site and virtual attendance &mdash; you will choose how you are attending each session when you sign in.
+                <br>You choose on-site or virtual for each session when you sign in.
             <?php endif; ?>
         </p>
 
         <?php if ($event['event_mode'] !== 'onsite'): ?>
         <p class="notice-box" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);">
-            Virtual attendance is signed near the end of each session, not at the start &mdash; this confirms real participation. Sign-in opens in the final <?= (int) VIRTUAL_SIGNIN_LEAD_MINUTES ?> minutes of each session.
+            Points are earned by signing in <?= $eventModel->signInWhenText((int) $event['id']) ?>.
         </p>
         <?php endif; ?>
 
@@ -249,7 +251,7 @@ $isOnsite  = $event['event_mode'] === 'onsite';
 
         <p style="text-align:center;margin-top:1rem;font-size:.82rem;color:var(--text-muted);">
             Already registered?
-            <a href="/events/attend.php?token=<?= urlencode($token) ?>" style="color:var(--kvb-green-dark);">Sign Attendance</a>
+            <a href="/events/attend.php?token=<?= urlencode($token) ?>" style="color:var(--kvb-green-dark);">Earn Session Points</a>
         </p>
     </div>
 </div>

@@ -9,7 +9,6 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Registration;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requirePermission('review_flagged_attendance');
@@ -37,6 +36,17 @@ $breadcrumbs = [
     ['label' => 'Pending Approvals', 'url' => null],
 ];
 
+function flaggedLog(string $action, int $attendanceId, $user, bool $ok): void
+{
+    error_log(sprintf(
+        '[flagged] action=%s attendance_id=%d staff_id=%s result=%s',
+        $action,
+        $attendanceId,
+        $user['id'] ?? 'none',
+        $ok ? 'ok' : 'failed'
+    ));
+}
+
 $registrationModel = new Registration();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,18 +58,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $action       = $_POST['action'] ?? '';
     $attendanceId = (int) ($_POST['attendance_id'] ?? 0);
+    $note         = trim((string) ($_POST['review_note'] ?? ''));
+    $note         = $note === '' ? null : mb_substr($note, 0, 255);
+    $staffId      = isset($user['id']) ? (int) $user['id'] : null;
 
-    if ($attendanceId > 0 && $action === 'approve_flag') {
-        $registrationModel->approveFlagged($attendanceId);
-        $_SESSION['success'] = 'Record approved. Points will post automatically once any other requirements (e.g. a session quiz) are met.';
-    } elseif ($attendanceId > 0 && $action === 'override_quiz') {
-        $registrationModel->approveQuizOverride($attendanceId, $user['id'] ?? null);
-        $_SESSION['success'] = 'Quiz requirement overridden. Points have been released for this check-in.';
-    } elseif ($attendanceId > 0 && ($action === 'deny_flag' || $action === 'deny_quiz')) {
-        $denied = $registrationModel->denyAttendance($attendanceId, $user['id'] ?? null);
-        $_SESSION['success'] = $denied
-            ? 'Record denied. Points will not be awarded for this check-in.'
-            : 'Could not deny — points were already awarded for this record.';
+    if ($attendanceId <= 0 || !in_array($action, ['approve_flag', 'override_quiz', 'deny_flag', 'deny_quiz', 'reopen_review'], true)) {
+        error_log(sprintf('[flagged] ignored request action=%s attendance_id=%d', $action, $attendanceId));
+        $_SESSION['success'] = 'Nothing was changed: the request was incomplete. Please try again.';
+    } elseif ($action === 'reopen_review') {
+        $result = $registrationModel->reopenReview($attendanceId);
+        flaggedLog($action, $attendanceId, $user, $result['ok']);
+        $_SESSION['success'] = $result['message'];
+    } elseif ($action === 'override_quiz') {
+        $ok = $registrationModel->approveQuizOverride($attendanceId, $staffId);
+        flaggedLog($action, $attendanceId, $user, (bool) $ok);
+        $_SESSION['success'] = $ok
+            ? 'Quiz requirement overridden. Points post once any other requirements are met.'
+            : 'Could not override: the record no longer exists.';
+    } else {
+        $decision = $action === 'approve_flag' ? 'approve' : 'deny';
+        $result   = $registrationModel->reviewAttendance($attendanceId, $decision, $staffId, $note);
+        flaggedLog($action, $attendanceId, $user, $result['ok']);
+        $_SESSION['success'] = $result['message'];
     }
 
     header('Location: /events/flagged.php?token=' . urlencode($event['view_token']));
@@ -68,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $flagged       = $registrationModel->flaggedForEvent((int) $event['id']);
 $quizFailed    = $registrationModel->quizFailedForEvent((int) $event['id']);
-$sessionLabels = (new SessionWindowRepository())->labelMap();
+$recentlyReviewed = $registrationModel->recentlyReviewedForEvent((int) $event['id']);
 $success       = $_SESSION['success'] ?? null;
 unset($_SESSION['success']);
 
@@ -127,25 +147,79 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <tr>
                         <td><?= htmlspecialchars($f['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars($sessionLabels[$f['session']] ?? $f['session'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars($f['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= date('d M Y', strtotime($f['attendance_date'])) ?></td>
-                        <td><span class="distance-badge"><?= (int) $f['distance_m'] ?>m from venue</span></td>
+                        <td><span class="distance-badge"><?= (int) $f['distance_m'] ?>m from venue</span><?php if (in_array($f['points_denied'] ?? false, [true, 't', 1, '1'], true)): ?><br><small>Auto-rejected: too far from venue</small><?php endif; ?></td>
                         <td><?= date('d M Y H:i', strtotime($f['confirmed_at'])) ?></td>
                         <td>
                             <div class="review-actions">
                             <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="action" value="approve_flag">
+                                <input type="hidden" name="review_note" value="">
                                 <input type="hidden" name="attendance_id" value="<?= (int) $f['attendance_id'] ?>">
-                                <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve this attendance record despite the location flag? Points will be released if all other requirements (e.g. a session quiz) are already met.')">Approve</button>
+                                <button type="submit" class="btn btn-success btn-sm" onclick="var n = prompt('Approve this record? Points post once other requirements are met.\n\nReason (optional):'); if (n === null) { return false; } this.form.review_note.value = n; return true;">Approve</button>
                             </form>
                             <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="action" value="deny_flag">
+                                <input type="hidden" name="review_note" value="">
                                 <input type="hidden" name="attendance_id" value="<?= (int) $f['attendance_id'] ?>">
-                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Deny this record? No points will be awarded for this check-in.')">Deny</button>
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="var n = prompt('Deny this record? No points will be awarded.\n\nReason (optional):'); if (n === null) { return false; } this.form.review_note.value = n; return true;">Deny</button>
                             </form>
                             </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <h2 class="section-heading">Recently Reviewed</h2>
+    <?php if (empty($recentlyReviewed)): ?>
+        <div class="app-card"><p class="empty-state">No reviewed records yet.</p></div>
+    <?php else: ?>
+        <div class="app-card card-flush">
+            <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Reg No</th>
+                        <th>Name</th>
+                        <th>Session</th>
+                        <th>Date</th>
+                        <th>Decision</th>
+                        <th>Reviewed</th>
+                        <th>Reason</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($recentlyReviewed as $r):
+                        $wasDenied = in_array($r['points_denied'], [true, 't', 1, '1'], true);
+                        $hasPoints = in_array($r['has_points'], [true, 't', 1, '1'], true);
+                    ?>
+                    <tr>
+                        <td><?= htmlspecialchars($r['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars($r['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= date('d M Y', strtotime($r['attendance_date'])) ?></td>
+                        <td><?= $wasDenied ? 'Denied' : 'Approved' ?></td>
+                        <td><?= date('d M Y H:i', strtotime($r['reviewed_at'])) ?> (staff #<?= (int) $r['reviewed_by'] ?>)</td>
+                        <td><?= htmlspecialchars((string) ($r['review_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+                        <td>
+                            <?php if ($hasPoints): ?>
+                                <small>Points awarded</small>
+                            <?php else: ?>
+                            <form method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="action" value="reopen_review">
+                                <input type="hidden" name="attendance_id" value="<?= (int) $r['attendance_id'] ?>">
+                                <button type="submit" class="btn btn-ghost btn-sm" onclick="return confirm('Return this record to the pending list?')">Undo</button>
+                            </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -178,7 +252,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <tr>
                         <td><?= htmlspecialchars($q['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($q['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars($sessionLabels[$q['session']] ?? $q['session'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td><?= htmlspecialchars($q['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= date('d M Y', strtotime($q['attendance_date'])) ?></td>
                         <td><span class="score-badge"><?= $q['best_score'] !== null ? number_format((float) $q['best_score'], 0) . '%' : '&mdash;' ?></span></td>
                         <td><?= date('d M Y H:i', strtotime($q['confirmed_at'])) ?></td>

@@ -10,7 +10,6 @@ use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Participant;
 use VetBoard\Registration;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 
@@ -36,28 +35,39 @@ if ($today < $event['start_date'] || $today > $event['end_date']) {
 }
 
 // Returns the active session window row, or null if outside all session hours.
-function detectSession(): array
+function detectSession(array $event, Event $eventModel): array
 {
-    $now     = date('H:i:s');
-    $windows = (new SessionWindowRepository())->list(true);
-
-    foreach ($windows as $w) {
-        if ($now >= $w['start_time'] && $now <= $w['end_time']) {
-            return ['session' => $w['item_key'], 'window' => $w];
-        }
-    }
-
-    return ['session' => null, 'window' => null];
+    return $eventModel->resolveSignInSession((int) $event['id']);
 }
 
 // Virtual sign-in opens VIRTUAL_SIGNIN_LEAD_MINUTES before the window's end_time,
 // clamped so it never falls before the window's own start_time.
 function virtualSignInThreshold(array $window): int
 {
-    $endTs   = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
     $startTs = strtotime(date('Y-m-d') . ' ' . $window['start_time']);
 
+    if (isset($window['require_late_signin']) && !$window['require_late_signin']) {
+        return $startTs;
+    }
+
+    $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
+
     return max($endTs - (VIRTUAL_SIGNIN_LEAD_MINUTES * 60), $startTs);
+}
+
+// Onsite sign-in opens ONSITE_SIGNIN_LEAD_MINUTES before the window's end_time,
+// clamped so it never falls before the window's own start_time.
+function onsiteSignInThreshold(array $window): int
+{
+    $startTs = strtotime(date('Y-m-d') . ' ' . $window['start_time']);
+
+    if (isset($window['require_late_signin']) && !$window['require_late_signin']) {
+        return $startTs;
+    }
+
+    $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
+
+    return max($endTs - (ONSITE_SIGNIN_LEAD_MINUTES * 60), $startTs);
 }
 
 function meetingProviderLabel(?string $key): string
@@ -65,8 +75,8 @@ function meetingProviderLabel(?string $key): string
     return $key !== null ? (MEETING_PROVIDERS[$key] ?? 'the meeting') : 'the meeting';
 }
 
-$sessionLabels = (new SessionWindowRepository())->labelMap();
-$sessionInfo   = detectSession();
+$sessionLabels = array_column($eventModel->getSessions((int) $event['id']), 'label', 'id');
+$sessionInfo   = detectSession($event, $eventModel);
 $eventMode     = $event['event_mode'];
 $isPureOnsite  = $eventMode === 'onsite';
 $isHybrid      = $eventMode === 'hybrid';
@@ -79,6 +89,14 @@ if ($sessionInfo['window'] !== null && !$isPureOnsite) {
     $thresholdTs          = virtualSignInThreshold($sessionInfo['window']);
     $virtualSignInOpen    = time() >= $thresholdTs;
     $virtualSignInOpensAt = date('g:i A', $thresholdTs);
+}
+
+$onsiteSignInOpen    = true;
+$onsiteSignInOpensAt = null;
+if ($sessionInfo['window'] !== null) {
+    $onsiteThresholdTs   = onsiteSignInThreshold($sessionInfo['window']);
+    $onsiteSignInOpen    = time() >= $onsiteThresholdTs;
+    $onsiteSignInOpensAt = date('g:i A', $onsiteThresholdTs);
 }
 
 // Registration confirms interest, not presence 
@@ -127,15 +145,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $session = $sessionInfo['session'];
-    if ($session === null) {
+    $sessionId = $sessionInfo['session_id'];
+    if ($sessionId === null) {
         $_SESSION['attend_error'] = 'Attendance can only be signed during a scheduled session window.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
     }
 
-    if ($registrationModel->hasSignedSession((int) $registration['id'], $session)) {
-        $_SESSION['attend_error'] = 'You have already signed for the ' . ($sessionLabels[$session] ?? $session) . ' session today.';
+    if ($registrationModel->hasSignedSession((int) $registration['id'], $sessionId)) {
+        $_SESSION['attend_error'] = 'You have already signed for the ' . ($sessionLabels[$sessionId] ?? $sessionId) . ' session today.';
+        header('Location: /events/attend.php?token=' . urlencode($token));
+        exit;
+    }
+
+    $deviceId = Auth::deviceId();
+
+    if ($registrationModel->deviceSignedDifferentReg($sessionId, $deviceId, (int) $registration['id'])) {
+        $_SESSION['attend_error'] = 'This device has already signed attendance for a different registration number in this session. Each device may only sign in one person per session.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
     }
@@ -144,7 +170,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($isOnsiteSubmission) {
 
-            // Onsite integrity = geofence only. No timing gate, no quiz.
+            // Onsite integrity = geofence + timing gate. No quiz.
+            if ($sessionInfo['window'] !== null) {
+                $onsiteThresholdTs = onsiteSignInThreshold($sessionInfo['window']);
+
+                if (time() < $onsiteThresholdTs) {
+                    $_SESSION['attend_error'] = 'On-site attendance for the ' . ($sessionLabels[$sessionId] ?? $sessionId) .
+                        ' session opens at ' . date('g:i A', $onsiteThresholdTs) . '. Please return then.';
+                    header('Location: /events/attend.php?token=' . urlencode($token));
+                    exit;
+                }
+            }
+
             $lat = $_POST['geo_lat'] ?? '';
             $lng = $_POST['geo_lng'] ?? '';
 
@@ -178,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $registrationModel->recordAttendance([
                 'registration_id' => (int) $registration['id'],
-                'session'         => $session,
+                'session_id'      => $sessionId,
                 'method'          => 'onsite',
                 'geo_verified'    => $geoVerified,
                 'submitted_lat'   => $submittedLat,
@@ -187,10 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'flagged'         => $flagged,
                 'flag_reason'     => $flagReason,
                 'points_denied'   => $pointsDenied,
+                'device_id'       => $deviceId,
             ]);
 
             $_SESSION['attend_success']       = true;
-            $_SESSION['attend_session']       = $session;
+            $_SESSION['attend_session']       = $sessionId;
             $_SESSION['attend_flagged']       = $flagged;
             $_SESSION['attend_points_denied'] = $pointsDenied;
             $_SESSION['attend_method']        = 'onsite';
@@ -204,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $thresholdTs = virtualSignInThreshold($sessionInfo['window']);
 
                 if (time() < $thresholdTs) {
-                    $_SESSION['attend_error'] = 'Virtual attendance for the ' . ($sessionLabels[$session] ?? $session) .
+                    $_SESSION['attend_error'] = 'Virtual attendance for the ' . ($sessionLabels[$sessionId] ?? $sessionId) .
                         ' session opens at ' . date('g:i A', $thresholdTs) . '. Please stay connected and return then.';
                     header('Location: /events/attend.php?token=' . urlencode($token));
                     exit;
@@ -213,7 +251,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $registrationModel->recordAttendance([
                 'registration_id' => (int) $registration['id'],
-                'session'         => $session,
+                'session_id'      => $sessionId,
                 'method'          => 'virtual',
                 'geo_verified'    => null,
                 'submitted_lat'   => null,
@@ -222,13 +260,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'flagged'         => false,
                 'flag_reason'     => null,
                 'points_denied'   => false,
+                'device_id'       => $deviceId,
             ]);
 
-            $pointsStatus = $registrationModel->getPointsStatus((int) $registration['id'], $session);
+            $pointsStatus = $registrationModel->getPointsStatus((int) $registration['id'], $sessionId);
             $quizPending  = ($pointsStatus === 'pending_quiz');
 
+            if ($quizPending) {
+                $_SESSION['quiz_context'] = [
+                    'token'           => $token,
+                    'session'         => (string) $sessionId,
+                    'registration_id' => (int) $registration['id'],
+                    'event_id'        => (int) $event['id'],
+                ];
+            }
+
             $_SESSION['attend_success']          = true;
-            $_SESSION['attend_session']          = $session;
+            $_SESSION['attend_session']          = $sessionId;
             $_SESSION['attend_flagged']          = false;
             $_SESSION['attend_points_denied']    = false;
             $_SESSION['attend_method']           = 'virtual';
@@ -336,11 +384,20 @@ unset(
                 <?php endif; ?>
             <?php endif; ?>
         </div>
+        <script>
+            localStorage.setItem(
+                'vetboard_attend_' + <?= (int) $event['id'] ?> + '_' + <?= json_encode($today) ?> + '_' + <?= json_encode($attendSession) ?>,
+                '1'
+            );
+        </script>
     <?php else: ?>
 
         <div style="text-align:center;margin-bottom:1rem;">
-            <?php if ($sessionInfo['session']): ?>
-                <span class="pill"><?= htmlspecialchars($sessionLabels[$sessionInfo['session']] ?? $sessionInfo['session'], ENT_QUOTES, 'UTF-8') ?> Session</span>
+            <?php if ($sessionInfo['session_id']): ?>
+                <span class="pill"><?= htmlspecialchars($sessionLabels[$sessionInfo['session_id']] ?? (string) $sessionInfo['session_id'], ENT_QUOTES, 'UTF-8') ?> Session</span>
+                <?php if (!empty($sessionInfo['late'])): ?>
+                    <p style="font-size:.8rem;color:var(--text-muted);margin:.5rem 0 0;">This session has ended. Late sign-in is open until <?= htmlspecialchars(date('g:i A', (int) $sessionInfo['closes_at']), ENT_QUOTES, 'UTF-8') ?>.</p>
+                <?php endif; ?>
             <?php else: ?>
                 <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);">Outside session hours</span>
             <?php endif; ?>
@@ -406,7 +463,7 @@ unset(
                 <button type="submit" class="btn btn-primary btn-block" id="submit-btn" style="margin-top:.5rem;"
                     <?= ($isPureOnsite || $isHybrid) ? 'disabled' : '' ?>
                     <?= (!$isPureOnsite && !$isHybrid && !$virtualSignInOpen) ? 'disabled' : '' ?>>
-                    Sign Attendance
+                    Earn Session Points
                 </button>
             </form>
         </div>
@@ -423,27 +480,55 @@ const lngInput   = document.getElementById('geo_lng');
 const isHybrid   = <?= $isHybrid ? 'true' : 'false' ?>;
 const isPureOnsite = <?= $isPureOnsite ? 'true' : 'false' ?>;
 const virtualSignInOpen = <?= $virtualSignInOpen ? 'true' : 'false' ?>;
+const onsiteSignInOpen = <?= $onsiteSignInOpen ? 'true' : 'false' ?>;
+const onsiteSignInOpensAt = <?= $onsiteSignInOpensAt ? json_encode($onsiteSignInOpensAt) : 'null' ?>;
+
+const deviceKey = <?= $sessionInfo['session_id'] ? json_encode('vetboard_attend_' . (int) $event['id'] . '_' . $today . '_' . $sessionInfo['session_id']) : 'null' ?>;
+const deviceBlocked = deviceKey !== null && localStorage.getItem(deviceKey) === '1';
+
+if (deviceBlocked) {
+    document.getElementById('reg_no').disabled = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Already Signed on This Device';
+    geoStatus.style.display = 'none';
+    const methodChoice = document.getElementById('method-choice');
+    if (methodChoice) methodChoice.style.display = 'none';
+}
 
 function onGeoSuccess(position) {
     latInput.value = position.coords.latitude;
     lngInput.value = position.coords.longitude;
+
+    if (deviceBlocked) { return; }
+
+    if (!onsiteSignInOpen) {
+        geoStatus.textContent = onsiteSignInOpensAt
+            ? 'Location confirmed. Sign-in opens at ' + onsiteSignInOpensAt + '.'
+            : 'Location confirmed. Sign-in is not yet open for this session.';
+        geoStatus.className = 'status-box pending';
+        submitBtn.disabled = true;
+        return;
+    }
+
     geoStatus.textContent = 'Location confirmed.';
     geoStatus.className = 'status-box granted';
     submitBtn.disabled = false;
 }
 
 function onGeoError() {
+    if (deviceBlocked) { return; }
     geoStatus.textContent = 'Location access is required to sign attendance on-site. Please enable location in your browser settings and reload this page.';
     geoStatus.className = 'status-box denied';
     submitBtn.disabled = true;
 }
 
 function requestLocation() {
+    if (deviceBlocked) { return; }
     if (!navigator.geolocation) { onGeoError(); return; }
     navigator.geolocation.getCurrentPosition(onGeoSuccess, onGeoError, { enableHighAccuracy: true, timeout: 10000 });
 }
 
-if (isPureOnsite) {
+if (isPureOnsite && !deviceBlocked) {
     geoStatus.className = 'status-box pending';
     if (navigator.permissions) {
         navigator.permissions.query({ name: 'geolocation' }).then(status => {
@@ -459,7 +544,7 @@ if (!isPureOnsite && !isHybrid) {
     geoStatus.style.display = 'none';
 }
 
-if (isHybrid) {
+if (isHybrid && !deviceBlocked) {
     const radios = document.querySelectorAll('input[name="attendance_method"]');
     radios.forEach(radio => {
         radio.addEventListener('change', () => {

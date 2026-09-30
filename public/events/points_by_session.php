@@ -10,7 +10,6 @@ require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
 use VetBoard\Event;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requireLogin();
@@ -32,7 +31,7 @@ if (!$event) {
 
 $pdo = VetBoard\Database::getInstance()->getPdo();
 
-$sessionWindows = (new SessionWindowRepository())->list(true);
+$sessionWindows = $eventModel->getSessions((int) $event['id']);
 
 $datesStmt = $pdo->prepare(
     'SELECT DISTINCT a.attendance_date
@@ -50,10 +49,16 @@ if (!empty($availableDates) && !in_array($selectedDate, $availableDates, true)) 
     $selectedDate = $defaultDate;
 }
 
+$sessionWindows = array_values(array_filter(
+    $sessionWindows,
+    fn($sw) => empty($sw['session_date']) || $sw['session_date'] === $selectedDate
+));
+
 $caseSql = [];
 foreach ($sessionWindows as $sw) {
-    $key = $sw['item_key'];
-    $caseSql[] = "COALESCE(SUM(CASE WHEN a.session = '{$key}' THEN pl.points END), 0) AS \"{$key}\"";
+    $col = 's' . (int) $sw['id'];
+    $sid = (int) $sw['id'];
+    $caseSql[] = "COALESCE(SUM(CASE WHEN a.session_id = {$sid} THEN pl.points END), 0) AS \"{$col}\"";
 }
 $caseSqlStr = implode(",\n    ", $caseSql);
 
@@ -87,7 +92,7 @@ if ($format === 'word') {
     $phpWord->setDefaultFontSize(9);
 
     $section = $phpWord->addSection(['orientation' => 'landscape']);
-    $section->addText('Points by Session - ' . $event['title'], ['bold' => true, 'size' => 14]);
+    $section->addText('Points by Session — ' . $event['title'], ['bold' => true, 'size' => 14]);
     $section->addText($startDate . ' to ' . $endDate . ' | Date: ' . $selectedDate);
     $section->addTextBreak(1);
 
@@ -106,7 +111,7 @@ if ($format === 'word') {
         $table->addCell(1800)->addText($row['reg_no']);
         $table->addCell(3000)->addText($row['name']);
         foreach ($sessionWindows as $sw) {
-            $table->addCell(1600)->addText((string) $row[$sw['item_key']]);
+            $table->addCell(1600)->addText((string) $row['s' . (int) $sw['id']]);
         }
         $table->addCell(1200)->addText((string) $row['total']);
     }
@@ -137,8 +142,8 @@ if ($format === 'excel') {
         $col++;
     }
     $lastCol = $col;
-    $col--;
-    $sheet->getStyle('A1:' . $col . '1')->getFont()->setBold(true);
+
+    $sheet->getStyle('A1:' . chr(ord($lastCol) - 1) . '1')->getFont()->setBold(true);
 
     $row = 2;
     foreach ($rows as $data) {
@@ -148,18 +153,17 @@ if ($format === 'excel') {
         $sheet->setCellValue($col . $row, $data['name']);
         $col++;
         foreach ($sessionWindows as $sw) {
-            $sheet->setCellValue($col . $row, (int) $data[$sw['item_key']]);
+            $sheet->setCellValue($col . $row, (int) $data['s' . (int) $sw['id']]);
             $col++;
         }
         $sheet->setCellValue($col . $row, (int) $data['total']);
         $row++;
     }
 
-    foreach (range('A', $lastCol) as $colLetter) {
-        if ($colLetter === $lastCol) {
-            break;
-        }
-        $sheet->getColumnDimension($colLetter)->setAutoSize(true);
+    $col = 'A';
+    while ($col !== $lastCol) {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+        $col++;
     }
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -175,7 +179,7 @@ if ($format === 'excel') {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Points by Session - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+    <title>Points by Session — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
@@ -187,7 +191,7 @@ if ($format === 'excel') {
 <body style="padding:2rem;">
 
     <h2>Points by Session</h2>
-    <p><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> - <?= $startDate ?> to <?= $endDate ?></p>
+    <p><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> — <?= $startDate ?> to <?= $endDate ?></p>
 
     <form method="GET" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center;">
         <input type="hidden" name="token" value="<?= htmlspecialchars($_GET['token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -223,7 +227,7 @@ if ($format === 'excel') {
                         <td><?= htmlspecialchars($row['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></td>
                         <?php foreach ($sessionWindows as $sw): ?>
-                            <td><?= (int) $row[$sw['item_key']] ?></td>
+                            <td><?= (int) $row['s' . (int) $sw['id']] ?></td>
                         <?php endforeach; ?>
                         <td class="total-col"><?= (int) $row['total'] ?></td>
                     </tr>

@@ -10,7 +10,6 @@ use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\EventModeRepository;
 use VetBoard\EventQuiz;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requirePermission('create_events');
@@ -21,7 +20,6 @@ $user = Auth::user();
 
 $eventModeRepo    = new EventModeRepository();
 $eventModes       = $eventModeRepo->list(true);
-$sessionWindows   = (new SessionWindowRepository())->list(true);
 
 $error            = $_SESSION['error']            ?? null;
 $duplicateWarning = $_SESSION['duplicate_warning'] ?? null;
@@ -30,14 +28,16 @@ unset($_SESSION['error'], $_SESSION['duplicate_warning'], $_SESSION['form_data']
 
 require __DIR__ . '/../templates/sidebar_data.php';
 
-// Parses quiz[] POST into [session_window_id => ['clear' => bool, 'questions' => [...]]].
-// Logs if the browser's pre-submit question count doesn't match what arrived server-side.
+// Parses quiz[] POST into [session_id => ['clear' => bool, 'questions' => [...]]].
+// session_id may be a real numeric id or a client-side placeholder (new_N) for a session
+// added in this same submission. Logs if the browser's pre-submit question count doesn't
+// match what arrived server-side.
 function parseQuizSubmission(array $post, int $eventId): array
 {
     $result = [];
 
     foreach ($post as $swid => $swdata) {
-        $swid = (int) $swid;
+        $swid = (string) $swid;
 
         $expectedCount = (int) ($swdata['expected_count'] ?? 0);
         $actualCount   = count($swdata['questions'] ?? []);
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
-        'session_points'            => $_POST['session_points'] ?? [],
+        'sessions'                  => $_POST['sessions'] ?? [],
         'created_by'                => $user['id'],
     ];
 
@@ -126,7 +126,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     try {
-        $eventId = $eventModel->create($data);
+        $created = $eventModel->create($data);
+        $eventId = $created['id'];
+        $sessionIdMap = $created['session_id_map'];
     } catch (\InvalidArgumentException $e) {
         $_SESSION['error']     = $e->getMessage();
         $_SESSION['form_data'] = $data;
@@ -148,7 +150,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $quizModel = new EventQuiz();
 
             foreach (parseQuizSubmission($_POST['quiz'] ?? [], $eventId) as $swid => $q) {
-                $quizModel->saveQuestions($eventId, $swid, $q['questions']);
+                $realSwid = $sessionIdMap[$swid] ?? null;
+                if ($realSwid === null) {
+                    continue;
+                }
+                $quizModel->saveQuestions($eventId, $realSwid, $q['questions']);
             }
         }
 
@@ -297,7 +303,7 @@ $v = $formData;
 
             <div class="form-grid" id="meeting-fields">
                 <div class="form-group full">
-                    <label>Virtual Meeting <span style="font-weight:normal;color:var(--text-muted);">(required for virtual/hybrid)</span></label>
+                    <label>Virtual Meeting</label>
                 </div>
                 <div class="form-group">
                     <label for="meeting_provider">Provider</label>
@@ -318,7 +324,7 @@ $v = $formData;
 
             <div class="form-grid geo-fields" id="geo-fields">
                 <div class="form-group full">
-                    <label>Location <span class="required">*</span> <span style="font-weight:normal;color:var(--text-muted);">(required for on-site/hybrid events)</span></label>
+                    <label>Location <span class="required">*</span></label>
                 </div>
 
                 <div class="geo-map" id="geo-map"></div>
@@ -344,20 +350,13 @@ $v = $formData;
                 </div>
             </div>
 
-            <div class="form-grid" style="margin-top:1rem;">
+            <div style="margin-top:1rem;">
                 <div class="form-group full">
-                    <label>Points per Session <span style="font-weight:normal;color:var(--text-muted);"></span></label>
+                    <label>Sessions</label>
                 </div>
-                <?php foreach ($sessionWindows as $sw): ?>
-                    <div class="form-group">
-                        <label for="session_points_<?= (int) $sw['id'] ?>"><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></label>
-                        <input type="number" min="0" class="session-points-input"
-                               id="session_points_<?= (int) $sw['id'] ?>"
-                               name="session_points[<?= (int) $sw['id'] ?>]"
-                               value="<?= htmlspecialchars((string) ($v['session_points'][$sw['id']] ?? 0), ENT_QUOTES, 'UTF-8') ?>">
-                    </div>
-                <?php endforeach; ?>
-                <div class="form-group full">
+                <div id="sessions-list"></div>
+                <button type="button" class="btn btn-ghost btn-sm" id="add-session-btn">+ Add Session</button>
+                <div class="form-group full" style="margin-top:.5rem;">
                     <span id="points-total" style="font-size:.85rem;color:var(--text-muted);">Total: 0 / 8</span>
                 </div>
             </div>
@@ -366,17 +365,7 @@ $v = $formData;
                 <div class="form-group full">
                     <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);"></span></label>
                 </div>
-
-                <?php foreach ($sessionWindows as $sw): ?>
-                    <div class="quiz-session" data-swid="<?= (int) $sw['id'] ?>">
-                        <input type="hidden" class="quiz-expected-count" name="quiz[<?= (int) $sw['id'] ?>][expected_count]" value="0">
-                        <div class="quiz-session-header">
-                            <strong><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></strong>
-                        </div>
-                        <div class="quiz-questions-list"></div>
-                        <button type="button" class="btn btn-ghost btn-sm add-question-btn">+ Add Question</button>
-                    </div>
-                <?php endforeach; ?>
+                <div id="quiz-sessions-list"></div>
             </div>
 
             <div style="margin-top:1.5rem;">
@@ -388,6 +377,7 @@ $v = $formData;
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js"></script>
+<script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
 <script src="/assets/js/quiz-builder.js"></script>
 <script>
 // Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.

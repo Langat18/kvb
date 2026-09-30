@@ -11,7 +11,6 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Registration;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requirePermission('print_attendance_register');
@@ -40,12 +39,78 @@ $rows = $registrationModel->attendanceRowsForDate((int) $event['id'], $selectedD
 
 $startDate     = date('d M Y', strtotime($event['start_date']));
 $endDate       = date('d M Y', strtotime($event['end_date']));
-$sessionLabels = (new SessionWindowRepository())->labelMap();
 
 $providerName   = $event['provider_name'] ?: '-';
 $providerAcc    = $event['provider_accreditation_no'] ?: '-';
 $supervisorLine = $event['coordinator'] ?: '-';
 $modeLine       = $event['event_mode_label'] ?? $event['event_mode'] ?? '-';
+if (($_GET['format'] ?? '') === 'excel') {
+    $cadreLabels = (new \VetBoard\CadreRepository())->labelMap();
+
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle('Attendance');
+
+    $sheet->mergeCells('A1:J1');
+    $sheet->setCellValue('A1', \VetBoard\Security::excelSafe($event['title'] . ' - Attendance Register'));
+    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
+    $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+
+    $sheet->mergeCells('A2:J2');
+    $sheet->setCellValue('A2', \VetBoard\Security::excelSafe(($event['venue'] ?? '') . ' | ' . $startDate . ' - ' . $endDate . ' | ' . date('l, d F Y', strtotime($selectedDate))));
+    $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+
+    $sheet->mergeCells('A3:J3');
+    $sheet->setCellValue('A3', \VetBoard\Security::excelSafe('Provider: ' . $providerName . '   |   Accreditation No.: ' . $providerAcc . '   |   Supervisor: ' . $supervisorLine . '   |   Mode: ' . $modeLine));
+    $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
+    $sheet->getStyle('A3')->getFont()->setItalic(true)->setSize(9);
+
+    $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Cadre', 'Session', 'Method', 'Location', 'Points'];
+    foreach ($headers as $idx => $h) {
+        $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($idx + 1) . '5';
+        $sheet->setCellValue($cell, $h);
+        $sheet->getStyle($cell)->getFont()->setBold(true);
+        $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB('D9D9D9');
+    }
+
+    $rowNum = 6;
+    foreach ($rows as $i => $r) {
+        $cadreKey = $r['cadre'] ?? '';
+
+        if ($r['method'] === 'onsite') {
+            $location = $r['flagged'] ? 'Flagged (' . (int) $r['distance_m'] . 'm)' : 'Verified';
+        } else {
+            $location = '-';
+        }
+
+        $sheet->setCellValue('A' . $rowNum, $i + 1);
+        $sheet->getCell('B' . $rowNum)->setValueExplicit((string) $r['reg_no'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('C' . $rowNum, \VetBoard\Security::excelSafe($r['name']));
+        $sheet->setCellValue('D' . $rowNum, \VetBoard\Security::excelSafe($r['email']));
+        $sheet->getCell('E' . $rowNum)->setValueExplicit(\VetBoard\Security::excelSafe($r['phone'] ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('F' . $rowNum, $cadreLabels[$cadreKey] ?? $cadreKey);
+        $sheet->setCellValue('G' . $rowNum, \VetBoard\Security::excelSafe($r['session_label'] ?? 'Unknown'));
+        $sheet->setCellValue('H' . $rowNum, ucfirst((string) $r['method']));
+        $sheet->setCellValue('I' . $rowNum, $location);
+        $sheet->setCellValue('J' . $rowNum, (int) $r['points_awarded']);
+        $rowNum++;
+    }
+
+    foreach (['A' => 5, 'B' => 12, 'C' => 28, 'D' => 28, 'E' => 15, 'F' => 20, 'G' => 18, 'H' => 10, 'I' => 16, 'J' => 8] as $col => $w) {
+        $sheet->getColumnDimension($col)->setWidth($w);
+    }
+
+    while (ob_get_level()) { ob_end_clean(); }
+    $filename = 'Attendance_Register_' . preg_replace('/[^a-zA-Z0-9]/', '_', $event['title']) . '_' . preg_replace('/[^0-9-]/', '', $selectedDate) . '.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+
+    $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+    $writer->save('php://output');
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -77,7 +142,8 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
 </head>
 <body>
 
-<div class="no-print" style="margin-bottom:1rem;">
+<div class="no-print" style="margin-bottom:1rem;display:flex;gap:.5rem;">
+    <a href="?token=<?= urlencode($event['view_token']) ?>&date=<?= urlencode($selectedDate) ?>&format=excel" style="padding:.4rem .9rem;background:#1a7b32;color:#fff;text-decoration:none;border-radius:6px;font-size:.85rem;">Download Excel</a>
     <button onclick="window.print()" style="padding:.4rem .9rem;background:#0f5132;color:#fff;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;">Print</button>
 </div>
 
@@ -140,7 +206,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                 <td><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($r['email'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($r['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars($sessionLabels[$r['session']] ?? $r['session'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($r['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= ucfirst($r['method']) ?></td>
                 <td>
                     <?php if ($r['method'] === 'onsite'): ?>

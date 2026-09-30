@@ -50,7 +50,9 @@ unset($_SESSION['error'], $_SESSION['success'], $_SESSION['form_data']);
 
 /**
  * Parses the raw quiz[] POST block into a clean, save-ready structure:
- * [ session_window_id => ['clear' => bool, 'questions' => [...]] ]
+ * [ session_id => ['clear' => bool, 'questions' => [...]] ]
+ * session_id may be a real numeric id or a client-side placeholder (new_N) for a
+ * session added in this same submission.
  * A session is omitted entirely if its panel was left blank — untouched
  * quizzes are never wiped just because the form re-submits empty fields.
  *
@@ -63,7 +65,7 @@ function parseQuizSubmission(array $post, int $eventId): array
     $result = [];
 
     foreach ($post as $swid => $swdata) {
-        $swid = (int) $swid;
+        $swid = (string) $swid;
 
         $expectedCount = (int) ($swdata['expected_count'] ?? 0);
         $actualCount   = count($swdata['questions'] ?? []);
@@ -148,11 +150,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
-        'session_points'            => $_POST['session_points'] ?? [],
+        'sessions'                  => $_POST['sessions'] ?? [],
     ];
 
     try {
-        $eventModel->update((int) $event['id'], $data);
+        $updateResult = $eventModel->update((int) $event['id'], $data);
+        $sessionIdMap = $updateResult['session_id_map'];
     } catch (\InvalidArgumentException $e) {
         $_SESSION['error']     = $e->getMessage();
         $_SESSION['form_data'] = $data;
@@ -171,15 +174,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($isOnsiteNow) {
-            // Quizzes only apply to virtual attendance. If the event was
-            // switched to onsite-only, clear any previously configured
-            // quiz questions rather than leave orphaned rows behind.
-            foreach ($eventModel->getSessionPoints((int) $event['id']) as $sw) {
+            foreach ($eventModel->getSessions((int) $event['id']) as $sw) {
                 $quizModel->saveQuestions((int) $event['id'], (int) $sw['id'], []);
             }
         } else {
             foreach (parseQuizSubmission($_POST['quiz'] ?? [], (int) $event['id']) as $swid => $q) {
-                $quizModel->saveQuestions((int) $event['id'], $swid, $q['questions']);
+                $realSwid = $sessionIdMap[$swid] ?? null;
+                if ($realSwid === null) {
+                    continue;
+                }
+                $quizModel->saveQuestions((int) $event['id'], $realSwid, $q['questions']);
             }
         }
 
@@ -202,19 +206,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $v = empty($formData) ? $event : array_merge($event, $formData);
 
-$sessionPointsRows = $eventModel->getSessionPoints((int) $event['id']);
-if (isset($formData['session_points'])) {
-    foreach ($sessionPointsRows as &$row) {
-        $row['points'] = (int) ($formData['session_points'][$row['id']] ?? 0);
+if (isset($formData['sessions'])) {
+    $sessionsForDisplay = [];
+    foreach ($formData['sessions'] as $clientId => $s) {
+        $sessionsForDisplay[] = [
+            'id'         => $clientId,
+            'label'      => $s['label'] ?? '',
+            'start_time' => $s['start_time'] ?? '',
+            'end_time'   => $s['end_time'] ?? '',
+            'points'     => (int) ($s['points'] ?? 0),
+            'session_date' => $s['session_date'] ?? '',
+            'require_late_signin' => !empty($s['require_late_signin']),
+        ];
     }
-    unset($row);
+} else {
+    $sessionsForDisplay = array_map(function ($row) {
+        return [
+            'id'         => $row['id'],
+            'label'      => $row['label'],
+            'start_time' => substr($row['start_time'], 0, 5),
+            'end_time'   => substr($row['end_time'], 0, 5),
+            'points'     => (int) $row['points'],
+            'session_date' => $row['session_date'] ?? '',
+            'require_late_signin' => array_key_exists('require_late_signin', $row) ? (bool) $row['require_late_signin'] : true,
+        ];
+    }, $eventModel->getSessions((int) $event['id']));
 }
 
 $providerNameDisplay = empty($formData) ? ($event['provider_name'] ?? '') : '';
 
 $quizBySession = [];
-foreach ($sessionPointsRows as $sw) {
-    $quizBySession[$sw['id']] = $quizModel->getQuestions((int) $event['id'], (int) $sw['id'], true);
+foreach ($sessionsForDisplay as $sw) {
+    $quizBySession[$sw['id']] = is_numeric($sw['id'])
+        ? $quizModel->getQuestions((int) $event['id'], (int) $sw['id'], true)
+        : [];
 }
 ?>
 <!DOCTYPE html>
@@ -336,7 +361,7 @@ body { display: block; padding: 2.5rem; }
 
             <div class="form-grid" id="meeting-fields">
                 <div class="form-group full">
-                    <label>Virtual Meeting <span style="font-weight:normal;color:var(--text-muted);">(required for virtual/hybrid — shown to a participant only after they register and sign attendance)</span></label>
+                    <label>Virtual Meeting</label>
                 </div>
                 <div class="form-group">
                     <label for="meeting_provider">Provider</label>
@@ -357,7 +382,7 @@ body { display: block; padding: 2.5rem; }
 
             <div class="form-grid geo-fields" id="geo-fields">
                 <div class="form-group full">
-                    <label>Location <span class="required">*</span> <span style="font-weight:normal;color:var(--text-muted);">(required for on-site/hybrid events)</span></label>
+                    <label>Location <span class="required">*</span></label>
                 </div>
 
                 <div class="geo-map" id="geo-map"></div>
@@ -383,39 +408,66 @@ body { display: block; padding: 2.5rem; }
                 </div>
             </div>
 
-            <div class="form-grid" style="margin-top:1rem;">
+            <div style="margin-top:1rem;">
                 <div class="form-group full">
-                    <label>Points per Session <span style="font-weight:normal;color:var(--text-muted);">(total across all sessions cannot exceed 8)</span></label>
+                    <label>Sessions</label>
                 </div>
-                <?php foreach ($sessionPointsRows as $sw): ?>
-                    <div class="form-group">
-                        <label for="session_points_<?= (int) $sw['id'] ?>"><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></label>
-                        <input type="number" min="0" class="session-points-input"
-                               id="session_points_<?= (int) $sw['id'] ?>"
-                               name="session_points[<?= (int) $sw['id'] ?>]"
-                               value="<?= (int) $sw['points'] ?>">
-                    </div>
-                <?php endforeach; ?>
-                <div class="form-group full">
+                <div id="sessions-list">
+                    <?php foreach ($sessionsForDisplay as $sw): $sidAttr = htmlspecialchars((string) $sw['id'], ENT_QUOTES, 'UTF-8'); ?>
+                        <div class="session-row" data-sid="<?= $sidAttr ?>" style="border:1.5px solid #d8dde3;border-radius:10px;padding:.85rem;margin-bottom:.75rem;">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Label</label>
+                                    <input type="text" class="session-label-input" name="sessions[<?= $sidAttr ?>][label]" value="<?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?>" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Start Time</label>
+                                    <input type="time" name="sessions[<?= $sidAttr ?>][start_time]" value="<?= htmlspecialchars($sw['start_time'], ENT_QUOTES, 'UTF-8') ?>" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>End Time</label>
+                                    <input type="time" name="sessions[<?= $sidAttr ?>][end_time]" value="<?= htmlspecialchars($sw['end_time'], ENT_QUOTES, 'UTF-8') ?>" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Points</label>
+                                    <input type="number" min="0" class="session-points-input" name="sessions[<?= $sidAttr ?>][points]" value="<?= (int) $sw['points'] ?>">
+                                </div>
+                                <div class="form-group">
+                                    <label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>
+                                    <input type="date" name="sessions[<?= $sidAttr ?>][session_date]" value="<?= htmlspecialchars((string) ($sw['session_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                </div>
+                                <div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">
+                                    <input type="checkbox" id="late_signin_<?= $sidAttr ?>" name="sessions[<?= $sidAttr ?>][require_late_signin]" value="1" <?= (($sw['require_late_signin'] ?? true) ? 'checked' : '') ?> style="width:auto;">
+                                    <label for="late_signin_<?= $sidAttr ?>" style="margin:0;font-weight:normal;">Require late sign-in</label>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-ghost btn-sm remove-session-btn">Remove Session</button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" id="add-session-btn">+ Add Session</button>
+                <div class="form-group full" style="margin-top:.5rem;">
                     <span id="points-total" style="font-size:.85rem;color:var(--text-muted);">Total: 0 / 8</span>
                 </div>
             </div>
 
             <div class="quiz-panel" id="quiz-panel">
                 <div class="form-group full">
-                    <label>Session Quiz <span style="font-weight:normal;color:var(--text-muted);">(optional, applies to virtual attendance only — on-site attendance is verified by location instead. If set, points for virtual participants post once they pass with 90% or higher, up to 2 attempts)</span></label>
+                    <label>Session Quiz</label>
                 </div>
 
-                <?php foreach ($sessionPointsRows as $sw):
+                <div id="quiz-sessions-list">
+                <?php foreach ($sessionsForDisplay as $sw):
                     $existingQuestions = $quizBySession[$sw['id']] ?? [];
+                    $swAttr = htmlspecialchars((string) $sw['id'], ENT_QUOTES, 'UTF-8');
                 ?>
-                    <div class="quiz-session" data-swid="<?= (int) $sw['id'] ?>">
-                        <input type="hidden" class="quiz-expected-count" name="quiz[<?= (int) $sw['id'] ?>][expected_count]" value="<?= count($existingQuestions) ?>">
+                    <div class="quiz-session" data-swid="<?= $swAttr ?>">
+                        <input type="hidden" class="quiz-expected-count" name="quiz[<?= $swAttr ?>][expected_count]" value="<?= count($existingQuestions) ?>">
                         <div class="quiz-session-header">
-                            <strong><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></strong>
+                            <strong class="quiz-session-label"><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></strong>
                             <?php if (!empty($existingQuestions)): ?>
                                 <label class="quiz-clear-label">
-                                    <input type="checkbox" name="quiz[<?= (int) $sw['id'] ?>][clear]" value="1">
+                                    <input type="checkbox" name="quiz[<?= $swAttr ?>][clear]" value="1">
                                     Remove all quiz questions for this session
                                 </label>
                             <?php endif; ?>
@@ -427,19 +479,19 @@ body { display: block; padding: 2.5rem; }
                                     <div class="form-group">
                                         <label>Question</label>
                                         <input type="text"
-                                               name="quiz[<?= (int) $sw['id'] ?>][questions][<?= $qIdx ?>][text]"
+                                               name="quiz[<?= $swAttr ?>][questions][<?= $qIdx ?>][text]"
                                                value="<?= htmlspecialchars($q['question_text'], ENT_QUOTES, 'UTF-8') ?>">
                                     </div>
                                     <p style="font-size:.75rem;color:var(--text-muted);margin:.3rem 0;">Click the circle beside the correct answer &mdash; exactly one is required.</p>
-                                    <div class="quiz-options" data-swid="<?= (int) $sw['id'] ?>" data-qidx="<?= $qIdx ?>">
+                                    <div class="quiz-options" data-swid="<?= $swAttr ?>" data-qidx="<?= $qIdx ?>">
                                         <?php foreach ($q['options'] as $oIdx => $opt): ?>
                                             <div class="quiz-option-row">
                                                 <input type="radio"
-                                                       name="quiz[<?= (int) $sw['id'] ?>][questions][<?= $qIdx ?>][correct]"
+                                                       name="quiz[<?= $swAttr ?>][questions][<?= $qIdx ?>][correct]"
                                                        value="<?= $oIdx ?>" required
                                                        <?= isTruthyDbBool($opt['is_correct']) ? 'checked' : '' ?>>
                                                 <input type="text"
-                                                       name="quiz[<?= (int) $sw['id'] ?>][questions][<?= $qIdx ?>][options][<?= $oIdx ?>]"
+                                                       name="quiz[<?= $swAttr ?>][questions][<?= $qIdx ?>][options][<?= $oIdx ?>]"
                                                        value="<?= htmlspecialchars($opt['option_text'], ENT_QUOTES, 'UTF-8') ?>">
                                             </div>
                                         <?php endforeach; ?>
@@ -455,6 +507,7 @@ body { display: block; padding: 2.5rem; }
                         <button type="button" class="btn btn-ghost btn-sm add-question-btn">+ Add Question</button>
                     </div>
                 <?php endforeach; ?>
+                </div>
             </div>
 
             <div style="margin-top:1.5rem;display:flex;gap:.6rem;">
@@ -467,6 +520,7 @@ body { display: block; padding: 2.5rem; }
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js"></script>
+<script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
 <script src="/assets/js/quiz-builder.js"></script>
 <script>
 // Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.

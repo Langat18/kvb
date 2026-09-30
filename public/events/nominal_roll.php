@@ -11,7 +11,6 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Security;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requireLogin();
@@ -35,12 +34,43 @@ $participants  = $eventModel->getParticipants((int) $event['id']);
 $startDate     = date('d M Y', strtotime($event['start_date']));
 $endDate       = date('d M Y', strtotime($event['end_date']));
 $format        = $_GET['format'] ?? 'print';
-$sessionLabels = (new SessionWindowRepository())->labelMap();
+
+function nrIsTrue($value): bool
+{
+    return $value === true || $value === 't' || $value === 1 || $value === '1';
+}
+
+function nrModeLabel($method): string
+{
+    if ($method === 'virtual') {
+        return 'Virtual';
+    }
+    if ($method === 'onsite') {
+        return 'On-site';
+    }
+
+    return (string) $method !== '' ? ucfirst((string) $method) : '-';
+}
+
+function nrStatus(array $a): string
+{
+    if (nrIsTrue($a['flagged'] ?? false)) {
+        return 'Pending review';
+    }
+    if (nrIsTrue($a['points_denied'] ?? false)) {
+        return 'Denied';
+    }
+    if (!empty($a['reviewed_at'])) {
+        return 'Approved';
+    }
+
+    return 'Verified';
+}
 
 $providerName = $event['provider_name'] ?: '-';
 $providerAcc  = $event['provider_accreditation_no'] ?: '-';
 
-$sessionPointsRows = $eventModel->getSessionPoints((int) $event['id']);
+$sessionPointsRows = $eventModel->getSessions((int) $event['id']);
 $pointsParts       = [];
 foreach ($sessionPointsRows as $sw) {
     if ((int) $sw['points'] > 0) {
@@ -115,7 +145,7 @@ if ($format === 'word') {
 
     $section->addTextBreak(1);
 
-    $colWidths = [500, 1800, 3000, 2800, 1800, 1600, 1400, 2800];
+    $colWidths = [450, 1500, 2600, 2600, 1500, 900, 800, 2000, 2600];
     $table = $section->addTable([
         'borderSize'  => 6,
         'borderColor' => 'CCCCCC',
@@ -126,7 +156,7 @@ if ($format === 'word') {
     $hPara  = ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER];
 
     $table->addRow();
-    foreach (['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions', 'Points', 'Flagged'] as $idx => $h) {
+    foreach (['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions', 'Points', 'Mode', 'Status'] as $idx => $h) {
         $table->addCell($colWidths[$idx])->addText($h, $hStyle, $hPara);
     }
 
@@ -138,7 +168,7 @@ if ($format === 'word') {
         $flaggedRows    = array_filter($p['attendance'], fn($a) => $a['flagged']);
         $flaggedText    = '';
         foreach ($flaggedRows as $f) {
-            $flaggedText .= ($sessionLabels[$f['session']] ?? $f['session']) . ' (' . $f['distance_m'] . 'm); ';
+            $flaggedText .= ($f['session_label'] ?? 'Unknown') . ' (' . $f['distance_m'] . 'm); ';
         }
         $flaggedText = str_replace('&', 'and', $flaggedText ?: 'None');
 
@@ -150,7 +180,10 @@ if ($format === 'word') {
         $table->addCell($colWidths[4])->addText(Security::excelSafe($p['phone'] ?? ''), $cStyle);
         $table->addCell($colWidths[5])->addText((string) $sessionsSigned, $cStyle, $cCenter);
         $table->addCell($colWidths[6])->addText((string) ($p['points_earned'] ?? 0), $cStyle, $cCenter);
-        $table->addCell($colWidths[7])->addText($flaggedText, $cStyle);
+        $modeParts   = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrModeLabel($a['method'] ?? ''), $p['attendance']);
+        $statusParts = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrStatus($a), $p['attendance']);
+        $table->addCell($colWidths[7])->addText(str_replace('&', 'and', implode('; ', $modeParts) ?: '-'), $cStyle);
+        $table->addCell($colWidths[8])->addText(str_replace('&', 'and', implode('; ', $statusParts) ?: 'None'), $cStyle);
     }
 
     $section->addTextBreak(1);
@@ -187,16 +220,16 @@ if ($format === 'excel') {
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
 
-    $sheet->mergeCells('A1:H1');
+    $sheet->mergeCells('A1:I1');
     $sheet->setCellValue('A1', $event['title'] . ' — Nominal Roll');
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
     $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
-    $sheet->mergeCells('A2:H2');
+    $sheet->mergeCells('A2:I2');
     $sheet->setCellValue('A2', ($event['venue'] ?? '') . ' | ' . $startDate . ' - ' . $endDate);
     $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
-    $sheet->mergeCells('A3:H3');
+    $sheet->mergeCells('A3:I3');
     $sheet->setCellValue(
         'A3',
         'Provider: ' . $providerName
@@ -207,12 +240,12 @@ if ($format === 'excel') {
     $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
     $sheet->getStyle('A3')->getFont()->setItalic(true)->setSize(9);
 
-    $sheet->mergeCells('A4:H4');
+    $sheet->mergeCells('A4:I4');
     $sheet->setCellValue('A4', 'Points per Session: ' . $pointsLine);
     $sheet->getStyle('A4')->getAlignment()->setHorizontal('center');
     $sheet->getStyle('A4')->getFont()->setItalic(true)->setSize(9);
 
-    $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions Signed', 'Points', 'Flagged'];
+    $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions Signed', 'Points', 'Mode', 'Status'];
     foreach ($headers as $col => $h) {
         $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1) . '5';
         $sheet->setCellValue($cell, $h);
@@ -226,7 +259,7 @@ if ($format === 'excel') {
         $flaggedRows    = array_filter($p['attendance'], fn($a) => $a['flagged']);
         $flaggedText    = '';
         foreach ($flaggedRows as $f) {
-            $flaggedText .= ($sessionLabels[$f['session']] ?? $f['session']) . ' (' . $f['distance_m'] . 'm from venue); ';
+            $flaggedText .= ($f['session_label'] ?? 'Unknown') . ' (' . $f['distance_m'] . 'm from venue); ';
         }
 
         $sheet->setCellValue('A' . $row, $i + 1);
@@ -236,10 +269,21 @@ if ($format === 'excel') {
         $sheet->getCell('E' . $row)->setValueExplicit(Security::excelSafe($p['phone'] ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         $sheet->setCellValue('F' . $row, $sessionsSigned);
         $sheet->setCellValue('G' . $row, (int) ($p['points_earned'] ?? 0));
-        $sheet->setCellValue('H' . $row, $flaggedText ?: 'None');
+        $modeParts   = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrModeLabel($a['method'] ?? ''), $p['attendance']);
+        $statusParts = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrStatus($a), $p['attendance']);
+        $statusLines = array_map(
+            fn($a) => (in_array(nrStatus($a), ['Verified', 'Approved'], true) ? "\u{2713} " : "\u{26A0} ")
+                . ($a['session_label'] ?? 'Unknown') . ': ' . nrStatus($a),
+            $p['attendance']
+        );
+        $sheet->setCellValue('H' . $row, Security::excelSafe(implode("\n", $modeParts) ?: "\u{2014}"));
+        $sheet->setCellValue('I' . $row, Security::excelSafe(implode("\n", $statusLines) ?: "\u{2014}"));
+        $sheet->getStyle('A' . $row . ':I' . $row)->getAlignment()->setVertical('top');
+        $sheet->getStyle('H' . $row . ':I' . $row)->getAlignment()->setWrapText(true);
+        $sheet->getRowDimension($row)->setRowHeight(max(15, count($p['attendance']) * 13 + 4));
     }
 
-    foreach (['A' => 5, 'B' => 12, 'C' => 26, 'D' => 26, 'E' => 15, 'F' => 14, 'G' => 10, 'H' => 40] as $col => $w) {
+    foreach (['A' => 5, 'B' => 12, 'C' => 26, 'D' => 26, 'E' => 15, 'F' => 14, 'G' => 10, 'H' => 34, 'I' => 40] as $col => $w) {
         $sheet->getColumnDimension($col)->setWidth($w);
     }
 
@@ -337,13 +381,14 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
             <th>Phone</th>
             <th>Sessions Signed</th>
             <th>Points</th>
-            <th>Flagged</th>
+            <th>Mode</th>
+            <th>Status</th>
             <th>Signature</th>
         </tr>
     </thead>
     <tbody>
         <?php if (empty($participants)): ?>
-            <tr><td colspan="9" style="text-align:center;padding:.75rem;color:#888;font-style:italic;">No participants registered yet.</td></tr>
+            <tr><td colspan="10" style="text-align:center;padding:.75rem;color:#888;font-style:italic;">No participants registered yet.</td></tr>
         <?php else: ?>
             <?php foreach ($participants as $i => $p):
                 $sessionsSigned = count($p['attendance']);
@@ -361,10 +406,19 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                         &mdash;
                     <?php else: ?>
                         <?php foreach ($p['attendance'] as $a): ?>
-                            <?php if ($a['flagged']): ?>
-                                <div class="flag-badge">&#9888; <?= htmlspecialchars($sessionLabels[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>: <?= (int) $a['distance_m'] ?>m from venue</div>
+                            <div><?= htmlspecialchars(($a['session_label'] ?? 'Unknown') . ': ' . nrModeLabel($a['method'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?php if (empty($p['attendance'])): ?>
+                        &mdash;
+                    <?php else: ?>
+                        <?php foreach ($p['attendance'] as $a): ?>
+                            <?php if (!in_array(nrStatus($a), ['Verified', 'Approved'], true)): ?>
+                                <div class="flag-badge">&#9888; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?><?php if ((int) $a['distance_m'] > 0): ?> (<?= (int) $a['distance_m'] ?>m)<?php endif; ?></div>
                             <?php else: ?>
-                                <div class="ok-badge">&#10003; <?= htmlspecialchars($sessionLabels[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ok-badge">&#10003; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?></div>
                             <?php endif; ?>
                         <?php endforeach; ?>
                     <?php endif; ?>

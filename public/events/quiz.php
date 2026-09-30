@@ -11,7 +11,6 @@ use VetBoard\Event;
 use VetBoard\EventQuiz;
 use VetBoard\QuizAttempt;
 use VetBoard\Registration;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 
@@ -42,11 +41,10 @@ if (!$event) {
 $quizModel          = new EventQuiz();
 $attemptModel       = new QuizAttempt();
 $registrationModel  = new Registration();
-$sessionLabels      = (new SessionWindowRepository())->labelMap();
-
 $registrationId  = (int) $context['registration_id'];
 $eventId         = (int) $context['event_id'];
-$sessionWindowId = $quizModel->resolveSessionWindowId($session);
+$sessionWindowId = (int) $session;
+$sessionLabels   = array_column($eventModel->getSessions($eventId), 'label', 'id');
 
 if ($sessionWindowId === null || !$quizModel->hasQuiz($eventId, $sessionWindowId)) {
     unset($_SESSION['quiz_context']);
@@ -77,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = $attemptModel->submit($registrationId, $sessionWindowId, $eventId, $answers);
 
         if ($result['passed']) {
-            $registrationModel->maybeAwardPoints($registrationId, $session);
+            $registrationModel->maybeAwardPoints($registrationId, $sessionWindowId);
         }
 
         $_SESSION['quiz_result'] = $result;

@@ -62,7 +62,7 @@ $isPureOnsite = $event['event_mode'] === 'onsite';
 
 <?php if (!$isPureOnsite): ?>
 <div class="virtual-notice">
-    Virtual attendance is signed near the end of each session. Sign-in opens in the final <?= (int) VIRTUAL_SIGNIN_LEAD_MINUTES ?> minutes of each session; stay connected until then.
+    Sign in <?= $eventModel->signInWhenText((int) $event['id']) ?> to earn points.
 </div>
 <?php endif; ?>
 
@@ -72,8 +72,8 @@ $isPureOnsite = $event['event_mode'] === 'onsite';
 <small>First time? Fill in your details to join this event.</small>
 </a>
 <a href="/events/attend.php?token=<?= urlencode($token) ?>" class="choice-btn choice-btn-attend">
-                Sign Attendance
-<small>Already registered? Sign in for today's session.</small>
+                Earn Session Points
+<small>Registered? Earn Session Points.</small>
 </a>
 </div>
 <p style="margin-top:1.5rem;font-size:.78rem;">

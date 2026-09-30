@@ -9,7 +9,6 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\CadreRepository;
 use VetBoard\Event;
-use VetBoard\SessionWindowRepository;
 
 Auth::startSession();
 Auth::requirePermission('view_events');
@@ -41,14 +40,13 @@ $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
 
 $cadreLabels   = (new CadreRepository())->labelMap();
-$sessionLabels = (new SessionWindowRepository())->labelMap();
 
 $appUrl       = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8000', '/');
 $choiceUrl    = $appUrl . '/events/choice.php?token=' . urlencode($event['token']);
 $startDate    = date('d M Y', strtotime($event['start_date']));
 $endDate      = date('d M Y', strtotime($event['end_date']));
 $participants = $eventModel->getParticipants((int) $event['id']);
-$sessionPointsRows = $eventModel->getSessionPoints((int) $event['id']);
+$sessionPointsRows = $eventModel->getSessions((int) $event['id']);
 
 $flaggedTotal = 0;
 foreach ($participants as $p) {
@@ -119,6 +117,10 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <?php endif; ?>
             <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Nominal Roll</a>
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
+            <a href="/events/points_by_session.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Points by Session</a>
+            <?php if (Auth::can('record_manual_attendance')): ?>
+                <a href="/events/attend_manual.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Record Manual Attendance</a>
+            <?php endif; ?>
             <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-ghost">Add to Calendar</a>
             <?php if ($flaggedTotal > 0 && Auth::can('review_flagged_attendance')): ?>
                 <a href="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-danger">
@@ -198,6 +200,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <th>Cadre</th>
                     <th>Sessions</th>
                     <th>Points</th>
+                    <?php if (Auth::can('edit_attendee_details')): ?><th></th><?php endif; ?>
                 </tr>
             </thead>
             <tbody>
@@ -214,11 +217,11 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                 <?php foreach ($p['attendance'] as $a): ?>
                                     <?php if ($a['flagged']): ?>
                                         <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);" title="<?= (int) $a['distance_m'] ?>m from venue">
-                                            &#9888; <?= htmlspecialchars($sessionLabels[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
+                                            &#9888; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php else: ?>
                                         <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="Verified">
-                                            &#10003; <?= htmlspecialchars($sessionLabels[$a['session']] ?? $a['session'], ENT_QUOTES, 'UTF-8') ?>
+                                            &#10003; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
@@ -226,6 +229,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <?php endif; ?>
                     </td>
                     <td style="font-weight:600;color:var(--kvb-green-dark);"><?= (int) ($p['points_earned'] ?? 0) ?></td>
+                    <?php if (Auth::can('edit_attendee_details')): ?><td><a href="/events/edit_attendee.php?token=<?= urlencode($event['view_token']) ?>&amp;reg_no=<?= urlencode($p['reg_no']) ?>" class="btn btn-ghost btn-sm">Edit</a></td><?php endif; ?>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
