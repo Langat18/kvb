@@ -9,12 +9,10 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\CadreRepository;
 use VetBoard\EventModeRepository;
-use VetBoard\SessionWindowRepository;
 
 const LOOKUP_TYPES = [
     'event-modes' => ['repository' => EventModeRepository::class],
     'cadres'      => ['repository' => CadreRepository::class],
-    'sessions'    => ['repository' => SessionWindowRepository::class],
 ];
 
 Auth::startSession();
@@ -41,5 +39,5 @@ $active = ($_POST['active'] ?? '0') === '1';
 $repo->setActive($id, $active);
 
 $_SESSION['success'] = $active ? 'Item reactivated.' : 'Item deactivated.';
-header('Location: /lookups/index.php?type=' . urlencode($type));
+header('Location: /lookups/' . urlencode($type));
 exit;

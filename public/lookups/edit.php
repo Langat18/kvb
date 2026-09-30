@@ -9,12 +9,10 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\CadreRepository;
 use VetBoard\EventModeRepository;
-use VetBoard\SessionWindowRepository;
 
 const LOOKUP_TYPES = [
     'event-modes' => ['label' => 'Event Modes',     'repository' => EventModeRepository::class,    'has_time' => false],
     'cadres'      => ['label' => 'Cadres',           'repository' => CadreRepository::class,        'has_time' => false],
-    'sessions'    => ['label' => 'Session Windows',  'repository' => SessionWindowRepository::class,'has_time' => true],
 ];
 
 Auth::startSession();
@@ -36,7 +34,7 @@ $item = $repo->findById($id);
 
 if (!$item) {
     $_SESSION['error'] = 'Item not found.';
-    header('Location: /lookups/index.php?type=' . urlencode($type));
+    header('Location: /lookups/' . urlencode($type));
     exit;
 }
 
@@ -63,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $repo->update($id, $data);
         $_SESSION['success'] = $config['label'] . ' item updated successfully.';
-        header('Location: /lookups/index.php?type=' . urlencode($type));
+        header('Location: /lookups/' . urlencode($type));
         exit;
 
     } catch (\InvalidArgumentException $e) {
@@ -139,7 +137,7 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/lookups/index.php?type=<?= urlencode($type) ?>" class="btn btn-secondary">&larr; Back</a>
+        <a href="/lookups/<?= urlencode($type) ?>" class="btn btn-secondary">&larr; Back</a>
     </div>
 </div>
 </body>

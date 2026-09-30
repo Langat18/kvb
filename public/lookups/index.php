@@ -9,12 +9,10 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\CadreRepository;
 use VetBoard\EventModeRepository;
-use VetBoard\SessionWindowRepository;
 
 const LOOKUP_TYPES = [
     'event-modes' => ['label' => 'Event Modes',     'repository' => EventModeRepository::class,    'has_time' => false],
     'cadres'      => ['label' => 'Cadres',           'repository' => CadreRepository::class,        'has_time' => false],
-    'sessions'    => ['label' => 'Session Windows',  'repository' => SessionWindowRepository::class,'has_time' => true],
 ];
 
 Auth::startSession();
@@ -57,7 +55,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <div class="page-with-sidebar">
     <div class="tabs">
         <?php foreach (LOOKUP_TYPES as $key => $cfg): ?>
-            <a href="/lookups/index.php?type=<?= urlencode($key) ?>" class="<?= $key === $type ? 'active' : '' ?>">
+            <a href="/lookups/<?= urlencode($key) ?>" class="<?= $key === $type ? 'active' : '' ?>">
                 <?= htmlspecialchars($cfg['label'], ENT_QUOTES, 'UTF-8') ?>
             </a>
         <?php endforeach; ?>
