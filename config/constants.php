@@ -15,6 +15,15 @@ if (!defined('VIRTUAL_SIGNIN_LEAD_MINUTES')) {
     define('VIRTUAL_SIGNIN_LEAD_MINUTES', 15);
 }
 
+if (!defined('ONSITE_SIGNIN_LEAD_MINUTES')) {
+    define('ONSITE_SIGNIN_LEAD_MINUTES', 15);
+}
+
+// Sign-in stays open this many minutes after a session ends (0 = off).
+if (!defined('LATE_SIGNIN_GRACE_MINUTES')) {
+    define('LATE_SIGNIN_GRACE_MINUTES', 60);
+}
+
 if (!defined('MEETING_PROVIDERS')) {
     define('MEETING_PROVIDERS', [
         'google_meet' => 'Google Meet',
