@@ -68,6 +68,10 @@
         var maxDay = 0;
         Object.keys(byDate).forEach(function (k) { if (byDate[k] > maxDay) maxDay = byDate[k]; });
         total = recurring + maxDay;
+        var submit = document.getElementById('submit-btn');
+        if (submit) {
+            submit.disabled = total > 8;
+        }
         var span = document.getElementById('points-total');
         if (span) {
             span.textContent = 'Highest daily total: ' + total + ' / 8';

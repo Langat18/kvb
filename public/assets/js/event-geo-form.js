@@ -92,25 +92,6 @@ document.addEventListener('DOMContentLoaded', function () {
     window.addEventListener('pageshow', toggleGeoFields);
     toggleGeoFields();
 
-    const pointsInputs = Array.from(document.querySelectorAll('.session-points-input'));
-    const pointsTotal  = document.getElementById('points-total');
-    const submitBtn    = document.getElementById('submit-btn');
-
-    function updatePointsTotal() {
-        const total = pointsInputs.reduce((sum, el) => sum + (parseInt(el.value, 10) || 0), 0);
-        pointsTotal.textContent = 'Total: ' + total + ' / 8';
-        if (total > 8) {
-            pointsTotal.style.color = 'var(--kvb-red-dark)';
-            submitBtn.disabled = true;
-        } else {
-            pointsTotal.style.color = 'var(--text-muted)';
-            submitBtn.disabled = false;
-        }
-    }
-
-    pointsInputs.forEach(el => el.addEventListener('input', updatePointsTotal));
-    updatePointsTotal();
-
     const accInput = document.getElementById('provider_accreditation_no');
     if (accInput) {
         const providerIdInput     = document.getElementById('provider_id');

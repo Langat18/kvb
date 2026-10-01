@@ -519,7 +519,7 @@ body { display: block; padding: 2.5rem; }
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="/assets/js/event-geo-form.js"></script>
+<script src="/assets/js/event-geo-form.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/event-geo-form.js') ?>"></script>
 <script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
 <script src="/assets/js/quiz-builder.js"></script>
 <script>
