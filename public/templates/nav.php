@@ -46,17 +46,6 @@
     <div class="app-sidebar-brand"><img src="/assets/img/kvb_logo.png" alt="KVB"></div>
 
     <div class="app-sidebar-body">
-        <?php if (isset($sidebarFlaggedPct)): ?>
-            <div class="ring-card">
-                <div class="ring <?= $sidebarFlaggedPct > 20 ? 'ring-warn' : '' ?>" style="--pct: <?= (int) $sidebarFlaggedPct ?>;">
-                    <span><?= (int) $sidebarFlaggedPct ?>%</span>
-                </div>
-                <div>
-                    <div class="ring-title">Flagged Rate</div>
-                    <div class="ring-sub">of attendance records</div>
-                </div>
-            </div>
-        <?php endif; ?>
         <?php if (!empty($sidebarActionGroups)): ?>
         <details class="app-sidebar-actions" open>
             <summary>Quick Actions <span class="chev">&rsaquo;</span></summary>

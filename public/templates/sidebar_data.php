@@ -23,6 +23,7 @@ $sidebarActionGroups = (function (): array {
             ['perm' => 'manage_departments', 'url' => '/departments/index.php', 'icon' => '&#127970;', 'label' => 'Departments',    'desc' => 'Manage department list'],
             ['perm' => 'manage_providers',   'url' => '/providers/index.php',   'icon' => '&#127973;', 'label' => 'Providers',      'desc' => 'CPD providers & accreditation'],
             ['perm' => 'manage_lookups',     'url' => '/lookups/index.php',     'icon' => '&#128203;', 'label' => 'Event Settings', 'desc' => 'Modes, cadres, session windows'],
+            ['perm' => 'manage_lookups', 'url' => '/settings/signin.php', 'icon' => '&#9201;', 'label' => 'Sign-in Rules', 'desc' => 'Points sign-in windows'],
         ],
     ];
 

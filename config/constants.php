@@ -12,14 +12,14 @@ if (!defined('OFFSITE_HARD_REJECT_EXCESS_M')) {
 
  
 if (!defined('VIRTUAL_SIGNIN_LEAD_MINUTES')) {
-    define('VIRTUAL_SIGNIN_LEAD_MINUTES', 15);
+    define('VIRTUAL_SIGNIN_LEAD_MINUTES', 45);
 }
 
 if (!defined('ONSITE_SIGNIN_LEAD_MINUTES')) {
-    define('ONSITE_SIGNIN_LEAD_MINUTES', 15);
+    define('ONSITE_SIGNIN_LEAD_MINUTES', 45);
 }
 
-// Sign-in stays open this many minutes after a session ends (0 = off).
+// Minutes sign-in stays open after a session ends; 0 disables the grace period.
 if (!defined('LATE_SIGNIN_GRACE_MINUTES')) {
     define('LATE_SIGNIN_GRACE_MINUTES', 60);
 }

@@ -214,7 +214,7 @@ class Event
             $this->getSessions($eventId)
         );
 
-        $lead = (int) VIRTUAL_SIGNIN_LEAD_MINUTES;
+        $lead = SigninRules::get('signin_lead_virtual');
 
         if ($flags === [] || !in_array(false, $flags, true)) {
             return 'during the final ' . $lead . ' minutes of each session';
@@ -297,7 +297,7 @@ class Event
 
     public function resolveSignInSession(int $eventId): array
     {
-        $grace = defined('LATE_SIGNIN_GRACE_MINUTES') ? (int) LATE_SIGNIN_GRACE_MINUTES : 60;
+        $grace = SigninRules::get('signin_grace');
 
         return self::pickSignInSession($this->getSessions($eventId), time(), $grace);
     }

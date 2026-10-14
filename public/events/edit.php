@@ -49,16 +49,13 @@ $formData = $_SESSION['form_data'] ?? [];
 unset($_SESSION['error'], $_SESSION['success'], $_SESSION['form_data']);
 
 /**
- * Parses the raw quiz[] POST block into a clean, save-ready structure:
+ * Parses the quiz[] POST block into a save-ready structure keyed by session id:
  * [ session_id => ['clear' => bool, 'questions' => [...]] ]
- * session_id may be a real numeric id or a client-side placeholder (new_N) for a
- * session added in this same submission.
- * A session is omitted entirely if its panel was left blank — untouched
- * quizzes are never wiped just because the form re-submits empty fields.
  *
- * Also runs an integrity check: compares the browser's reported question
- * count (stamped fresh from the DOM right before submit) against what
- * actually arrived server-side, logging any mismatch immediately.
+ * The id is a numeric session id, or a client placeholder (new_N) for a session
+ * added in the same submission. Sessions with a blank panel are omitted so an
+ * untouched quiz is never cleared. A mismatch between the submitted and received
+ * question counts is logged.
  */
 function parseQuizSubmission(array $post, int $eventId): array
 {
@@ -122,7 +119,7 @@ function parseQuizSubmission(array $post, int $eventId): array
     return $result;
 }
 
-/** True for a PDO boolean column value regardless of driver representation (real bool vs 't'/'f'). */
+/** Normalizes a PDO boolean value. */
 function isTruthyDbBool($value): bool
 {
     return $value === true || $value === 't' || $value === 1 || $value === '1';
@@ -254,7 +251,8 @@ foreach ($sessionsForDisplay as $sw) {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 body { display: block; padding: 2.5rem; }
-.container { max-width: 680px; margin: 0 auto; }
+.container { max-width: none; margin: 0; padding-inline: clamp(1rem, 4vw, 3rem); }
+body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem); }
 .container h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
 .quiz-panel { margin-top: 1.5rem; }
 .quiz-panel > .form-group.full > label { font-weight: 600; }
@@ -523,7 +521,7 @@ body { display: block; padding: 2.5rem; }
 <script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
 <script src="/assets/js/quiz-builder.js"></script>
 <script>
-// Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.
+// Quiz and meeting fields apply to virtual and hybrid events only.
 (function () {
     var modeSelect    = document.getElementById('event_mode_id');
     var quizPanel     = document.getElementById('quiz-panel');
