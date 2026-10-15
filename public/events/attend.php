@@ -51,7 +51,7 @@ function virtualSignInThreshold(array $window): int
 
     $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
 
-    return max($endTs - (\VetBoard\SigninRules::get('signin_lead_virtual') * 60), $startTs);
+    return max($endTs - (\VetBoard\SigninRules::lead($window, 'virtual') * 60), $startTs);
 }
 
 // Sign-in opens at the session start, or for sessions requiring late sign-in,
@@ -66,7 +66,7 @@ function onsiteSignInThreshold(array $window): int
 
     $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
 
-    return max($endTs - (\VetBoard\SigninRules::get('signin_lead_onsite') * 60), $startTs);
+    return max($endTs - (\VetBoard\SigninRules::lead($window, 'onsite') * 60), $startTs);
 }
 
 function meetingProviderLabel(?string $key): string

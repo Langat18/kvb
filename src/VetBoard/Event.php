@@ -135,16 +135,22 @@ class Event
                 continue;
             }
 
+            $signinLead  = $this->optionalMinutes($s['signin_lead_minutes'] ?? null, 1, 180, $label);
+            $signinGrace = $this->optionalMinutes($s['signin_grace_minutes'] ?? null, 0, 180, $label);
+
             if (is_numeric($clientId)) {
                 $id = (int) $clientId;
 
                 $upd = $this->pdo->prepare(
                     'UPDATE event_sessions
                      SET label = :label, start_time = :start_time, end_time = :end_time,
-                         points = :points, sort_order = :sort_order, session_date = :session_date, require_late_signin = :require_late_signin, updated_at = now()
+                         points = :points, sort_order = :sort_order, session_date = :session_date, require_late_signin = :require_late_signin,
+                         signin_lead_minutes = :signin_lead, signin_grace_minutes = :signin_grace, updated_at = now()
                      WHERE id = :id AND event_id = :event_id'
                 );
                 $upd->execute([
+                    ':signin_lead'  => $signinLead,
+                    ':signin_grace' => $signinGrace,
                     ':session_date' => $sessionDate,
                     ':require_late_signin' => $requireLateSignin,
                     ':label'      => $label,
@@ -160,11 +166,13 @@ class Event
                 $keptIds[]        = $id;
             } else {
                 $ins = $this->pdo->prepare(
-                    'INSERT INTO event_sessions (event_id, label, start_time, end_time, points, sort_order, session_date, require_late_signin)
-                     VALUES (:event_id, :label, :start_time, :end_time, :points, :sort_order, :session_date, :require_late_signin)
+                    'INSERT INTO event_sessions (event_id, label, start_time, end_time, points, sort_order, session_date, require_late_signin, signin_lead_minutes, signin_grace_minutes)
+                     VALUES (:event_id, :label, :start_time, :end_time, :points, :sort_order, :session_date, :require_late_signin, :signin_lead, :signin_grace)
                      RETURNING id'
                 );
                 $ins->execute([
+                    ':signin_lead'  => $signinLead,
+                    ':signin_grace' => $signinGrace,
                     ':session_date' => $sessionDate,
                     ':require_late_signin' => $requireLateSignin,
                     ':event_id'   => $eventId,
@@ -209,22 +217,30 @@ class Event
 
     public function signInWhenText(int $eventId): string
     {
-        $flags = array_map(
-            static fn(array $s): bool => (bool) ($s['require_late_signin'] ?? true),
-            $this->getSessions($eventId)
-        );
+        $leads   = [];
+        $anytime = false;
 
-        $lead = SigninRules::get('signin_lead_virtual');
-
-        if ($flags === [] || !in_array(false, $flags, true)) {
-            return 'during the final ' . $lead . ' minutes of each session';
+        foreach ($this->getSessions($eventId) as $s) {
+            if ($s['require_late_signin'] ?? true) {
+                $leads[] = SigninRules::lead($s, 'virtual');
+            } else {
+                $anytime = true;
+            }
         }
 
-        if (!in_array(true, $flags, true)) {
-            return 'at any time while a session is running';
+        if ($leads === []) {
+            return $anytime
+                ? 'at any time while a session is running'
+                : 'during the final ' . SigninRules::get('signin_lead_virtual') . ' minutes of each session';
         }
 
-        return 'during each session (some sessions only open sign-in in their final ' . $lead . ' minutes)';
+        $min   = min($leads);
+        $max   = max($leads);
+        $range = $min === $max ? "{$min} minutes" : "{$min} to {$max} minutes";
+
+        return $anytime
+            ? "during each session (some sessions only open sign-in in their final {$range})"
+            : "during the final {$range} of each session";
     }
 
     public static function pickSignInSession(array $sessions, int $nowTs, int $graceMinutes): array
@@ -250,10 +266,6 @@ class Event
             }
         }
 
-        if ($graceMinutes <= 0) {
-            return $none;
-        }
-
         $best      = null;
         $bestEndTs = 0;
         $bestClose = 0;
@@ -275,7 +287,8 @@ class Event
                 }
             }
 
-            $closesAt = max($endTs, min($endTs + ($graceMinutes * 60), $nextStart));
+            $graceSeconds = ((int) ($w['signin_grace_minutes'] ?? $graceMinutes)) * 60;
+            $closesAt     = max($endTs, min($endTs + $graceSeconds, $nextStart));
 
             if ($nowTs >= $closesAt) {
                 continue;
@@ -300,6 +313,21 @@ class Event
         $grace = SigninRules::get('signin_grace');
 
         return self::pickSignInSession($this->getSessions($eventId), time(), $grace);
+    }
+
+    private function optionalMinutes(mixed $value, int $min, int $max, string $label): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $n = filter_var($value, FILTER_VALIDATE_INT);
+
+        if ($n === false || $n < $min || $n > $max) {
+            throw new \InvalidArgumentException("Session \"{$label}\": sign-in minutes must be between {$min} and {$max}.");
+        }
+
+        return $n;
     }
 
     public function getSessions(int $eventId, bool $activeOnly = true): array

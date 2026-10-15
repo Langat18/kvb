@@ -45,7 +45,7 @@ function manualOnsiteThreshold(array $window): int
 
     $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
 
-    return max($endTs - (\VetBoard\SigninRules::get('signin_lead_onsite') * 60), $startTs);
+    return max($endTs - (\VetBoard\SigninRules::lead($window, 'onsite') * 60), $startTs);
 }
 
 $token         = trim($_GET['token']);
