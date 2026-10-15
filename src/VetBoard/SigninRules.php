@@ -12,24 +12,21 @@ final class SigninRules
 {
     public const RULES = [
         'signin_lead_virtual' => [
-            'label'    => 'Virtual sessions: sign-in opens before session end',
-            'hint'     => 'Attendees can sign in during this many final minutes of a session.',
+            'label'    => 'Opens before end, virtual (min)',
             'min'      => 1,
             'max'      => 180,
             'fallback' => 'VIRTUAL_SIGNIN_LEAD_MINUTES',
             'default'  => 45,
         ],
         'signin_lead_onsite' => [
-            'label'    => 'On-site sessions: sign-in opens before session end',
-            'hint'     => 'Attendees can sign in during this many final minutes of a session.',
+            'label'    => 'Opens before end, on-site (min)',
             'min'      => 1,
             'max'      => 180,
             'fallback' => 'ONSITE_SIGNIN_LEAD_MINUTES',
             'default'  => 45,
         ],
         'signin_grace' => [
-            'label'    => 'Sign-in stays open after a session ends',
-            'hint'     => '0 disables late sign-in. Never extends past the start of the next session.',
+            'label'    => 'Stays open after end (min)',
             'min'      => 0,
             'max'      => 180,
             'fallback' => 'LATE_SIGNIN_GRACE_MINUTES',
@@ -47,16 +44,13 @@ final class SigninRules
             ?? (defined($rule['fallback']) ? (int) constant($rule['fallback']) : $rule['default']);
     }
 
-    public static function describe(string $mode): string
+    public static function lead(array $session, string $mode): int
     {
-        $lead  = self::get($mode === 'onsite' ? 'signin_lead_onsite' : 'signin_lead_virtual');
-        $grace = self::get('signin_grace');
+        $own = $session['signin_lead_minutes'] ?? null;
 
-        $text = "Points can be earned from the final {$lead} minutes of a session";
-
-        return $text . ($grace > 0
-            ? " until {$grace} minutes after it ends, or until the next session begins."
-            : ' until it ends.');
+        return $own !== null && $own !== ''
+            ? (int) $own
+            : self::get($mode === 'onsite' ? 'signin_lead_onsite' : 'signin_lead_virtual');
     }
 
     public static function save(array $input, ?int $staffId): void
@@ -68,7 +62,7 @@ final class SigninRules
             $n = filter_var($input[$key] ?? null, FILTER_VALIDATE_INT);
 
             if ($n === false || $n < $rule['min'] || $n > $rule['max']) {
-                $errors[] = "{$rule['label']} must be a whole number between {$rule['min']} and {$rule['max']}.";
+                $errors[] = "{$rule['label']}: enter a whole number from {$rule['min']} to {$rule['max']}.";
                 continue;
             }
 
@@ -107,24 +101,11 @@ final class SigninRules
         self::$cache = null;
 
         error_log(sprintf(
-            'Sign-in rules changed by staff %d: %s -> %s',
+            'Sign-in defaults changed by staff %d: %s -> %s',
             (int) $staffId,
             json_encode($before),
             json_encode($values)
         ));
-    }
-
-    public static function lastUpdated(): ?string
-    {
-        try {
-            $value = Database::getInstance()->getPdo()
-                ->query('SELECT max(updated_at) FROM app_settings')
-                ->fetchColumn();
-
-            return $value ? (string) $value : null;
-        } catch (Throwable) {
-            return null;
-        }
     }
 
     // Unreadable or out-of-range values are ignored so the legacy constants apply.

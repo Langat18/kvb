@@ -21,11 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         SigninRules::save((array) ($_POST['rules'] ?? []), (int) ($user['id'] ?? 0));
-        $_SESSION['success'] = 'Sign-in rules updated.';
+        $_SESSION['success'] = 'Defaults saved.';
     } catch (\InvalidArgumentException $e) {
         $_SESSION['error'] = $e->getMessage();
     } catch (\Throwable $e) {
-        error_log('Sign-in rules update error: ' . $e->getMessage());
+        error_log('Sign-in defaults update error: ' . $e->getMessage());
         $_SESSION['error'] = 'A system error occurred. Please try again.';
     }
 
@@ -37,8 +37,7 @@ $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
 
-$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Sign-in Rules', 'url' => null]];
-$updatedAt   = SigninRules::lastUpdated();
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Sign-in Defaults', 'url' => null]];
 
 $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
@@ -49,7 +48,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign-in Rules - Kenya Veterinary Board</title>
+<title>Sign-in Defaults - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css">
@@ -58,8 +57,8 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="page-with-sidebar">
     <div class="dash-main-card">
-        <div class="section-label">Sign-in Rules</div>
-        <p>Controls when attendees can sign in to earn points. Changes apply to all events immediately.</p>
+        <div class="section-label">Sign-in Defaults</div>
+        <p>Used by sessions that do not set their own sign-in times.</p>
 
         <?php if ($success): ?><div class="flash flash-success"><?= $h($success) ?></div><?php endif; ?>
         <?php if ($error): ?><div class="flash flash-error"><?= $h($error) ?></div><?php endif; ?>
@@ -74,23 +73,12 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <input type="number" id="rule_<?= $h($key) ?>" name="rules[<?= $h($key) ?>]"
                            min="<?= $rule['min'] ?>" max="<?= $rule['max'] ?>" step="1" required
                            value="<?= SigninRules::get($key) ?>">
-                    <span class="field-hint">
-                        <?= $h($rule['hint']) ?> Allowed: <?= $rule['min'] ?>&ndash;<?= $rule['max'] ?> minutes.
-                    </span>
                 </div>
                 <?php endforeach; ?>
             </div>
 
-            <button type="submit" class="btn btn-primary">Save changes</button>
+            <button type="submit" class="btn btn-primary">Save</button>
         </form>
-
-        <div class="section-label" style="margin-top: var(--space-4);">Attendee message</div>
-        <p><strong>Virtual:</strong> <?= $h(SigninRules::describe('virtual')) ?></p>
-        <p><strong>On-site:</strong> <?= $h(SigninRules::describe('onsite')) ?></p>
-
-        <?php if ($updatedAt): ?>
-            <p class="field-hint">Last updated <?= $h(date('d M Y, H:i', strtotime($updatedAt))) ?></p>
-        <?php endif; ?>
     </div>
 </div>
 </body>
