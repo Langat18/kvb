@@ -26,6 +26,14 @@
             '<label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>' +
             '<input type="date" name="sessions[' + sid + '][session_date]" value="' + (sessionDate || '') + '">' +
             '</div>' +
+            '<div class="form-group">' +
+            '<label>Sign-in opens (min before end)</label>' +
+            '<input type="number" min="1" max="180" name="sessions[' + sid + '][signin_lead_minutes]" placeholder="Default">' +
+            '</div>' +
+            '<div class="form-group">' +
+            '<label>Sign-in closes (min after end)</label>' +
+            '<input type="number" min="0" max="180" name="sessions[' + sid + '][signin_grace_minutes]" placeholder="Default">' +
+            '</div>' +
             '<div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">' +
             '<input type="checkbox" id="late_signin_' + sid + '" name="sessions[' + sid + '][require_late_signin]" value="1" ' + lateChecked + ' style="width:auto;">' +
             '<label for="late_signin_' + sid + '" style="margin:0;font-weight:normal;">Require late sign-in</label>' +

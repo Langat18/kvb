@@ -214,6 +214,8 @@ if (isset($formData['sessions'])) {
             'points'     => (int) ($s['points'] ?? 0),
             'session_date' => $s['session_date'] ?? '',
             'require_late_signin' => !empty($s['require_late_signin']),
+            'signin_lead_minutes'  => $s['signin_lead_minutes'] ?? '',
+            'signin_grace_minutes' => $s['signin_grace_minutes'] ?? '',
         ];
     }
 } else {
@@ -226,6 +228,8 @@ if (isset($formData['sessions'])) {
             'points'     => (int) $row['points'],
             'session_date' => $row['session_date'] ?? '',
             'require_late_signin' => array_key_exists('require_late_signin', $row) ? (bool) $row['require_late_signin'] : true,
+            'signin_lead_minutes'  => $row['signin_lead_minutes'] ?? '',
+            'signin_grace_minutes' => $row['signin_grace_minutes'] ?? '',
         ];
     }, $eventModel->getSessions((int) $event['id']));
 }
@@ -433,6 +437,14 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                                 <div class="form-group">
                                     <label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>
                                     <input type="date" name="sessions[<?= $sidAttr ?>][session_date]" value="<?= htmlspecialchars((string) ($sw['session_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                                </div>
+                                <div class="form-group">
+                                    <label>Sign-in opens (min before end)</label>
+                                    <input type="number" min="1" max="180" name="sessions[<?= $sidAttr ?>][signin_lead_minutes]" value="<?= htmlspecialchars((string) ($sw['signin_lead_minutes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Default">
+                                </div>
+                                <div class="form-group">
+                                    <label>Sign-in closes (min after end)</label>
+                                    <input type="number" min="0" max="180" name="sessions[<?= $sidAttr ?>][signin_grace_minutes]" value="<?= htmlspecialchars((string) ($sw['signin_grace_minutes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Default">
                                 </div>
                                 <div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">
                                     <input type="checkbox" id="late_signin_<?= $sidAttr ?>" name="sessions[<?= $sidAttr ?>][require_late_signin]" value="1" <?= (($sw['require_late_signin'] ?? true) ? 'checked' : '') ?> style="width:auto;">
