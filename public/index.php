@@ -8,17 +8,14 @@ require_once __DIR__ . '/../config/database.php';
 
 use VetBoard\Auth;
 use VetBoard\Event;
-use VetBoard\Report;
 
 Auth::startSession();
 Auth::requireLogin();
 
 $user = Auth::user();
 
-$eventModel  = new Event();
-$reportModel = new Report();
+$eventModel = new Event();
 
-$totals       = $reportModel->totals();
 $recentEvents = $eventModel->list([], 5, 0);
 
 function firstNameOnly(string $fullName): string
@@ -32,12 +29,7 @@ function firstNameOnly(string $fullName): string
 $hour     = (int) date('H');
 $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
 
-$flaggedPct = $totals['total_attendance'] > 0
-    ? (int) round(($totals['flagged_attendance'] / $totals['total_attendance']) * 100)
-    : 0;
-
 require __DIR__ . '/templates/sidebar_data.php';
-$sidebarFlaggedPct = $flaggedPct;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -55,27 +47,7 @@ $sidebarFlaggedPct = $flaggedPct;
 <div class="page-with-sidebar">
 
     <div class="dash-hero">
-        <h1><?= $greeting ?>, <b><?= htmlspecialchars(firstNameOnly($user['name']), ENT_QUOTES, 'UTF-8') ?></b> &#128075;</h1>
-        <p>Here's what's happening across the Board's events.</p>
-    </div>
-
-    <div class="dash-overview">
-        <div class="dash-overview-item">
-            <div class="badge">&#128197;</div>
-            <div><div class="num"><?= $totals['total_events'] ?></div><div class="label">Total Events</div></div>
-        </div>
-        <div class="dash-overview-item">
-            <div class="badge">&#128100;</div>
-            <div><div class="num"><?= $totals['total_participants'] ?></div><div class="label">Registered Vets</div></div>
-        </div>
-        <div class="dash-overview-item">
-            <div class="badge">&#9989;</div>
-            <div><div class="num"><?= $totals['total_attendance'] ?></div><div class="label">Attendance Records</div></div>
-        </div>
-        <div class="dash-overview-item flagged">
-            <div class="badge">&#9888;</div>
-            <div><div class="num"><?= $totals['flagged_attendance'] ?></div><div class="label">Flagged Records</div></div>
-        </div>
+        <h1><?= $greeting ?>, <b><?= htmlspecialchars(firstNameOnly($user['name']), ENT_QUOTES, 'UTF-8') ?></b></h1>
     </div>
 
     <div class="dash-main-card">

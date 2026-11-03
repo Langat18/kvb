@@ -18,6 +18,8 @@ class Auth
         'record_manual_attendance'   => ['view_events'],
         'print_attendance_register'  => ['view_events'],
         'edit_attendee_details'      => ['view_events'],
+        'award_manual_points'        => ['view_events'],
+        'delete_registrations'       => ['view_events'],
     ];
 
     public static function startSession(): void

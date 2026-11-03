@@ -497,7 +497,7 @@ input, select {
     border-radius: 8px;
 }
 
-/* --- Page header: title + primary action --- */
+/* Page header */
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -512,7 +512,7 @@ input, select {
     color: var(--kvb-green-dark);
 }
 
-/* --- Section label (small uppercase caption above a block) --- */
+/* Section label */
 .section-label {
     font-size: var(--fs-xs);
     font-weight: 600;
@@ -522,7 +522,7 @@ input, select {
     margin-bottom: var(--space-3);
 }
 
-/* --- Stat grid: dashboard + reports both need this --- */
+/* Stat grid */
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -534,10 +534,10 @@ input, select {
 .stat-card .label { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--space-1); }
 .stat-card.flagged .num { color: var(--kvb-red-dark); }
 
-/* --- Card variant: flush padding for table-wrapping cards --- */
+/* Flush card */
 .card-flush { padding: 0; }
 
-/* --- Unified data table --- */
+/* Data table */
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th {
     text-align: left;
@@ -556,7 +556,7 @@ input, select {
 .data-table tr:hover td { background: #f7faf8; }
 .data-table tr.inactive-row { opacity: .55; }
 
-/* --- Empty state --- */
+/* Empty state */
 .empty-state {
     color: var(--text-muted);
     font-size: var(--fs-base);
@@ -564,7 +564,7 @@ input, select {
     text-align: center;
 }
 
-/* --- Tabs (used by lookups, reusable for future tabbed views) --- */
+/* Tabs */
 .tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-5); flex-wrap: wrap; }
 .tabs a {
     padding: var(--space-2) var(--space-4);
@@ -582,11 +582,7 @@ input, select {
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* ============================================
-   DESIGN SYSTEM — PHASE 2
-   Form layout components, standardized on the
-   spacing/type scale from Phase 1.
-   ============================================ */
+/* Form layout */
 
 .form-grid {
     display: grid;
@@ -603,21 +599,21 @@ input, select {
     .form-grid { grid-template-columns: 1fr; }
 }
 
-/* --- Success button (deactivate/reactivate toggle pattern) --- */
+/* Success button */
 .btn-success {
     background: var(--kvb-green-light);
     color: var(--kvb-green-dark);
 }
 .btn-success:hover { background: var(--kvb-green); color: #fff; }
 
-/* --- Full-width button utility (common on narrow single-column forms) --- */
+/* Full-width button */
 .btn-block { width: 100%; }
 
-/* --- Points display helpers (leaderboard + detail) --- */
+/* Points display */
 .rank { font-weight: 700; color: var(--text-muted); width: 40px; }
 .points-value { font-weight: 700; color: var(--kvb-green-dark); }
 
-/* --- Geofence map (shared by event create/edit forms) --- */
+/* Geofence map */
 .geo-fields { display: none; }
 .geo-fields.active { display: grid; }
 .geo-map { height: 320px; border-radius: 12px; grid-column: 1 / -1; }
@@ -911,3 +907,19 @@ body.has-app-sidebar .navbar-toggle { display: none; }
 @media (max-width: 600px) {
     .pagination { flex-direction: column; align-items: stretch; text-align: center; }
 }
+
+.flash { padding: var(--space-3) var(--space-4); border-radius: 10px; margin-bottom: var(--space-4); }
+.flash-success { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
+.flash-error { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
+.field-hint { display: block; margin-top: .25rem; color: var(--text-muted); font-size: .8rem; }
+
+.presentations { margin: .75rem 0; }
+.presentations-title { font-weight: 600; font-size: .85rem; margin-bottom: .4rem; }
+.presentation-row { display: grid; grid-template-columns: 2fr 1.2fr 3fr 1fr 1fr auto; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+@media (max-width: 780px) {
+    .presentation-row { grid-template-columns: 1fr 1fr; }
+    .presentation-row input[type="text"] { grid-column: 1 / -1; }
+}
+
+.row-actions-cell { white-space: nowrap; }
+.row-actions { display: flex; flex-wrap: wrap; gap: .35rem; }

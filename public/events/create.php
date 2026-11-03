@@ -109,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
         'sessions'                  => $_POST['sessions'] ?? [],
+        'presentations'             => $_POST['presentations'] ?? [],
         'created_by'                => $user['id'],
     ];
 

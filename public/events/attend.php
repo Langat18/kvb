@@ -34,14 +34,13 @@ if ($today < $event['start_date'] || $today > $event['end_date']) {
     die($msg);
 }
 
-// Returns the active session window row, or null if outside all session hours.
 function detectSession(array $event, Event $eventModel): array
 {
     return $eventModel->resolveSignInSession((int) $event['id']);
 }
 
-// Virtual sign-in opens VIRTUAL_SIGNIN_LEAD_MINUTES before the window's end_time,
-// clamped so it never falls before the window's own start_time.
+// Sign-in opens at the session start, or for sessions requiring late sign-in,
+// the lead interval before the end (never earlier than the start).
 function virtualSignInThreshold(array $window): int
 {
     $startTs = strtotime(date('Y-m-d') . ' ' . $window['start_time']);
@@ -52,11 +51,11 @@ function virtualSignInThreshold(array $window): int
 
     $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
 
-    return max($endTs - (VIRTUAL_SIGNIN_LEAD_MINUTES * 60), $startTs);
+    return max($endTs - (\VetBoard\SigninRules::lead($window, 'virtual') * 60), $startTs);
 }
 
-// Onsite sign-in opens ONSITE_SIGNIN_LEAD_MINUTES before the window's end_time,
-// clamped so it never falls before the window's own start_time.
+// Sign-in opens at the session start, or for sessions requiring late sign-in,
+// the lead interval before the end (never earlier than the start).
 function onsiteSignInThreshold(array $window): int
 {
     $startTs = strtotime(date('Y-m-d') . ' ' . $window['start_time']);
@@ -67,7 +66,7 @@ function onsiteSignInThreshold(array $window): int
 
     $endTs = strtotime(date('Y-m-d') . ' ' . $window['end_time']);
 
-    return max($endTs - (ONSITE_SIGNIN_LEAD_MINUTES * 60), $startTs);
+    return max($endTs - (\VetBoard\SigninRules::lead($window, 'onsite') * 60), $startTs);
 }
 
 function meetingProviderLabel(?string $key): string
@@ -98,8 +97,6 @@ if ($sessionInfo['window'] !== null) {
     $onsiteSignInOpen    = time() >= $onsiteThresholdTs;
     $onsiteSignInOpensAt = date('g:i A', $onsiteThresholdTs);
 }
-
-// Registration confirms interest, not presence 
 
 $existingRegNo   = strtoupper(trim($_GET['reg_no'] ?? ''));
 $isRegisteredView = false;
@@ -170,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($isOnsiteSubmission) {
 
-            // Onsite integrity = geofence + timing gate. No quiz.
+            // On-site: geofence and timing checks only.
             if ($sessionInfo['window'] !== null) {
                 $onsiteThresholdTs = onsiteSignInThreshold($sessionInfo['window']);
 
@@ -237,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } else {
 
-            // Virtual integrity = timing gate + quiz (if configured). No geofence.
+            // Virtual: timing check, plus the quiz where configured.
             if ($sessionInfo['window'] !== null) {
                 $thresholdTs = virtualSignInThreshold($sessionInfo['window']);
 

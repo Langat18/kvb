@@ -26,11 +26,20 @@
             '<label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>' +
             '<input type="date" name="sessions[' + sid + '][session_date]" value="' + (sessionDate || '') + '">' +
             '</div>' +
+            '<div class="form-group">' +
+            '<label>Sign-in opens (min before end)</label>' +
+            '<input type="number" min="1" max="180" name="sessions[' + sid + '][signin_lead_minutes]" placeholder="Default">' +
+            '</div>' +
+            '<div class="form-group">' +
+            '<label>Sign-in closes (min after end)</label>' +
+            '<input type="number" min="0" max="180" name="sessions[' + sid + '][signin_grace_minutes]" placeholder="Default">' +
+            '</div>' +
             '<div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">' +
             '<input type="checkbox" id="late_signin_' + sid + '" name="sessions[' + sid + '][require_late_signin]" value="1" ' + lateChecked + ' style="width:auto;">' +
             '<label for="late_signin_' + sid + '" style="margin:0;font-weight:normal;">Require late sign-in</label>' +
             '</div>' +
             '</div>' +
+            buildPresentationsHTML(sid) +
             '<button type="button" class="btn btn-ghost btn-sm remove-session-btn">Remove Session</button>' +
             '</div>';
     }
@@ -185,6 +194,117 @@
         updatePointsTotal();
     });
 
+    function buildPresentationRowHTML(sid, pidx) {
+        var base = 'presentations[' + sid + '][' + pidx + ']';
+        return '' +
+            '<div class="presentation-row" data-pidx="' + pidx + '">' +
+            '<input type="text" name="' + base + '[presenter]" placeholder="Presenter" maxlength="150" aria-label="Presenter">' +
+            '<input type="text" name="' + base + '[reg_no]" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">' +
+            '<input type="text" name="' + base + '[topic]" placeholder="Topic" maxlength="255" aria-label="Topic">' +
+            '<input type="time" name="' + base + '[start_time]" aria-label="Start time">' +
+            '<input type="time" name="' + base + '[end_time]" aria-label="End time">' +
+            '<button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>' +
+            '</div>';
+    }
+
+    function buildPresentationsHTML(sid) {
+        return '' +
+            '<div class="presentations" data-sid="' + sid + '">' +
+            '<div class="presentations-title">Presentations</div>' +
+            '<input type="hidden" name="presentations[' + sid + '][_marker]" value="1">' +
+            '<div class="presentation-list"></div>' +
+            '<button type="button" class="btn btn-ghost btn-sm add-presentation-btn">+ Add Presentation</button>' +
+            '</div>';
+    }
+
+    function flagField(field, message) {
+        field.setCustomValidity(message);
+        field.reportValidity();
+        return false;
+    }
+
+    function presentationsValid(form) {
+        var sessions = form.querySelectorAll('.session-row');
+
+        for (var i = 0; i < sessions.length; i++) {
+            var session = sessions[i];
+            var sStart = session.querySelector('input[type="time"][name$="[start_time]"]');
+            var sEnd = session.querySelector('input[type="time"][name$="[end_time]"]');
+            var rows = session.querySelectorAll('.presentation-row');
+            var taken = [];
+
+            for (var j = 0; j < rows.length; j++) {
+                var f = [
+                    rows[j].querySelector('[name$="[presenter]"]'),
+                    rows[j].querySelector('[name$="[topic]"]'),
+                    rows[j].querySelector('[name$="[start_time]"]'),
+                    rows[j].querySelector('[name$="[end_time]"]')
+                ];
+                var empty = f.filter(function (x) { return x.value.trim() === ''; });
+
+                if (empty.length === 4) { continue; }
+                if (empty.length > 0) { return flagField(empty[0], 'Complete this field or remove the row.'); }
+
+                var start = f[2].value;
+                var end = f[3].value;
+
+                if (end <= start) { return flagField(f[3], 'End must be after start.'); }
+
+                if (sStart && sEnd && sStart.value && sEnd.value && (start < sStart.value || end > sEnd.value)) {
+                    return flagField(f[2], 'Must fall within the session time (' + sStart.value + ' to ' + sEnd.value + ').');
+                }
+
+                for (var k = 0; k < taken.length; k++) {
+                    if (start < taken[k].end && taken[k].start < end) {
+                        return flagField(f[2], 'Overlaps another presentation in this session.');
+                    }
+                }
+
+                taken.push({ start: start, end: end });
+            }
+        }
+
+        return true;
+    }
+
+    document.addEventListener('click', function (e) {
+        var add = e.target.closest('.add-presentation-btn');
+
+        if (add) {
+            var block = add.closest('.presentations');
+            var list = block.querySelector('.presentation-list');
+            var max = -1;
+
+            list.querySelectorAll('.presentation-row').forEach(function (r) {
+                var n = parseInt(r.dataset.pidx, 10);
+                if (!isNaN(n) && n > max) { max = n; }
+            });
+
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = buildPresentationRowHTML(block.dataset.sid, max + 1);
+            list.appendChild(wrapper.firstElementChild);
+            return;
+        }
+
+        var remove = e.target.closest('.remove-presentation-btn');
+
+        if (remove) {
+            var row = remove.closest('.presentation-row');
+            row.parentNode.removeChild(row);
+        }
+    });
+
+    document.addEventListener('input', function (e) {
+        if (e.target.setCustomValidity) { e.target.setCustomValidity(''); }
+    });
+
+    var eventForm = document.getElementById('event-form');
+
+    if (eventForm) {
+        eventForm.addEventListener('submit', function (e) {
+            if (!presentationsValid(eventForm)) { e.preventDefault(); }
+        });
+    }
     var initialList = document.getElementById('sessions-list');
     if (initialList && initialList.children.length === 0) {
         addNewSession();

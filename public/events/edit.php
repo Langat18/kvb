@@ -49,16 +49,13 @@ $formData = $_SESSION['form_data'] ?? [];
 unset($_SESSION['error'], $_SESSION['success'], $_SESSION['form_data']);
 
 /**
- * Parses the raw quiz[] POST block into a clean, save-ready structure:
+ * Parses the quiz[] POST block into a save-ready structure keyed by session id:
  * [ session_id => ['clear' => bool, 'questions' => [...]] ]
- * session_id may be a real numeric id or a client-side placeholder (new_N) for a
- * session added in this same submission.
- * A session is omitted entirely if its panel was left blank — untouched
- * quizzes are never wiped just because the form re-submits empty fields.
  *
- * Also runs an integrity check: compares the browser's reported question
- * count (stamped fresh from the DOM right before submit) against what
- * actually arrived server-side, logging any mismatch immediately.
+ * The id is a numeric session id, or a client placeholder (new_N) for a session
+ * added in the same submission. Sessions with a blank panel are omitted so an
+ * untouched quiz is never cleared. A mismatch between the submitted and received
+ * question counts is logged.
  */
 function parseQuizSubmission(array $post, int $eventId): array
 {
@@ -122,7 +119,7 @@ function parseQuizSubmission(array $post, int $eventId): array
     return $result;
 }
 
-/** True for a PDO boolean column value regardless of driver representation (real bool vs 't'/'f'). */
+/** Normalizes a PDO boolean value. */
 function isTruthyDbBool($value): bool
 {
     return $value === true || $value === 't' || $value === 1 || $value === '1';
@@ -151,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
         'sessions'                  => $_POST['sessions'] ?? [],
+        'presentations'             => $_POST['presentations'] ?? [],
     ];
 
     try {
@@ -217,6 +215,8 @@ if (isset($formData['sessions'])) {
             'points'     => (int) ($s['points'] ?? 0),
             'session_date' => $s['session_date'] ?? '',
             'require_late_signin' => !empty($s['require_late_signin']),
+            'signin_lead_minutes'  => $s['signin_lead_minutes'] ?? '',
+            'signin_grace_minutes' => $s['signin_grace_minutes'] ?? '',
         ];
     }
 } else {
@@ -229,11 +229,17 @@ if (isset($formData['sessions'])) {
             'points'     => (int) $row['points'],
             'session_date' => $row['session_date'] ?? '',
             'require_late_signin' => array_key_exists('require_late_signin', $row) ? (bool) $row['require_late_signin'] : true,
+            'signin_lead_minutes'  => $row['signin_lead_minutes'] ?? '',
+            'signin_grace_minutes' => $row['signin_grace_minutes'] ?? '',
         ];
     }, $eventModel->getSessions((int) $event['id']));
 }
 
 $providerNameDisplay = empty($formData) ? ($event['provider_name'] ?? '') : '';
+
+$presentationsBySession = empty($formData)
+    ? (new \VetBoard\SessionPresentation())->forEvent((int) $event['id'])
+    : (array) ($formData['presentations'] ?? []);
 
 $quizBySession = [];
 foreach ($sessionsForDisplay as $sw) {
@@ -254,7 +260,8 @@ foreach ($sessionsForDisplay as $sw) {
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 body { display: block; padding: 2.5rem; }
-.container { max-width: 680px; margin: 0 auto; }
+.container { max-width: none; margin: 0; padding-inline: clamp(1rem, 4vw, 3rem); }
+body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem); }
 .container h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
 .quiz-panel { margin-top: 1.5rem; }
 .quiz-panel > .form-group.full > label { font-weight: 600; }
@@ -436,10 +443,36 @@ body { display: block; padding: 2.5rem; }
                                     <label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>
                                     <input type="date" name="sessions[<?= $sidAttr ?>][session_date]" value="<?= htmlspecialchars((string) ($sw['session_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
                                 </div>
+                                <div class="form-group">
+                                    <label>Sign-in opens (min before end)</label>
+                                    <input type="number" min="1" max="180" name="sessions[<?= $sidAttr ?>][signin_lead_minutes]" value="<?= htmlspecialchars((string) ($sw['signin_lead_minutes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Default">
+                                </div>
+                                <div class="form-group">
+                                    <label>Sign-in closes (min after end)</label>
+                                    <input type="number" min="0" max="180" name="sessions[<?= $sidAttr ?>][signin_grace_minutes]" value="<?= htmlspecialchars((string) ($sw['signin_grace_minutes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Default">
+                                </div>
                                 <div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">
                                     <input type="checkbox" id="late_signin_<?= $sidAttr ?>" name="sessions[<?= $sidAttr ?>][require_late_signin]" value="1" <?= (($sw['require_late_signin'] ?? true) ? 'checked' : '') ?> style="width:auto;">
                                     <label for="late_signin_<?= $sidAttr ?>" style="margin:0;font-weight:normal;">Require late sign-in</label>
                                 </div>
+                            </div>
+                            <?php $presRows = array_values(array_filter((array) ($presentationsBySession[$sw['id']] ?? []), 'is_array')); ?>
+                            <div class="presentations" data-sid="<?= $sidAttr ?>">
+                                <div class="presentations-title">Presentations</div>
+                                <input type="hidden" name="presentations[<?= $sidAttr ?>][_marker]" value="1">
+                                <div class="presentation-list">
+                                    <?php foreach ($presRows as $pi => $p): ?>
+                                    <div class="presentation-row" data-pidx="<?= $pi ?>">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][presenter]" value="<?= htmlspecialchars((string) ($p['presenter'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Presenter" maxlength="150" aria-label="Presenter">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][reg_no]" value="<?= htmlspecialchars((string) ($p['reg_no'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][topic]" value="<?= htmlspecialchars((string) ($p['topic'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Topic" maxlength="255" aria-label="Topic">
+                                        <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][start_time]" value="<?= htmlspecialchars(substr((string) ($p['start_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="Start time">
+                                        <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][end_time]" value="<?= htmlspecialchars(substr((string) ($p['end_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="End time">
+                                        <button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <button type="button" class="btn btn-ghost btn-sm add-presentation-btn">+ Add Presentation</button>
                             </div>
                             <button type="button" class="btn btn-ghost btn-sm remove-session-btn">Remove Session</button>
                         </div>
@@ -523,7 +556,7 @@ body { display: block; padding: 2.5rem; }
 <script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
 <script src="/assets/js/quiz-builder.js"></script>
 <script>
-// Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.
+// Quiz and meeting fields apply to virtual and hybrid events only.
 (function () {
     var modeSelect    = document.getElementById('event_mode_id');
     var quizPanel     = document.getElementById('quiz-panel');

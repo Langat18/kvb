@@ -1,15 +1,19 @@
 FROM php:8.4-cli AS builder
 
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    libpng-dev \
-    libjpeg-dev \
-    libwebp-dev \
-    unzip \
-    git \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+        libpq-dev \
+        libonig-dev \
+        libxml2-dev \
+        libzip-dev \
+        libpng-dev \
+        libjpeg-dev \
+        libwebp-dev \
+        unzip \
+        git \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install \
         pdo \
