@@ -200,7 +200,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <th>Cadre</th>
                     <th>Sessions</th>
                     <th>Points</th>
-                    <?php if (Auth::can('edit_attendee_details')): ?><th></th><?php endif; ?>
+                    <?php $rowActions = Auth::can('edit_attendee_details') || Auth::can('award_manual_points') || Auth::can('delete_registrations'); ?><?php if ($rowActions): ?><th>Actions</th><?php endif; ?>
                 </tr>
             </thead>
             <tbody>
@@ -229,7 +229,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <?php endif; ?>
                     </td>
                     <td style="font-weight:600;color:var(--kvb-green-dark);"><?= (int) ($p['points_earned'] ?? 0) ?></td>
-                    <?php if (Auth::can('edit_attendee_details')): ?><td><a href="/events/edit_attendee.php?token=<?= urlencode($event['view_token']) ?>&amp;reg_no=<?= urlencode($p['reg_no']) ?>" class="btn btn-ghost btn-sm">Edit</a></td><?php endif; ?>
+                    <?php if ($rowActions): ?><td class="row-actions-cell"><?php require __DIR__ . '/../templates/attendee_actions.php'; ?></td><?php endif; ?>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

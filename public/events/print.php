@@ -44,8 +44,13 @@ $providerName   = $event['provider_name'] ?: '-';
 $providerAcc    = $event['provider_accreditation_no'] ?: '-';
 $supervisorLine = $event['coordinator'] ?: '-';
 $modeLine       = $event['event_mode_label'] ?? $event['event_mode'] ?? '-';
+
+$cadreLabels = (new \VetBoard\CadreRepository())->labelMap();
+$eventReport = new \VetBoard\EventReport();
+$programme   = $eventReport->programme((int) $event['id']);
+$cadreStats  = $eventReport->cadreByDay((int) $event['id'], $cadreLabels, $event['start_date'], $event['end_date']);
+
 if (($_GET['format'] ?? '') === 'excel') {
-    $cadreLabels = (new \VetBoard\CadreRepository())->labelMap();
 
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
@@ -100,6 +105,9 @@ if (($_GET['format'] ?? '') === 'excel') {
         $sheet->getColumnDimension($col)->setWidth($w);
     }
 
+    \VetBoard\EventReport::appendSheets($spreadsheet, $programme, $cadreStats);
+    $spreadsheet->setActiveSheetIndex(0);
+
     while (ob_get_level()) { ob_end_clean(); }
     $filename = 'Attendance_Register_' . preg_replace('/[^a-zA-Z0-9]/', '_', $event['title']) . '_' . preg_replace('/[^0-9-]/', '', $selectedDate) . '.xlsx';
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -137,7 +145,16 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
 .day-selector a { margin-right: .35rem; padding: .18rem .45rem; border: 1px solid #ccc; text-decoration: none; color: #333; border-radius: 3px; font-size: 8pt; }
 .day-selector a.active { background: #0f5132; color: #fff; border-color: #0f5132; }
 .footer { font-size: 7pt; color: #888; text-align: center; margin-top: 1rem; border-top: 1px solid #ccc; padding-top: .4rem; }
-@media print { .day-selector, .no-print { display: none; } body { padding: .5cm 1cm; } }
+.sec-title { font-size: 9.5pt; font-weight: bold; color: #0f5132; margin: .75rem 0 .35rem; }
+.att-table .num { text-align: center; }
+.total-row td { font-weight: bold; background: #e8f1ec !important; }
+.note { font-size: 7.5pt; color: #666; margin: -.5rem 0 .75rem; }
+.muted { color: #666; font-size: 7.5pt; }
+tr { break-inside: avoid; }
+.report-toggle { margin: .75rem 0; }
+.report-toggle > summary { cursor: pointer; font-size: 9.5pt; font-weight: bold; color: #0f5132; padding: .35rem .6rem; border: 1px solid #ccc; border-radius: 4px; background: #f5f9f6; }
+.report-toggle[open] > summary { margin-bottom: .5rem; }
+@media print { .day-selector, .no-print { display: none; } .report-toggle:not([open]) { display: none; } body { padding: .5cm 1cm; } }
 </style>
 </head>
 <body>
@@ -173,6 +190,11 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
         <th>Mode</th><td><?= htmlspecialchars($modeLine, ENT_QUOTES, 'UTF-8') ?></td>
     </tr>
 </table>
+
+<details class="report-toggle">
+    <summary>Report</summary>
+    <?php require __DIR__ . '/../templates/event_report.php'; ?>
+</details>
 
 <?php if (!empty($dates)): ?>
 <div class="day-selector no-print">

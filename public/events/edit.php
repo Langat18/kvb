@@ -148,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
         'sessions'                  => $_POST['sessions'] ?? [],
+        'presentations'             => $_POST['presentations'] ?? [],
     ];
 
     try {
@@ -235,6 +236,10 @@ if (isset($formData['sessions'])) {
 }
 
 $providerNameDisplay = empty($formData) ? ($event['provider_name'] ?? '') : '';
+
+$presentationsBySession = empty($formData)
+    ? (new \VetBoard\SessionPresentation())->forEvent((int) $event['id'])
+    : (array) ($formData['presentations'] ?? []);
 
 $quizBySession = [];
 foreach ($sessionsForDisplay as $sw) {
@@ -450,6 +455,24 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                                     <input type="checkbox" id="late_signin_<?= $sidAttr ?>" name="sessions[<?= $sidAttr ?>][require_late_signin]" value="1" <?= (($sw['require_late_signin'] ?? true) ? 'checked' : '') ?> style="width:auto;">
                                     <label for="late_signin_<?= $sidAttr ?>" style="margin:0;font-weight:normal;">Require late sign-in</label>
                                 </div>
+                            </div>
+                            <?php $presRows = array_values(array_filter((array) ($presentationsBySession[$sw['id']] ?? []), 'is_array')); ?>
+                            <div class="presentations" data-sid="<?= $sidAttr ?>">
+                                <div class="presentations-title">Presentations</div>
+                                <input type="hidden" name="presentations[<?= $sidAttr ?>][_marker]" value="1">
+                                <div class="presentation-list">
+                                    <?php foreach ($presRows as $pi => $p): ?>
+                                    <div class="presentation-row" data-pidx="<?= $pi ?>">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][presenter]" value="<?= htmlspecialchars((string) ($p['presenter'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Presenter" maxlength="150" aria-label="Presenter">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][reg_no]" value="<?= htmlspecialchars((string) ($p['reg_no'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][topic]" value="<?= htmlspecialchars((string) ($p['topic'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Topic" maxlength="255" aria-label="Topic">
+                                        <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][start_time]" value="<?= htmlspecialchars(substr((string) ($p['start_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="Start time">
+                                        <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][end_time]" value="<?= htmlspecialchars(substr((string) ($p['end_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="End time">
+                                        <button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <button type="button" class="btn btn-ghost btn-sm add-presentation-btn">+ Add Presentation</button>
                             </div>
                             <button type="button" class="btn btn-ghost btn-sm remove-session-btn">Remove Session</button>
                         </div>
