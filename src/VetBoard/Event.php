@@ -58,6 +58,8 @@ class Event
             $eventId = (int) $stmt->fetchColumn();
 
             $sessionIdMap = $this->saveSessions($eventId, $data['sessions'] ?? []);
+            (new SessionPresentation($this->pdo))->save($data['presentations'] ?? [], $sessionIdMap, $data['sessions'] ?? []);
+            (new PresenterBonus($this->pdo))->reconcile($eventId);
 
             $this->pdo->commit();
 
@@ -103,6 +105,8 @@ class Event
             ]);
 
             $sessionIdMap = $this->saveSessions($id, $data['sessions'] ?? []);
+            (new SessionPresentation($this->pdo))->save($data['presentations'] ?? [], $sessionIdMap, $data['sessions'] ?? []);
+            (new PresenterBonus($this->pdo))->reconcile($id);
 
             $this->pdo->commit();
 
