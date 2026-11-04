@@ -378,9 +378,9 @@ class Registration
         );
         $pointsStmt->execute([':session_id' => $sessionId, ':event_id' => $row['event_id']]);
         $sessionRow    = $pointsStmt->fetch();
-        $sessionPoints = $sessionRow ? (int) $sessionRow['points'] : 0;
+        $sessionTenths = $sessionRow ? Points::tenths($sessionRow['points']) : 0;
 
-        if ($sessionPoints <= 0) {
+        if ($sessionTenths <= 0) {
             return;
         }
 
@@ -395,10 +395,10 @@ class Registration
             ':event_id' => $row['event_id'],
             ':reg_no'   => $row['reg_no'],
         ]);
-        $awardedToday = (int) $todayStmt->fetchColumn();
+        $awardedToday = Points::tenths($todayStmt->fetchColumn());
 
-        $remaining = max(0, 8 - $awardedToday);
-        $toAward   = min($sessionPoints, $remaining);
+        $remaining = max(0, Points::DAILY_CAP_TENTHS - $awardedToday);
+        $toAward   = min($sessionTenths, $remaining);
 
         if ($toAward <= 0) {
             return;
@@ -412,7 +412,7 @@ class Registration
             ':attendance_id' => $attendanceId,
             ':reg_no'        => $row['reg_no'],
             ':event_id'      => $row['event_id'],
-            ':points'        => $toAward,
+            ':points'        => number_format($toAward / 10, 1, '.', ''),
             ':reason'        => ($sessionRow['label'] ?? 'Session') . ' attendance',
         ]);
     }

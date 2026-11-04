@@ -10,7 +10,7 @@ use Throwable;
 
 final class ManualPoints
 {
-    public const DAILY_CAP = 8;
+    public const DAILY_CAP = Points::DAILY_CAP;
 
     private PDO $pdo;
 
@@ -19,20 +19,20 @@ final class ManualPoints
         $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
-    /** @return array{ok: bool, message: string} */
     public function award(
         int $eventId,
         string $regNo,
         int $sessionId,
         string $date,
-        int $points,
+        int|float|string $points,
         string $reason,
         ?int $staffId
     ): array {
         $reason = trim($reason);
+        $tenths = Points::parseTenths($points);
 
-        if ($points < 1 || $points > self::DAILY_CAP) {
-            return $this->result(false, 'Points must be between 1 and ' . self::DAILY_CAP . '.');
+        if ($tenths === null || $tenths < 1 || $tenths > Points::DAILY_CAP_TENTHS) {
+            return $this->result(false, 'Points must be between 0.1 and ' . self::DAILY_CAP . ', with at most one decimal place.');
         }
 
         if (mb_strlen($reason) < 3 || mb_strlen($reason) > 150) {
@@ -80,13 +80,13 @@ final class ManualPoints
                 return $this->fail('That session takes place on ' . date('d M Y', strtotime($session['session_date'])) . '.');
             }
 
-            $earned = (int) $this->scalar(
+            $earned = Points::tenths($this->scalar(
                 'SELECT COALESCE(SUM(pl.points), 0)
                  FROM points_ledger pl
                  JOIN attendance a ON a.id = pl.attendance_id
                  WHERE a.registration_id = :registration AND a.attendance_date = :day AND a.session_id = :session',
                 [':registration' => $registration['id'], ':day' => $date, ':session' => $sessionId]
-            );
+            ));
 
             if ($earned > 0) {
                 return $this->fail('This attendee already earned points for that session on that day.');
@@ -103,7 +103,7 @@ final class ManualPoints
                 return $this->fail('A manual award already exists for that session and day. Remove it first to change it.');
             }
 
-            $dayTotal = (int) $this->scalar(
+            $dayTotal = Points::tenths($this->scalar(
                 "SELECT COALESCE(SUM(pl.points), 0)
                  FROM points_ledger pl
                  LEFT JOIN attendance a ON a.id = pl.attendance_id
@@ -111,13 +111,15 @@ final class ManualPoints
                    AND ((pl.kind = 'attendance' AND a.attendance_date = :signin_day)
                      OR (pl.kind = 'manual_award' AND pl.bonus_date = :manual_day))",
                 [':event' => $eventId, ':reg' => $regNo, ':signin_day' => $date, ':manual_day' => $date]
-            );
+            ));
 
-            $remaining = self::DAILY_CAP - $dayTotal;
+            $remaining = Points::DAILY_CAP_TENTHS - $dayTotal;
 
-            if ($points > $remaining) {
+            if ($tenths > $remaining) {
+                $left = Points::format(Points::fromTenths(max(0, $remaining)));
+
                 return $this->fail($remaining > 0
-                    ? "Only {$remaining} more point(s) can be added for that day (daily limit " . self::DAILY_CAP . ').'
+                    ? "Only {$left} more point(s) can be added for that day (daily limit " . self::DAILY_CAP . ').'
                     : 'The daily limit of ' . self::DAILY_CAP . ' points has already been reached for that day.');
             }
 
@@ -129,7 +131,7 @@ final class ManualPoints
             $entry->execute([
                 ':reg'     => $regNo,
                 ':event'   => $eventId,
-                ':points'  => $points,
+                ':points'  => number_format($tenths / 10, 1, '.', ''),
                 ':reason'  => mb_substr('Manual award: ' . $session['label'] . ' (' . date('d M', strtotime($date)) . ') - ' . $reason, 0, 255),
                 ':day'     => $date,
                 ':session' => $sessionId,
@@ -147,15 +149,17 @@ final class ManualPoints
             return $this->result(false, 'A system error occurred. Please try again.');
         }
 
+        $label = Points::format($tenths / 10);
+
         error_log(sprintf(
-            'Manual points: staff %d awarded %d to %s, event %d, session %d, day %s',
-            (int) $staffId, $points, $regNo, $eventId, $sessionId, $date
+            'Manual points: staff %d awarded %s to %s, event %d, session %d, day %s',
+            (int) $staffId, $label, $regNo, $eventId, $sessionId, $date
         ));
 
-        return $this->result(true, ($points === 1 ? '1 point' : "{$points} points") . ' added.');
+        return $this->result(true, ($label === '1' ? '1 point' : "{$label} points") . ' added.');
     }
 
-    /** @return array{ok: bool, message: string} */
+   
     public function remove(int $eventId, string $regNo, int $ledgerId, ?int $staffId): array
     {
         try {
@@ -176,8 +180,8 @@ final class ManualPoints
         }
 
         error_log(sprintf(
-            'Manual points: staff %d removed %d from %s, event %d (%s)',
-            (int) $staffId, (int) $row['points'], $regNo, $eventId, $row['reason']
+            'Manual points: staff %d removed %s from %s, event %d (%s)',
+            (int) $staffId, Points::format($row['points']), $regNo, $eventId, $row['reason']
         ));
 
         return $this->result(true, 'Manual points removed.');

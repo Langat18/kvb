@@ -130,7 +130,7 @@ class Event
             $label     = trim($s['label'] ?? '');
             $startTime = $s['start_time'] ?? '';
             $endTime   = $s['end_time'] ?? '';
-            $points    = (int) ($s['points'] ?? 0);
+            $points    = number_format((float) (Points::parse($s['points'] ?? 0) ?? 0), 1, '.', '');
             $sortOrder = (int) ($s['sort_order'] ?? 0);
             $sessionDate = $this->normalizeSessionDate($s['session_date'] ?? '');
             $requireLateSignin = !empty($s['require_late_signin']) ? 'true' : 'false';
@@ -435,7 +435,7 @@ class Event
             $label     = trim($s['label'] ?? '');
             $startTime = $s['start_time'] ?? '';
             $endTime   = $s['end_time'] ?? '';
-            $points    = (int) ($s['points'] ?? 0);
+            $points    = Points::parse($s['points'] ?? 0);
 
             if ($label === '' || $startTime === '' || $endTime === '') {
                 continue;
@@ -443,6 +443,10 @@ class Event
 
             if ($endTime <= $startTime) {
                 throw new \InvalidArgumentException("Session \"{$label}\": end time must be after start time.");
+            }
+
+            if ($points === null) {
+                throw new \InvalidArgumentException("Session \"{$label}\": points must be a number with at most one decimal place.");
             }
 
             if ($points < 0) {
@@ -473,7 +477,7 @@ class Event
             throw new \InvalidArgumentException('At least one session is required.');
         }
 
-        $pointsTotal = $recurringTotal + ($datedTotals ? max($datedTotals) : 0);
+        $pointsTotal = round($recurringTotal + ($datedTotals ? max($datedTotals) : 0), 1);
 
         if ($pointsTotal > 8) {
             throw new \InvalidArgumentException('Total points on any single day cannot exceed 8.');
@@ -614,7 +618,7 @@ class Event
                 'SELECT COALESCE(SUM(points), 0) FROM points_ledger WHERE event_id = :event_id AND reg_no = :reg_no'
             );
             $ptsStmt->execute([':event_id' => $eventId, ':reg_no' => $participant['reg_no']]);
-            $participant['points_earned'] = (int) $ptsStmt->fetchColumn();
+            $participant['points_earned'] = (float) $ptsStmt->fetchColumn();
         }
         unset($participant);
 

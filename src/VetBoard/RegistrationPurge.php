@@ -16,7 +16,7 @@ final class RegistrationPurge
         $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
-    /** @return array{name: string, signins: int, points: int}|null */
+    /** @return array{name: string, signins: int, points: float}|null */
     public function summary(int $eventId, string $regNo): ?array
     {
         $stmt = $this->pdo->prepare(
@@ -44,7 +44,7 @@ final class RegistrationPurge
         return [
             'name'    => (string) $registration['name'],
             'signins' => (int) $signins->fetchColumn(),
-            'points'  => (int) $points->fetchColumn(),
+            'points'  => (float) $points->fetchColumn(),
         ];
     }
 
@@ -98,8 +98,8 @@ final class RegistrationPurge
             $manual->execute([':event' => $eventId, ':reg' => $regNo]);
             $manualRows = $manual->fetchAll();
 
-            $points = array_sum(array_map('intval', array_column($attendance, 'points')))
-                + array_sum(array_map('intval', array_column($manualRows, 'points')));
+            $points = array_sum(array_map('floatval', array_column($attendance, 'points')))
+                + array_sum(array_map('floatval', array_column($manualRows, 'points')));
 
             $audit = $this->pdo->prepare(
                 'INSERT INTO registration_deletions
