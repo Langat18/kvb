@@ -108,12 +108,12 @@ class Participant
         return $stmt->fetchAll();
     }
 
-    public function totalPoints(string $regNo): int
+    public function totalPoints(string $regNo): float
     {
         $stmt = $this->pdo->prepare('SELECT COALESCE(SUM(points), 0) FROM points_ledger WHERE reg_no = :reg_no');
         $stmt->execute([':reg_no' => strtoupper(trim($regNo))]);
 
-        return (int) $stmt->fetchColumn();
+        return (float) $stmt->fetchColumn();
     }
 
     public function findByRegNo(string $regNo): ?array

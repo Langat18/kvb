@@ -60,7 +60,7 @@ if ($format === 'excel') {
         $sheet->setCellValue('A' . $row, $s['title']);
         $sheet->setCellValue('B' . $row, date('d M Y', strtotime($s['start_date'])));
         $sheet->setCellValue('C' . $row, $s['reason'] ?? '');
-        $sheet->setCellValue('D' . $row, (int) $s['points']);
+        $sheet->setCellValue('D' . $row, (float) $s['points']);
     }
 
     $totalRow = count($summary) + 6;
@@ -159,7 +159,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                 <td><?= htmlspecialchars($s['title'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= date('d M Y', strtotime($s['start_date'])) ?></td>
                 <td><?= htmlspecialchars($s['reason'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                <td style="text-align:right;"><?= (int) $s['points'] ?></td>
+                <td style="text-align:right;"><?= \VetBoard\Points::format($s['points']) ?></td>
             </tr>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -167,7 +167,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
     <tfoot>
         <tr>
             <td colspan="3" class="total-row-label">Total Points</td>
-            <td style="text-align:right;"><?= $total ?></td>
+            <td style="text-align:right;"><?= \VetBoard\Points::format($total) ?></td>
         </tr>
     </tfoot>
 </table>

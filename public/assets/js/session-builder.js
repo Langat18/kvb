@@ -20,7 +20,7 @@
             '</div>' +
             '<div class="form-group">' +
             '<label>Points</label>' +
-            '<input type="number" min="0" class="session-points-input" name="sessions[' + sid + '][points]" value="' + (points != null ? points : 0) + '">' +
+            '<input type="number" min="0" class="session-points-input" step="0.1" name="sessions[' + sid + '][points]" value="' + (points != null ? points : 0) + '">' +
             '</div>' +
             '<div class="form-group">' +
             '<label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>' +
@@ -68,7 +68,7 @@
         var inputs = document.querySelectorAll('.session-points-input');
         var recurring = 0, byDate = {}, total = 0;
         inputs.forEach(function (i) {
-            var pts = parseInt(i.value, 10) || 0;
+            var pts = Math.round((parseFloat(i.value) || 0) * 10);
             var row = i.closest('.session-row');
             var dEl = row ? row.querySelector('input[type="date"]') : null;
             var d = dEl ? dEl.value : '';
@@ -79,12 +79,12 @@
         total = recurring + maxDay;
         var submit = document.getElementById('submit-btn');
         if (submit) {
-            submit.disabled = total > 8;
+            submit.disabled = total > 80;
         }
         var span = document.getElementById('points-total');
         if (span) {
-            span.textContent = 'Highest daily total: ' + total + ' / 8';
-            span.style.color = total > 8 ? 'var(--kvb-red-dark)' : 'var(--text-muted)';
+            span.textContent = 'Highest daily total: ' + (total / 10) + ' / 8';
+            span.style.color = total > 80 ? 'var(--kvb-red-dark)' : 'var(--text-muted)';
         }
     }
 
