@@ -104,7 +104,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <tr><th>Name</th><td><?= $h($summary['name']) ?></td></tr>
             <tr><th>Registration No.</th><td><?= $h($regNo) ?></td></tr>
             <tr><th>Sign-ins to be deleted</th><td><?= $summary['signins'] ?></td></tr>
-            <tr><th>Points to be removed</th><td><?= $summary['points'] ?></td></tr>
+            <tr><th>Points to be removed</th><td><?= \VetBoard\Points::format($summary['points']) ?></td></tr>
         </table>
 
         <p style="font-size:.85rem;margin-bottom:1rem;">

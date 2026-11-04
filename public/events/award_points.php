@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $regNo,
             (int) $values['session_id'],
             $values['date'],
-            (int) $values['points'],
+            $values['points'],
             $values['reason'],
             $staffId
         );
@@ -138,7 +138,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <?php foreach ($sessions as $s): ?>
                         <option value="<?= (int) $s['id'] ?>"
                                 data-date="<?= $h((string) ($s['session_date'] ?? '')) ?>"
-                                data-points="<?= (int) $s['points'] ?>"
+                                data-points="<?= \VetBoard\Points::format($s['points']) ?>"
                                 <?= (string) $values['session_id'] === (string) $s['id'] ? 'selected' : '' ?>>
                             <?= $h((string) $s['label']) ?> (<?= $s['session_date'] ? $h(date('d M', strtotime($s['session_date']))) : 'every day' ?>)
                         </option>
@@ -153,7 +153,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             </div>
             <div class="form-group">
                 <label for="points">Points (maximum <?= ManualPoints::DAILY_CAP ?> per day)</label>
-                <input type="number" id="points" name="points" min="1" max="<?= ManualPoints::DAILY_CAP ?>" step="1" required
+                <input type="number" id="points" name="points" min="0.1" max="<?= ManualPoints::DAILY_CAP ?>" step="0.1" required
                        value="<?= $h($values['points']) ?>">
             </div>
             <div class="form-group">
@@ -177,7 +177,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <tr>
                             <td><?= $h((string) ($a['label'] ?? '')) ?></td>
                             <td><?= $h(date('d M Y', strtotime($a['day']))) ?></td>
-                            <td><?= (int) $a['points'] ?></td>
+                            <td><?= \VetBoard\Points::format($a['points']) ?></td>
                             <td><?= $h((string) $a['reason']) ?></td>
                             <td>
                                 <form method="POST" action="<?= $h($selfUrl) ?>" onsubmit="return confirm('Remove these points?');">

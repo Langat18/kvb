@@ -36,6 +36,7 @@ $dates = $registrationModel->attendanceDatesForEvent((int) $event['id']);
 $selectedDate = $_GET['date'] ?? $dates[0] ?? date('Y-m-d');
 
 $rows = $registrationModel->attendanceRowsForDate((int) $event['id'], $selectedDate);
+$register = \VetBoard\DailyRegister::build($rows, $eventModel->getSessions((int) $event['id'], false), $selectedDate);
 
 $startDate     = date('d M Y', strtotime($event['start_date']));
 $endDate       = date('d M Y', strtotime($event['end_date']));
@@ -70,39 +71,42 @@ if (($_GET['format'] ?? '') === 'excel') {
     $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
     $sheet->getStyle('A3')->getFont()->setItalic(true)->setSize(9);
 
-    $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Cadre', 'Session', 'Method', 'Location', 'Points'];
+    $columns = $register['sessions'];
+    $headers = array_merge(
+        ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Cadre'],
+        array_column($columns, 'label'),
+        ['Method', 'Points']
+    );
+    $coord = static fn(int $n): string => \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($n);
+
     foreach ($headers as $idx => $h) {
-        $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($idx + 1) . '5';
-        $sheet->setCellValue($cell, $h);
+        $cell = $coord($idx + 1) . '5';
+        $sheet->setCellValue($cell, \VetBoard\Security::excelSafe((string) $h));
         $sheet->getStyle($cell)->getFont()->setBold(true);
         $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB('D9D9D9');
     }
 
     $rowNum = 6;
-    foreach ($rows as $i => $r) {
-        $cadreKey = $r['cadre'] ?? '';
+    foreach ($register['people'] as $i => $p) {
+        $sheet->setCellValue('A' . $rowNum, $i + 1);
+        $sheet->getCell('B' . $rowNum)->setValueExplicit((string) $p['reg_no'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('C' . $rowNum, \VetBoard\Security::excelSafe($p['name']));
+        $sheet->setCellValue('D' . $rowNum, \VetBoard\Security::excelSafe($p['email']));
+        $sheet->getCell('E' . $rowNum)->setValueExplicit(\VetBoard\Security::excelSafe($p['phone']), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('F' . $rowNum, $cadreLabels[$p['cadre']] ?? $p['cadre']);
 
-        if ($r['method'] === 'onsite') {
-            $location = $r['flagged'] ? 'Flagged (' . (int) $r['distance_m'] . 'm)' : 'Verified';
-        } else {
-            $location = '-';
+        foreach ($columns as $k => $col) {
+            $sheet->setCellValue($coord(7 + $k) . $rowNum, \VetBoard\DailyRegister::cellValue($p['cells'][$col['id']] ?? null));
         }
 
-        $sheet->setCellValue('A' . $rowNum, $i + 1);
-        $sheet->getCell('B' . $rowNum)->setValueExplicit((string) $r['reg_no'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-        $sheet->setCellValue('C' . $rowNum, \VetBoard\Security::excelSafe($r['name']));
-        $sheet->setCellValue('D' . $rowNum, \VetBoard\Security::excelSafe($r['email']));
-        $sheet->getCell('E' . $rowNum)->setValueExplicit(\VetBoard\Security::excelSafe($r['phone'] ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-        $sheet->setCellValue('F' . $rowNum, $cadreLabels[$cadreKey] ?? $cadreKey);
-        $sheet->setCellValue('G' . $rowNum, \VetBoard\Security::excelSafe($r['session_label'] ?? 'Unknown'));
-        $sheet->setCellValue('H' . $rowNum, ucfirst((string) $r['method']));
-        $sheet->setCellValue('I' . $rowNum, $location);
-        $sheet->setCellValue('J' . $rowNum, (int) $r['points_awarded']);
+        $sheet->setCellValue($coord(7 + count($columns)) . $rowNum, $p['method']);
+        $sheet->setCellValue($coord(8 + count($columns)) . $rowNum, $p['total']);
         $rowNum++;
     }
 
-    foreach (['A' => 5, 'B' => 12, 'C' => 28, 'D' => 28, 'E' => 15, 'F' => 20, 'G' => 18, 'H' => 10, 'I' => 16, 'J' => 8] as $col => $w) {
-        $sheet->getColumnDimension($col)->setWidth($w);
+    $widths = array_merge([5, 12, 28, 28, 15, 20], array_fill(0, count($columns), 12), [14, 10]);
+    foreach ($widths as $k => $w) {
+        $sheet->getColumnDimension($coord($k + 1))->setWidth($w);
     }
 
     \VetBoard\EventReport::appendSheets($spreadsheet, $programme, $cadreStats);
@@ -150,6 +154,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
 .total-row td { font-weight: bold; background: #e8f1ec !important; }
 .note { font-size: 7.5pt; color: #666; margin: -.5rem 0 .75rem; }
 .muted { color: #666; font-size: 7.5pt; }
+.mark-none { color: #999; }
 tr { break-inside: avoid; }
 .report-toggle { margin: .75rem 0; }
 .report-toggle > summary { cursor: pointer; font-size: 9.5pt; font-weight: bold; color: #0f5132; padding: .35rem .6rem; border: 1px solid #ccc; border-radius: 4px; background: #f5f9f6; }
@@ -213,40 +218,35 @@ tr { break-inside: avoid; }
 <table class="att-table">
     <thead>
         <tr>
-            <th>#</th><th>Reg No</th><th>Full Name</th>
-            <th>Email</th><th>Phone</th><th>Session</th><th>Method</th><th>Location</th><th>Points</th>
+            <th>#</th><th>Reg No</th><th>Full Name</th><th>Email</th><th>Phone</th>
+            <?php foreach ($register['sessions'] as $col): ?>
+                <th class="num"><?= htmlspecialchars($col['label'], ENT_QUOTES, 'UTF-8') ?></th>
+            <?php endforeach; ?>
+            <th>Method</th><th class="num">Points</th>
         </tr>
     </thead>
     <tbody>
-        <?php if (empty($rows)): ?>
-            <tr><td colspan="9" style="text-align:center;padding:.6rem;color:#888;">No attendance records for this date.</td></tr>
+        <?php if (empty($register['people'])): ?>
+            <tr><td colspan="<?= 7 + count($register['sessions']) ?>" style="text-align:center;padding:.6rem;color:#888;">No attendance records for this date.</td></tr>
         <?php else: ?>
-            <?php foreach ($rows as $i => $r): ?>
+            <?php foreach ($register['people'] as $i => $p): ?>
             <tr>
                 <td><?= $i + 1 ?></td>
-                <td><?= htmlspecialchars($r['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars($r['email'], ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars($r['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= htmlspecialchars($r['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
-                <td><?= ucfirst($r['method']) ?></td>
-                <td>
-                    <?php if ($r['method'] === 'onsite'): ?>
-                        <?php if ($r['flagged']): ?>
-                            <span class="check-flag">&#9888; <?= (int) $r['distance_m'] ?>m</span>
-                        <?php else: ?>
-                            <span class="check-yes">&#10003;</span>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        &mdash;
-                    <?php endif; ?>
-                </td>
-                <td style="text-align:center;font-weight:bold;color:#0f5132;"><?= (int) $r['points_awarded'] ?></td>
+                <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($p['email'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($p['phone'], ENT_QUOTES, 'UTF-8') ?></td>
+                <?php foreach ($register['sessions'] as $col): $cell = $p['cells'][$col['id']] ?? null; ?>
+                    <td class="num <?= \VetBoard\DailyRegister::cellClass($cell) ?>"><?= htmlspecialchars(\VetBoard\DailyRegister::cellText($cell), ENT_QUOTES, 'UTF-8') ?></td>
+                <?php endforeach; ?>
+                <td><?= htmlspecialchars($p['method'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td class="num" style="font-weight:bold;color:#0f5132;"><?= \VetBoard\Points::format($p['total']) ?></td>
             </tr>
             <?php endforeach; ?>
         <?php endif; ?>
     </tbody>
 </table>
+<p class="note"><?= count($register['people']) ?> attendee(s) signed in on this day.</p>
 
 <div class="footer">Kenya Veterinary Board &mdash; Printed by <?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?> on <?= date('d M Y') ?></div>
 

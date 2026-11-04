@@ -50,7 +50,7 @@ if ($format === 'excel') {
         $sheet->setCellValue('B' . $row, $p['reg_no']);
         $sheet->setCellValue('C' . $row, Security::excelSafe($p['name']));
         $sheet->setCellValue('D' . $row, $cadreLabels[$p['cadre']] ?? $p['cadre']);
-        $sheet->setCellValue('E' . $row, (int) $p['total_points']);
+        $sheet->setCellValue('E' . $row, (float) $p['total_points']);
     }
 
     foreach (['A' => 5, 'B' => 14, 'C' => 28, 'D' => 26, 'E' => 14] as $col => $w) {
@@ -124,7 +124,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
-                    <td class="points-value"><?= (int) $p['total_points'] ?></td>
+                    <td class="points-value"><?= \VetBoard\Points::format($p['total_points']) ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

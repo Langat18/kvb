@@ -212,7 +212,7 @@ if (isset($formData['sessions'])) {
             'label'      => $s['label'] ?? '',
             'start_time' => $s['start_time'] ?? '',
             'end_time'   => $s['end_time'] ?? '',
-            'points'     => (int) ($s['points'] ?? 0),
+            'points'     => (string) ($s['points'] ?? 0),
             'session_date' => $s['session_date'] ?? '',
             'require_late_signin' => !empty($s['require_late_signin']),
             'signin_lead_minutes'  => $s['signin_lead_minutes'] ?? '',
@@ -226,7 +226,7 @@ if (isset($formData['sessions'])) {
             'label'      => $row['label'],
             'start_time' => substr($row['start_time'], 0, 5),
             'end_time'   => substr($row['end_time'], 0, 5),
-            'points'     => (int) $row['points'],
+            'points'     => \VetBoard\Points::format($row['points']),
             'session_date' => $row['session_date'] ?? '',
             'require_late_signin' => array_key_exists('require_late_signin', $row) ? (bool) $row['require_late_signin'] : true,
             'signin_lead_minutes'  => $row['signin_lead_minutes'] ?? '',
@@ -437,7 +437,7 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                                 </div>
                                 <div class="form-group">
                                     <label>Points</label>
-                                    <input type="number" min="0" class="session-points-input" name="sessions[<?= $sidAttr ?>][points]" value="<?= (int) $sw['points'] ?>">
+                                    <input type="number" min="0" class="session-points-input" name="sessions[<?= $sidAttr ?>][points]" step="0.1" value="<?= htmlspecialchars((string) $sw['points'], ENT_QUOTES, 'UTF-8') ?>">
                                 </div>
                                 <div class="form-group">
                                     <label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>

@@ -73,8 +73,8 @@ $providerAcc  = $event['provider_accreditation_no'] ?: '-';
 $sessionPointsRows = $eventModel->getSessions((int) $event['id']);
 $pointsParts       = [];
 foreach ($sessionPointsRows as $sw) {
-    if ((int) $sw['points'] > 0) {
-        $pointsParts[] = $sw['label'] . ': ' . (int) $sw['points'];
+    if ((float) $sw['points'] > 0) {
+        $pointsParts[] = $sw['label'] . ': ' . \VetBoard\Points::format($sw['points']);
     }
 }
 $pointsLine = !empty($pointsParts) ? implode(', ', $pointsParts) : '-';
@@ -268,7 +268,7 @@ if ($format === 'excel') {
         $sheet->setCellValue('D' . $row, Security::excelSafe($p['email']));
         $sheet->getCell('E' . $row)->setValueExplicit(Security::excelSafe($p['phone'] ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         $sheet->setCellValue('F' . $row, $sessionsSigned);
-        $sheet->setCellValue('G' . $row, (int) ($p['points_earned'] ?? 0));
+        $sheet->setCellValue('G' . $row, (float) ($p['points_earned'] ?? 0));
         $modeParts   = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrModeLabel($a['method'] ?? ''), $p['attendance']);
         $statusParts = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrStatus($a), $p['attendance']);
         $statusLines = array_map(
@@ -400,7 +400,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                 <td><?= htmlspecialchars($p['email'], ENT_QUOTES, 'UTF-8') ?></td>
                 <td><?= htmlspecialchars($p['phone'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                 <td style="text-align:center;"><?= $sessionsSigned ?></td>
-                <td style="text-align:center;font-weight:600;"><?= (int) ($p['points_earned'] ?? 0) ?></td>
+                <td style="text-align:center;font-weight:600;"><?= \VetBoard\Points::format($p['points_earned'] ?? 0) ?></td>
                 <td>
                     <?php if (empty($p['attendance'])): ?>
                         &mdash;

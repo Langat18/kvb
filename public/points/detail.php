@@ -70,7 +70,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
         </div>
         <div style="text-align:right;">
             <div class="app-card total-badge">
-                <div class="num"><?= $total ?></div>
+                <div class="num"><?= \VetBoard\Points::format($total) ?></div>
                 <div class="label">Total Points</div>
             </div>
             <a href="/points/print.php?reg_no=<?= urlencode($participant['reg_no']) ?>" class="btn btn-ghost btn-sm" target="_blank" style="margin-top:.5rem;display:inline-block;">Print Statement</a>
@@ -97,7 +97,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <td><?= htmlspecialchars($s['title'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= date('d M Y', strtotime($s['start_date'])) ?></td>
                     <td><?= htmlspecialchars($s['reason'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
-                    <td class="points-value"><?= (int) $s['points'] ?></td>
+                    <td class="points-value"><?= \VetBoard\Points::format($s['points']) ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

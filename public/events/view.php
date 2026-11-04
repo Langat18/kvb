@@ -152,12 +152,12 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <tr>
                     <th>Points per Session</th>
                     <td class="points-breakdown">
-                        <?php if (empty($sessionPointsRows) || array_sum(array_column($sessionPointsRows, 'points')) === 0): ?>
+                        <?php if (empty($sessionPointsRows) || array_sum(array_column($sessionPointsRows, 'points')) <= 0): ?>
                             —
                         <?php else: ?>
                             <?php foreach ($sessionPointsRows as $sw): ?>
-                                <?php if ((int) $sw['points'] > 0): ?>
-                                    <span><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?>: <?= (int) $sw['points'] ?></span>
+                                <?php if ((float) $sw['points'] > 0): ?>
+                                    <span><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?>: <?= \VetBoard\Points::format($sw['points']) ?></span>
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -228,7 +228,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                             </div>
                         <?php endif; ?>
                     </td>
-                    <td style="font-weight:600;color:var(--kvb-green-dark);"><?= (int) ($p['points_earned'] ?? 0) ?></td>
+                    <td style="font-weight:600;color:var(--kvb-green-dark);"><?= \VetBoard\Points::format($p['points_earned'] ?? 0) ?></td>
                     <?php if ($rowActions): ?><td class="row-actions-cell"><?php require __DIR__ . '/../templates/attendee_actions.php'; ?></td><?php endif; ?>
                 </tr>
                 <?php endforeach; ?>

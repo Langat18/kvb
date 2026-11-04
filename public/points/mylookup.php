@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </p>
         </div>
         <div class="card stat-card" style="margin-bottom:var(--space-4);">
-            <div class="num"><?= $result['total'] ?></div>
+            <div class="num"><?= \VetBoard\Points::format($result['total']) ?></div>
             <div class="label">Total Points</div>
         </div>
         <div class="card card-flush">
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <tr>
                         <td><?= htmlspecialchars($s['title'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= date('d M Y', strtotime($s['start_date'])) ?></td>
-                        <td class="points-value"><?= (int) $s['points'] ?></td>
+                        <td class="points-value"><?= \VetBoard\Points::format($s['points']) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

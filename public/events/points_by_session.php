@@ -9,12 +9,13 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
 use VetBoard\Auth;
+use VetBoard\DailyRegister;
 use VetBoard\Event;
+use VetBoard\Registration;
+use VetBoard\Security;
 
 Auth::startSession();
 Auth::requireLogin();
-
-$user = Auth::user();
 
 if (empty($_GET['token'])) {
     http_response_code(400);
@@ -29,9 +30,9 @@ if (!$event) {
     die('Event not found.');
 }
 
-$pdo = VetBoard\Database::getInstance()->getPdo();
-
-$sessionWindows = $eventModel->getSessions((int) $event['id']);
+$eventId      = (int) $event['id'];
+$registration = new Registration();
+$pdo          = VetBoard\Database::getInstance()->getPdo();
 
 $datesStmt = $pdo->prepare(
     'SELECT DISTINCT a.attendance_date
@@ -40,53 +41,65 @@ $datesStmt = $pdo->prepare(
      WHERE r.event_id = :event_id
      ORDER BY a.attendance_date'
 );
-$datesStmt->execute([':event_id' => $event['id']]);
+$datesStmt->execute([':event_id' => $eventId]);
 $availableDates = array_column($datesStmt->fetchAll(), 'attendance_date');
 
-$defaultDate  = !empty($availableDates) ? end($availableDates) : date('Y-m-d');
-$selectedDate = $_GET['date'] ?? $defaultDate;
-if (!empty($availableDates) && !in_array($selectedDate, $availableDates, true)) {
+$defaultDate  = $availableDates !== [] ? end($availableDates) : date('Y-m-d');
+$selectedDate = (string) ($_GET['date'] ?? $defaultDate);
+
+if (
+    !preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)
+    || ($availableDates !== [] && !in_array($selectedDate, $availableDates, true))
+) {
     $selectedDate = $defaultDate;
 }
 
-$sessionWindows = array_values(array_filter(
-    $sessionWindows,
-    fn($sw) => empty($sw['session_date']) || $sw['session_date'] === $selectedDate
-));
+$rows     = $registration->attendanceRowsForDate($eventId, $selectedDate);
+$sessions = $eventModel->getSessions($eventId, false);
+$order    = [];
 
-$caseSql = [];
-foreach ($sessionWindows as $sw) {
-    $col = 's' . (int) $sw['id'];
-    $sid = (int) $sw['id'];
-    $caseSql[] = "COALESCE(SUM(CASE WHEN a.session_id = {$sid} THEN pl.points END), 0) AS \"{$col}\"";
+foreach ($sessions as $i => $s) {
+    $order[(int) $s['id']] = $i;
 }
-$caseSqlStr = implode(",\n    ", $caseSql);
 
-$sql = "
-    SELECT
-        p.reg_no,
-        p.name,
-        {$caseSqlStr},
-        COALESCE(SUM(pl.points), 0) AS total
-    FROM registrations r
-    JOIN participants p ON p.reg_no = r.reg_no
-    LEFT JOIN attendance a ON a.registration_id = r.id AND a.attendance_date = :date
-    LEFT JOIN points_ledger pl ON pl.attendance_id = a.id
-    WHERE r.event_id = :event_id
-    GROUP BY p.reg_no, p.name
-    ORDER BY p.name
-";
+usort($rows, static fn(array $a, array $b): int =>
+    strcasecmp((string) $a['name'], (string) $b['name'])
+    ?: strcmp((string) $a['reg_no'], (string) $b['reg_no'])
+    ?: (($order[(int) ($a['session_id'] ?? 0)] ?? PHP_INT_MAX) <=> ($order[(int) ($b['session_id'] ?? 0)] ?? PHP_INT_MAX)));
 
-$stmt = $pdo->prepare($sql);
-$stmt->execute([':date' => $selectedDate, ':event_id' => $event['id']]);
-$rows = $stmt->fetchAll();
+// Contact details follow the same permission as the attendance register.
+$showContact = Auth::can('print_attendance_register');
 
-$format = $_GET['format'] ?? 'print';
+$columns = [
+    ['label' => '#', 'width' => 500, 'value' => static fn(array $r, int $i): int => $i + 1],
+    ['label' => 'Reg No', 'width' => 1100, 'text' => true, 'value' => static fn(array $r, int $i): string => (string) $r['reg_no']],
+    ['label' => 'Full Name', 'width' => 2400, 'value' => static fn(array $r, int $i): string => (string) $r['name']],
+];
+
+if ($showContact) {
+    $columns[] = ['label' => 'Email', 'width' => 2600, 'value' => static fn(array $r, int $i): string => (string) ($r['email'] ?? '')];
+    $columns[] = ['label' => 'Phone', 'width' => 1300, 'text' => true, 'value' => static fn(array $r, int $i): string => (string) ($r['phone'] ?? '')];
+}
+
+$columns[] = ['label' => 'Session', 'width' => 1200, 'value' => static fn(array $r, int $i): string => (string) ($r['session_label'] ?? 'Unknown')];
+$columns[] = ['label' => 'Method', 'width' => 900, 'value' => static fn(array $r, int $i): string => ucfirst((string) $r['method'])];
+$columns[] = ['label' => 'Location', 'width' => 1300, 'value' => static function (array $r, int $i): string {
+    if ((string) $r['method'] !== 'onsite') {
+        return '-';
+    }
+
+    return DailyRegister::truthy($r['flagged'] ?? false) ? 'Flagged (' . (int) $r['distance_m'] . 'm)' : 'Verified';
+}];
+$columns[] = ['label' => 'Status', 'width' => 1300, 'value' => static fn(array $r, int $i): string => DailyRegister::status($r)];
+$columns[] = ['label' => 'Points', 'width' => 700, 'value' => static fn(array $r, int $i): float => (float) $r['points_awarded']];
 
 $startDate = date('d M Y', strtotime($event['start_date']));
 $endDate   = date('d M Y', strtotime($event['end_date']));
+$format    = $_GET['format'] ?? 'print';
 
 if ($format === 'word') {
+    \PhpOffice\PhpWord\Settings::setOutputEscapingEnabled(true);
+
     $phpWord = new \PhpOffice\PhpWord\PhpWord();
     $phpWord->setDefaultFontName('Arial');
     $phpWord->setDefaultFontSize(9);
@@ -99,106 +112,93 @@ if ($format === 'word') {
     $table = $section->addTable(['borderSize' => 6, 'borderColor' => '999999', 'cellMargin' => 80]);
 
     $table->addRow();
-    $table->addCell(1800)->addText('Reg No', ['bold' => true]);
-    $table->addCell(3000)->addText('Name', ['bold' => true]);
-    foreach ($sessionWindows as $sw) {
-        $table->addCell(1600)->addText($sw['label'], ['bold' => true]);
+    foreach ($columns as $c) {
+        $table->addCell($c['width'])->addText($c['label'], ['bold' => true]);
     }
-    $table->addCell(1200)->addText('Total', ['bold' => true]);
 
-    foreach ($rows as $row) {
+    foreach ($rows as $i => $r) {
         $table->addRow();
-        $table->addCell(1800)->addText($row['reg_no']);
-        $table->addCell(3000)->addText($row['name']);
-        foreach ($sessionWindows as $sw) {
-            $table->addCell(1600)->addText((string) $row['s' . (int) $sw['id']]);
+
+        foreach ($columns as $c) {
+            $v = ($c['value'])($r, $i);
+            $table->addCell($c['width'])->addText((string) $v);
         }
-        $table->addCell(1200)->addText((string) $row['total']);
     }
 
+    while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     header('Content-Disposition: attachment;filename="points_by_session_' . $selectedDate . '.docx"');
     header('Cache-Control: max-age=0');
 
-    $writer = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
-    $writer->save('php://output');
+    \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007')->save('php://output');
     exit;
 }
 
 if ($format === 'excel') {
+    $coord       = static fn(int $n): string => \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($n);
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-    $sheet = $spreadsheet->getActiveSheet();
+    $sheet       = $spreadsheet->getActiveSheet();
     $sheet->setTitle('Points by Session');
 
-    $headers = ['Reg No', 'Name'];
-    foreach ($sessionWindows as $sw) {
-        $headers[] = $sw['label'];
+    foreach ($columns as $n => $c) {
+        $sheet->setCellValue($coord($n + 1) . '1', $c['label']);
+        $sheet->getColumnDimension($coord($n + 1))->setAutoSize(true);
     }
-    $headers[] = 'Total';
 
-    $col = 'A';
-    foreach ($headers as $h) {
-        $sheet->setCellValue($col . '1', $h);
-        $col++;
-    }
-    $lastCol = $col;
+    $sheet->getStyle('A1:' . $coord(count($columns)) . '1')->getFont()->setBold(true);
 
-    $sheet->getStyle('A1:' . chr(ord($lastCol) - 1) . '1')->getFont()->setBold(true);
+    foreach ($rows as $i => $r) {
+        foreach ($columns as $n => $c) {
+            $addr = $coord($n + 1) . ($i + 2);
+            $v    = ($c['value'])($r, $i);
 
-    $row = 2;
-    foreach ($rows as $data) {
-        $col = 'A';
-        $sheet->setCellValue($col . $row, $data['reg_no']);
-        $col++;
-        $sheet->setCellValue($col . $row, $data['name']);
-        $col++;
-        foreach ($sessionWindows as $sw) {
-            $sheet->setCellValue($col . $row, (int) $data['s' . (int) $sw['id']]);
-            $col++;
+            if (is_int($v) || is_float($v)) {
+                $sheet->setCellValue($addr, $v);
+            } elseif (!empty($c['text'])) {
+                $sheet->getCell($addr)->setValueExplicit(Security::excelSafe($v), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            } else {
+                $sheet->setCellValue($addr, Security::excelSafe($v));
+            }
         }
-        $sheet->setCellValue($col . $row, (int) $data['total']);
-        $row++;
     }
 
-    $col = 'A';
-    while ($col !== $lastCol) {
-        $sheet->getColumnDimension($col)->setAutoSize(true);
-        $col++;
-    }
-
+    while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment;filename="points_by_session_' . $selectedDate . '.xlsx"');
     header('Cache-Control: max-age=0');
 
-    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-    $writer->save('php://output');
+    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet))->save('php://output');
     exit;
 }
+
+$h           = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+$people      = count(array_unique(array_column($rows, 'reg_no')));
+$totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_awarded')));
 ?>
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Points by Session — <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
+    <title>Points by Session — <?= $h($event['title']) ?></title>
     <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
         th, td { border: 1px solid #ccc; padding: .5rem .75rem; text-align: left; }
         th { background: #f2f2f2; }
-        .total-col { font-weight: 600; }
+        .summary { margin-top: .75rem; font-size: .85rem; color: #555; }
     </style>
 </head>
 <body style="padding:2rem;">
 
     <h2>Points by Session</h2>
-    <p><?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?> — <?= $startDate ?> to <?= $endDate ?></p>
+    <p><?= $h($event['title']) ?> — <?= $startDate ?> to <?= $endDate ?></p>
 
     <form method="GET" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center;">
-        <input type="hidden" name="token" value="<?= htmlspecialchars($_GET['token'], ENT_QUOTES, 'UTF-8') ?>">
+        <input type="hidden" name="token" value="<?= $h($_GET['token']) ?>">
         <label for="date">Date:</label>
         <select name="date" id="date" onchange="this.form.submit()">
             <?php foreach ($availableDates as $d): ?>
-                <option value="<?= $d ?>" <?= $d === $selectedDate ? 'selected' : '' ?>>
+                <option value="<?= $h($d) ?>" <?= $d === $selectedDate ? 'selected' : '' ?>>
                     <?= date('d M Y', strtotime($d)) ?>
                 </option>
             <?php endforeach; ?>
@@ -210,31 +210,27 @@ if ($format === 'excel') {
     <table>
         <thead>
             <tr>
-                <th>Reg No</th>
-                <th>Name</th>
-                <?php foreach ($sessionWindows as $sw): ?>
-                    <th><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></th>
-                <?php endforeach; ?>
-                <th>Total</th>
+                <?php foreach ($columns as $c): ?><th><?= $h($c['label']) ?></th><?php endforeach; ?>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($rows)): ?>
-                <tr><td colspan="<?= count($sessionWindows) + 3 ?>">No registrations found.</td></tr>
+                <tr><td colspan="<?= count($columns) ?>">No attendance records for this date.</td></tr>
             <?php else: ?>
-                <?php foreach ($rows as $row): ?>
+                <?php foreach ($rows as $i => $r): ?>
                     <tr>
-                        <td><?= htmlspecialchars($row['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><?= htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                        <?php foreach ($sessionWindows as $sw): ?>
-                            <td><?= (int) $row['s' . (int) $sw['id']] ?></td>
+                        <?php foreach ($columns as $c): ?>
+                            <td><?= $h((string) ($c['value'])($r, $i)) ?></td>
                         <?php endforeach; ?>
-                        <td class="total-col"><?= (int) $row['total'] ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
         </tbody>
     </table>
+
+    <?php if ($rows): ?>
+        <p class="summary"><?= count($rows) ?> sign-in(s) by <?= $people ?> attendee(s) &middot; <?= \VetBoard\Points::format($totalPoints) ?> point(s) awarded</p>
+    <?php endif; ?>
 
 </body>
 </html>
