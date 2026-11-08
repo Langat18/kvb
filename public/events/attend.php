@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $registration = $registrationModel->find((int) $event['id'], $regNo);
 
         if (!$registration) {
-            $fail('You are not registered for this event. Please register first.');
+            $fail('You are not registered for this event yet. Register first.');
         }
 
         $registrationId = (int) $registration['id'];
@@ -151,13 +151,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $deviceId = Auth::deviceId();
 
         if ($registrationModel->deviceConfirmedOther($today, $deviceId, $registrationId)) {
-            $fail('This device has already confirmed presence for a different registration number today.');
+            $fail('This device was already used for another registration number today.');
         }
 
         $method = $isHybrid ? ($_POST['day_method'] ?? '') : ($isPureOnsite ? 'onsite' : 'virtual');
 
         if (!in_array($method, ['onsite', 'virtual'], true)) {
-            $fail('Please select whether you are attending on-site or virtually.');
+            $fail('Choose on-site or virtual.');
         }
 
         $forwarded = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')[0]);
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $lng = $_POST['geo_lng'] ?? '';
 
             if ($lat === '' || $lng === '') {
-                $fail('Location access is required to confirm presence on-site.');
+                $fail('Allow location to confirm you are on-site.');
             }
 
             $geo = $eventModel->isWithinGeofence($event, (float) $lat, (float) $lng);
@@ -205,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isHybrid) {
         $method = $_POST['attendance_method'] ?? '';
         if (!in_array($method, ['onsite', 'virtual'], true)) {
-            $_SESSION['attend_error'] = 'Please select whether you are attending on-site or virtually.';
+            $_SESSION['attend_error'] = 'Choose on-site or virtual.';
             header('Location: /events/attend.php?token=' . urlencode($token));
             exit;
         }
@@ -219,14 +219,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $registration       = $registrationModel->find((int) $event['id'], $regNo);
 
     if (!$registration) {
-        $_SESSION['attend_error'] = 'You are not registered for this event. Please register first.';
+        $_SESSION['attend_error'] = 'You are not registered for this event yet. Register first.';
         header('Location: /events/register.php?token=' . urlencode($token));
         exit;
     }
 
     $sessionId = $sessionInfo['session_id'];
     if ($sessionId === null) {
-        $_SESSION['attend_error'] = 'Attendance can only be signed during a scheduled session window.';
+        $_SESSION['attend_error'] = 'Sign-in is only open during a session.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
     }
@@ -240,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $deviceId = Auth::deviceId();
 
     if ($registrationModel->deviceSignedDifferentReg($sessionId, $deviceId, (int) $registration['id'])) {
-        $_SESSION['attend_error'] = 'This device has already signed attendance for a different registration number in this session. Each device may only sign in one person per session.';
+        $_SESSION['attend_error'] = 'This device already signed in someone else for this session. One person per device.';
         header('Location: /events/attend.php?token=' . urlencode($token));
         exit;
     }
@@ -455,7 +455,7 @@ unset(
                                 Join <?= htmlspecialchars(meetingProviderLabel($attendMeetingProvider), ENT_QUOTES, 'UTF-8') ?>
                             </a>
                         <?php else: ?>
-                            <p style="font-size:.82rem;color:var(--kvb-red-dark);">No meeting link has been set for this event yet. Please contact the organizer.</p>
+                            <p style="font-size:.82rem;color:var(--kvb-red-dark);">No meeting link yet. Contact the organizer.</p>
                         <?php endif; ?>
 
                         <?php if ($attendQuizPending): ?>
@@ -503,7 +503,7 @@ unset(
                     <button type="submit" class="btn btn-secondary">Find Link</button>
                 </form>
                 <?php if ($existingRegNo !== '' && !$isRegisteredView): ?>
-                    <p style="font-size:.8rem;color:var(--kvb-red-dark);margin-top:.5rem;">No registration found for that number. Please check it or register first.</p>
+                    <p style="font-size:.8rem;color:var(--kvb-red-dark);margin-top:.5rem;">Number not found. Check it or register first.</p>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
@@ -612,7 +612,7 @@ unset(
             function denied() {
                 located = false;
                 status.style.display = '';
-                status.textContent = 'Location access is required to confirm presence on-site. Please enable location and reload this page.';
+                status.textContent = 'Allow location to confirm you are on-site, then reload.';
                 status.className = 'status-box denied';
                 btn.disabled = true;
             }
@@ -710,7 +710,7 @@ function onGeoSuccess(position) {
 
 function onGeoError() {
     if (deviceBlocked) { return; }
-    geoStatus.textContent = 'Location access is required to sign attendance on-site. Please enable location in your browser settings and reload this page.';
+    geoStatus.textContent = 'Turn on location in your browser settings, then reload this page.';
     geoStatus.className = 'status-box denied';
     submitBtn.disabled = true;
 }

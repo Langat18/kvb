@@ -195,7 +195,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <p class="empty-state">No participants have registered yet.</p>
         <?php else: ?>
         <div class="table-scroll">
-        <table class="data-table">
+        <table class="data-table roster">
             <thead>
                 <tr>
                     <th>Reg No</th>

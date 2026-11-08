@@ -133,7 +133,7 @@ if ($code === '') {
     }
 
     if ($pms['status'] === PmsClient::FOUND) {
-        $checks[] = ['ok', 'PMS knows this activity: "' . ($pmsData['title'] ?? '') . '"' . (!empty($pmsData['name_of_provider']) ? ' by ' . $pmsData['name_of_provider'] : '') . '.'];
+        $checks[] = ['ok', 'KVB has this activity: "' . ($pmsData['title'] ?? '') . '"' . (!empty($pmsData['name_of_provider']) ? ' by ' . $pmsData['name_of_provider'] : '') . '.'];
 
         $overlaps = false;
         foreach ($pmsData['schedules'] ?? [] as $s) {
@@ -145,9 +145,9 @@ if ($code === '') {
             ? ['ok', 'The event dates overlap a PMS schedule for this activity.']
             : ['warn', 'The event dates do not overlap any PMS schedule for this activity. Check the number is the right one.'];
     } elseif ($pms['status'] === PmsClient::NOT_FOUND) {
-        $checks[] = ['warn', 'PMS has no activity with the number "' . $code . '".'];
+        $checks[] = ['warn', 'KVB has no activity with the number "' . $code . '".'];
     } else {
-        $checks[] = ['warn', 'The activity number could not be checked with PMS just now (' . $pms['message'] . ').'];
+        $checks[] = ['warn', 'KVB could not be reached just now, so the activity number was not checked.'];
     }
 }
 
@@ -312,8 +312,8 @@ $activity   = (string) ($pmsData['title'] ?? '');
             <h2 id="pp-records">Records <span class="pp-sum">(<span id="pp-shown"><?= count($rows) ?></span> of <?= count($rows) ?>)</span></h2>
             <div class="pp-actions">
                 <?php if ($rows): ?><input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off"><?php endif; ?>
-                <a class="pp-btn primary" href="/events/pms_points.php?token=<?= $viewToken ?>&amp;format=json">Download payload (JSON)</a>
-                <button type="button" class="pp-btn" disabled title="Sending is switched off until KVB confirms the upload endpoint">Send to PMS</button>
+                <a class="pp-btn primary" href="/events/pms_points.php?token=<?= $viewToken ?>&amp;format=json">Download for KVB</a>
+                <button type="button" class="pp-btn" disabled title="Sending is not switched on yet">Send to KVB</button>
             </div>
         </div>
 
@@ -347,20 +347,10 @@ $activity   = (string) ($pmsData['title'] ?? '');
         <div class="pp-empty" id="pp-none" hidden>No records match your search.</div>
         </div>
         <div class="pp-foot">
-            <span>Each record is identified as <span class="pp-mono">CPD-<?= $eventId ?>-&lt;reg no&gt;</span>.</span>
-            <span>Sending to PMS is switched off.</span>
+            <span>Sending to KVB is not switched on yet.</span>
         </div>
         <?php endif; ?>
     </section>
-
-    <?php if ($records): ?>
-    <section class="pp-card">
-        <details>
-            <summary>Sample of the payload (first record)</summary>
-            <pre><?= $h(json_encode(($provider !== '' ? ['provider_name' => $provider] : []) + ['records' => [$records[0]]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?></pre>
-        </details>
-    </section>
-    <?php endif; ?>
 
 </div>
 </div>

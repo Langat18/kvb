@@ -308,7 +308,7 @@ $v = $formData;
                         <input type="checkbox" name="day_confirmation" value="1" style="width:auto;margin:0;" <?= !empty($v['day_confirmation']) ? 'checked' : '' ?>>
                         Confirm attendees on each event day
                     </label>
-                    <small style="color:var(--text-muted);">Attendees confirm their presence on every day of the event, separate from session sign-in and points.</small>
+                    <small style="color:var(--text-muted);">Attendees confirm presence each day, separate from session sign-in and points.</small>
                 </div>
             </div>
 
@@ -379,7 +379,7 @@ $v = $formData;
                 <div id="quiz-sessions-list"></div>
             </div>
 
-            <div style="margin-top:1.5rem;">
+            <div class="form-actions">
                 <button type="submit" class="btn btn-primary" id="submit-btn">Create Event</button>
             </div>
         </form>

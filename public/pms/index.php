@@ -218,7 +218,7 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
     <div class="pd-head">
         <div>
             <h1>PMS Activities</h1>
-            <p class="pd-lead">CPD activities and providers approved by the Kenya Veterinary Board, kept in step with PMS. Use them to plan the calendar and to create events with the right activity number.</p>
+            <p class="pd-lead">KVB-approved CPD activities and providers, synced from PMS. Create events with the right activity number.</p>
         </div>
         <form method="post" action="/pms/index.php">
             <input type="hidden" name="csrf_token" value="<?= $h($csrf) ?>">

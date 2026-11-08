@@ -34,6 +34,7 @@ $endDate   = date('d M Y', strtotime($event['end_date']));
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QR Code <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="stylesheet" href="/assets/css/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -68,6 +69,12 @@ h2 { font-size: 11pt; font-weight: normal; color: var(--text-main); margin-botto
 }
 .footer { font-size: 7.5pt; color: var(--text-muted); margin-top: 2rem; }
 @media print { body { padding: 1cm; } }
+@media screen and (max-width: 900px) {
+    body { padding: 1rem !important; }
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    form { flex-wrap: wrap; }
+    img { max-width: 100%; height: auto; }
+}
 </style>
 </head>
 <body>
