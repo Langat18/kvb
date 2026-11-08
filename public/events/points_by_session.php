@@ -179,14 +179,21 @@ $totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_award
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Points by Session — <?= $h($event['title']) ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Points by Session — <?= $h($event['title']) ?></title>
     <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
         th, td { border: 1px solid #ccc; padding: .5rem .75rem; text-align: left; }
         th { background: #f2f2f2; }
         .summary { margin-top: .75rem; font-size: .85rem; color: #555; }
-    </style>
+    @media screen and (max-width: 900px) {
+    body { padding: 1rem !important; }
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    form { flex-wrap: wrap; }
+    img { max-width: 100%; height: auto; }
+}
+</style>
 </head>
 <body style="padding:2rem;">
 

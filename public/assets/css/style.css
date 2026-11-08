@@ -923,3 +923,77 @@ body.has-app-sidebar .navbar-toggle { display: none; }
 
 .row-actions-cell { white-space: nowrap; }
 .row-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+
+
+/* ==========================================================================
+   UX foundation v2: consistent controls, responsive tables, safe overflow
+   ========================================================================== */
+:root {
+    --line: #e6e9ee;
+    --surface-2: #f7f8fa;
+    --focus: 0 0 0 3px rgba(26, 123, 50, .28);
+}
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+img, svg, video { max-width: 100%; }
+textarea { width: 100%; padding: .6rem .75rem; border: 1px solid #d8dde3; border-radius: 14px; font: inherit; font-size: .9rem; }
+button { font-family: inherit; }
+.card, .app-card, .page-with-sidebar > *, .chart-grid > *, .form-grid > * { min-width: 0; }
+h1, h2, h3 { overflow-wrap: anywhere; text-wrap: balance; }
+
+/* Controls */
+.btn, .btn-ghost, .btn-danger, .btn-success {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+    min-height: 40px; line-height: 1.25; text-align: center;
+}
+.btn-sm { min-height: 34px; }
+:is(a, button, input, select, textarea, summary):focus-visible { outline: none; box-shadow: var(--focus); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--kvb-green-soft); box-shadow: var(--focus); }
+@media (hover: none) and (pointer: coarse) {
+    .btn, .btn-ghost, .btn-danger, .btn-success { min-height: 44px; }
+    .btn-sm { min-height: 40px; }
+    input, select, textarea { min-height: 44px; font-size: 16px; }
+    .app-action-row, .tabs a, .pagination a, .pagination span.current { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Page headers and long titles */
+.page-header h1, .app-page-hero h1 { font-size: clamp(1.3rem, 1rem + 1.6vw, 2rem); line-height: 1.25; }
+.page-header, .app-page-hero { gap: .75rem 1rem; }
+
+/* Tables scroll inside their card instead of breaking the page */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.card-flush, .app-card.card-flush { overflow-x: auto; }
+.data-table th { white-space: nowrap; }
+.data-table td { overflow-wrap: anywhere; }
+
+/* Key/value tables read as stacked pairs on phones */
+@media (max-width: 640px) {
+    .list-table, .detail-table, .event-list { min-width: 0 !important; }
+    .detail-table, .detail-table tbody, .detail-table tr, .detail-table th, .detail-table td { display: block; width: 100%; }
+    .detail-table tr { padding: .5rem 0; border-bottom: 1px solid var(--line); }
+    .detail-table tr:last-child { border-bottom: 0; }
+    .detail-table th { padding: 0 0 .1rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+    .detail-table td { padding: 0; font-size: .92rem; }
+}
+
+/* Data tables become cards on phones (columns labelled by ui.js) */
+@media (max-width: 640px) {
+    table.data-table.rt-cards, .rt-cards thead, .rt-cards tbody, .rt-cards tr, .rt-cards td { display: block; width: 100%; }
+    .rt-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .rt-cards tr { padding: .75rem 1rem; border-bottom: 1px solid var(--line); }
+    .rt-cards tr:last-child { border-bottom: 0; }
+    .rt-cards td { display: flex; justify-content: space-between; gap: 1rem; padding: .3rem 0; border: 0; text-align: right; }
+    .rt-cards td::before { content: attr(data-label); flex: 0 0 38%; text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; padding-top: .15rem; }
+    .rt-cards td[data-label=""]::before, .rt-cards td:not([data-label])::before { display: none; }
+    .rt-cards td[data-label=""] { justify-content: flex-start; }
+    .rt-cards tr:hover td { background: transparent; }
+    .rt-cards .row-actions { justify-content: flex-end; }
+}
+
+/* Action button strips: two across on phones instead of a tall stack */
+@media (max-width: 600px) {
+    .action-row, .event-actions, .page-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    .action-row .btn, .event-actions .btn, .page-actions .btn { width: 100%; padding-inline: .6rem; font-size: .82rem; }
+    .chart-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
