@@ -191,7 +191,10 @@ require __DIR__ . '/../templates/sidebar_data.php';
     </div>
 
     <div class="app-card">
-        <div class="section-label">Registered Participants (<?= count($participants) ?>)</div>
+        <div class="roster-head">
+            <div class="section-label" style="margin:0;">Registered participants <span class="roster-count">(<span id="rs-shown"><?= count($participants) ?></span> of <?= count($participants) ?>)</span></div>
+            <?php if (!empty($participants)): ?><input type="search" id="rs-q" class="roster-search" placeholder="Search name or reg no" aria-label="Filter participants" autocomplete="off"><?php endif; ?>
+        </div>
         <?php if (empty($participants)): ?>
             <p class="empty-state">No participants have registered yet.</p>
         <?php else: ?>
@@ -204,13 +207,13 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <th>Cadre</th>
                     <th>Sessions</th>
                     <th>Days present</th>
-                    <th>Points</th>
-                    <?php $rowActions = Auth::can('edit_attendee_details') || Auth::can('award_manual_points') || Auth::can('delete_registrations'); ?><?php if ($rowActions): ?><th>Actions</th><?php endif; ?>
+                    <th class="num">Points</th>
+                    <?php $rowActions = Auth::can('edit_attendee_details') || Auth::can('award_manual_points') || Auth::can('delete_registrations'); ?><?php if ($rowActions): ?><th class="col-act"><span class="sr-only">Actions</span></th><?php endif; ?>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="rs-body">
                 <?php foreach ($participants as $p): ?>
-                <tr>
+                <tr data-s="<?= htmlspecialchars(strtolower($p['reg_no'] . ' ' . $p['name']), ENT_QUOTES, 'UTF-8') ?>">
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -221,13 +224,9 @@ require __DIR__ . '/../templates/sidebar_data.php';
                             <div class="session-badges">
                                 <?php foreach ($p['attendance'] as $a): ?>
                                     <?php if ($a['flagged']): ?>
-                                        <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);" title="<?= (int) $a['distance_m'] ?>m from venue">
-                                            <?= ui_icon('alert', 12) ?> <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
-                                        </span>
+                                        <span class="chip bad" title="Flagged: <?= (int) $a['distance_m'] ?>m from venue"><?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></span>
                                     <?php else: ?>
-                                        <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="Verified">
-                                            <?= ui_icon('check', 12) ?> <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
-                                        </span>
+                                        <span class="chip ok" title="Verified"><?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></span>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             </div>
@@ -239,15 +238,13 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <?php else: ?>
                             <div class="session-badges">
                                 <?php foreach ($p['days_present'] as $day => $source): ?>
-                                    <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="<?= $source === 'signin' ? 'Signed in to a session' : ($source === 'staff' ? 'Confirmed by staff' : 'Confirmed by attendee') ?>">
-                                        <?= ui_icon('check', 12) ?> <?= htmlspecialchars(date('d M', strtotime((string) $day)), ENT_QUOTES, 'UTF-8') ?>
-                                    </span>
+                                    <span class="chip day" title="<?= $source === 'signin' ? 'Signed in to a session' : ($source === 'staff' ? 'Confirmed by staff' : 'Confirmed by attendee') ?>"><?= htmlspecialchars(date('d M', strtotime((string) $day)), ENT_QUOTES, 'UTF-8') ?></span>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>
                     </td>
-                    <td style="font-weight:600;color:var(--kvb-green-dark);"><?= \VetBoard\Points::format($p['points_earned'] ?? 0) ?></td>
-                    <?php if ($rowActions): ?><td class="row-actions-cell"><?php require __DIR__ . '/../templates/attendee_actions.php'; ?></td><?php endif; ?>
+                    <td class="num pts"><?= \VetBoard\Points::format($p['points_earned'] ?? 0) ?></td>
+                    <?php if ($rowActions): ?><td class="col-act"><?php require __DIR__ . '/../templates/attendee_actions.php'; ?></td><?php endif; ?>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -268,6 +265,22 @@ new QRCode(document.getElementById("qrcode"), {
     colorLight: "#ffffff",
     correctLevel: QRCode.CorrectLevel.H
 });
+
+(function () {
+    var q = document.getElementById('rs-q');
+    if (!q) { return; }
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#rs-body tr'));
+    var shown = document.getElementById('rs-shown');
+    q.addEventListener('input', function () {
+        var term = q.value.trim().toLowerCase(), n = 0;
+        rows.forEach(function (tr) {
+            var hit = term === '' || tr.getAttribute('data-s').indexOf(term) !== -1;
+            tr.hidden = !hit;
+            if (hit) { n++; }
+        });
+        shown.textContent = n;
+    });
+})();
 
 function copyLink(btn) {
     navigator.clipboard.writeText(<?= json_encode($choiceUrl) ?>).then(() => {
