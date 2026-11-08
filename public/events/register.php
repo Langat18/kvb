@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!Participant::isValidNewRegNo($regNo)) {
-        $_SESSION['reg_error'] = 'Invalid registration number format. Expected XXXX, VTAXXXXX, VTBXXXXX or VTCXXXXX.';
+        $_SESSION['reg_error'] = 'Check the registration number. Use 4 or 5 digits, or VTA, VTB or VTC followed by 5 digits.';
         header('Location: /events/register.php?token=' . urlencode($token));
         exit;
     }
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $geoLng = $_POST['geo_lng'] ?? '';
 
         if ($geoLat === '' || $geoLng === '') {
-            $_SESSION['reg_error'] = 'Location access is required to register for this on-site event. Please enable location and try again.';
+            $_SESSION['reg_error'] = 'Allow location to register for this on-site event, then try again.';
             header('Location: /events/register.php?token=' . urlencode($token));
             exit;
         }
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $registrationModel = new Registration();
 
         if ($registrationModel->find((int) $event['id'], $regNo)) {
-            $_SESSION['reg_error'] = 'You are already registered for this event. Please use Earn Session Points instead.';
+            $_SESSION['reg_error'] = 'You are already registered. Use Earn Session Points instead.';
             header('Location: /events/register.php?token=' . urlencode($token));
             exit;
         }
@@ -176,7 +176,7 @@ $isOnsite  = $event['event_mode'] === 'onsite';
                     Join <?= htmlspecialchars(MEETING_PROVIDERS[$event['meeting_provider']] ?? 'the meeting', ENT_QUOTES, 'UTF-8') ?>
                 </a>
             <?php elseif ($event['event_mode'] !== 'onsite'): ?>
-                <p style="color:var(--kvb-red-dark);font-size:.85rem;">No meeting link has been set for this event yet. Please contact the organizer.</p>
+                <p style="color:var(--kvb-red-dark);font-size:.85rem;">No meeting link yet. Contact the organizer.</p>
             <?php endif; ?>
             <p style="margin-top:1rem;font-size:.85rem;">
                 <a href="/events/attend.php?token=<?= urlencode($token) ?><?= $regNo ? '&amp;reg_no=' . urlencode($regNo) : '' ?>" style="color:var(--kvb-green-dark);">Earn Session Points &rarr;</a>
@@ -223,7 +223,7 @@ $isOnsite  = $event['event_mode'] === 'onsite';
             <div class="form-group" id="dob-group" hidden>
                     <label for="dob">Date of Birth</label>
                     <input type="date" id="dob" autocomplete="bday">
-                    <small style="color:var(--text-muted);">Optional. Enter it to fill your details from the KVB register. It is checked once and not stored.</small>
+                    <small style="color:var(--text-muted);">Optional. Used once to fill your details from the KVB register; never stored.</small>
                     <button type="button" class="btn btn-ghost" id="dob-fetch" style="margin-top:.5rem;">Fill my details</button>
                 </div>
     
@@ -335,8 +335,8 @@ const dobGroup  = document.getElementById('dob-group');
     function hideDob() { dobGroup.hidden = true; dobInput.value = ''; }
 
     const dobMessages = {
-        mismatch: 'We could not match those details. Please fill in the form yourself.',
-        not_found: 'This number was not found on the KVB register. Please fill in the form yourself.',
+        mismatch: 'We could not match those details. Fill in the form yourself.',
+        not_found: 'Number not found on the KVB register. Fill in the form yourself.',
         limited: 'Too many attempts. Please fill in the form yourself.',
     };
 
@@ -362,11 +362,11 @@ const dobGroup  = document.getElementById('dob-group');
                     hideDob();
                     return;
                 }
-                lookupStatus.textContent = dobMessages[d.status] || 'The KVB register could not be checked just now. Please fill in the form yourself.';
+                lookupStatus.textContent = dobMessages[d.status] || 'The KVB register is unavailable right now. Fill in the form yourself.';
                 lookupStatus.style.color = 'var(--kvb-red-dark)';
             })
             .catch(() => {
-                lookupStatus.textContent = 'The KVB register could not be checked just now. Please fill in the form yourself.';
+                lookupStatus.textContent = 'The KVB register is unavailable right now. Fill in the form yourself.';
                 lookupStatus.style.color = 'var(--kvb-red-dark)';
             });
     });
@@ -415,7 +415,7 @@ function onGeoSuccess(position) {
 }
 
 function onGeoError() {
-    geoStatus.textContent = 'Location access is required to register for this on-site event. Please enable location in your browser settings and reload this page.';
+    geoStatus.textContent = 'Turn on location in your browser settings, then reload this page.';
     geoStatus.className = 'status-box denied';
     submitBtn.disabled = true;
 }

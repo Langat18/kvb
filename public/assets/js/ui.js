@@ -15,7 +15,7 @@
         document.querySelectorAll('table.data-table').forEach(function (t) {
             if (t.classList.contains('no-cards')) { return; }
             var heads = Array.prototype.map.call(t.querySelectorAll('thead th'), function (th) { return th.textContent.trim(); });
-            if (!heads.length || heads.length > 5) { return; }
+            if (!heads.length || (heads.length > 5 && !t.classList.contains('roster'))) { return; }
             t.querySelectorAll('tbody tr').forEach(function (tr) {
                 Array.prototype.forEach.call(tr.children, function (td, i) {
                     if (td.hasAttribute('colspan')) { return; }

@@ -183,37 +183,53 @@ $totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_award
 <title>Points by Session — <?= $h($event['title']) ?></title>
     <link rel="stylesheet" href="/assets/css/style.css">
     <style>
-        table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-        th, td { border: 1px solid #ccc; padding: .5rem .75rem; text-align: left; }
-        th { background: #f2f2f2; }
-        .summary { margin-top: .75rem; font-size: .85rem; color: #555; }
-    @media screen and (max-width: 900px) {
-    body { padding: 1rem !important; }
-    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
-    form { flex-wrap: wrap; }
-    img { max-width: 100%; height: auto; }
-}
-</style>
+        body { padding: 0; background: #f4f6f8; }
+        .ps { max-width: 1180px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); }
+        .ps-back { display: inline-flex; align-items: center; gap: .35rem; font-size: .82rem; font-weight: 600; color: var(--text-muted); text-decoration: none; margin-bottom: .75rem; }
+        .ps-back:hover { color: var(--kvb-green-dark); }
+        .ps h1 { font-size: clamp(1.3rem, 1rem + 1.4vw, 1.75rem); line-height: 1.25; margin: 0 0 .25rem; }
+        .ps-sub { color: var(--text-muted); font-size: .88rem; margin: 0 0 1.25rem; }
+        .ps-bar { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: 0 0 1rem; }
+        .ps-bar .ps-date { display: flex; align-items: center; gap: .5rem; flex: 1 1 220px; max-width: 320px; }
+        .ps-bar label { margin: 0; white-space: nowrap; }
+        .ps-bar .ps-dl { display: flex; gap: .5rem; margin-left: auto; }
+        .ps-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); overflow: hidden; }
+        .ps-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .ps table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+        .ps th { position: sticky; top: 0; background: var(--surface-2); text-align: left; padding: .7rem .85rem; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--line); white-space: nowrap; }
+        .ps td { padding: .65rem .85rem; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+        .ps tbody tr:hover td { background: #f7faf8; }
+        .ps tbody tr:last-child td { border-bottom: 0; }
+        .ps-empty { padding: 2rem; text-align: center; color: var(--text-muted); }
+        .ps-foot { margin: .85rem .25rem 0; font-size: .82rem; color: var(--text-muted); }
+        @media (max-width: 640px) { .ps-bar .ps-dl { margin-left: 0; width: 100%; } .ps-bar .ps-dl .btn { flex: 1; } .ps-bar .ps-date { max-width: none; width: 100%; } }
+    </style>
 </head>
-<body style="padding:2rem;">
+<body>
+<main class="ps">
+    <a class="ps-back" href="/events/view.php?token=<?= urlencode((string) $_GET['token']) ?>">&larr; Back to event</a>
+    <h1>Points by Session</h1>
+    <p class="ps-sub"><?= $h($event['title']) ?> &middot; <?= $startDate ?> to <?= $endDate ?></p>
 
-    <h2>Points by Session</h2>
-    <p><?= $h($event['title']) ?> — <?= $startDate ?> to <?= $endDate ?></p>
-
-    <form method="GET" style="margin:1rem 0;display:flex;gap:.5rem;align-items:center;">
+    <form method="GET" class="ps-bar">
         <input type="hidden" name="token" value="<?= $h($_GET['token']) ?>">
-        <label for="date">Date:</label>
-        <select name="date" id="date" onchange="this.form.submit()">
-            <?php foreach ($availableDates as $d): ?>
-                <option value="<?= $h($d) ?>" <?= $d === $selectedDate ? 'selected' : '' ?>>
-                    <?= date('d M Y', strtotime($d)) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <a href="?token=<?= urlencode($_GET['token']) ?>&date=<?= urlencode($selectedDate) ?>&format=excel" class="btn btn-secondary">Download Excel</a>
-        <a href="?token=<?= urlencode($_GET['token']) ?>&date=<?= urlencode($selectedDate) ?>&format=word" class="btn btn-secondary">Download Word</a>
+        <div class="ps-date">
+            <label for="date">Date</label>
+            <select name="date" id="date" onchange="this.form.submit()">
+                <?php foreach ($availableDates as $d): ?>
+                    <option value="<?= $h($d) ?>" <?= $d === $selectedDate ? 'selected' : '' ?>>
+                        <?= date('d M Y', strtotime($d)) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="ps-dl">
+            <a href="?token=<?= urlencode($_GET['token']) ?>&date=<?= urlencode($selectedDate) ?>&format=excel" class="btn btn-ghost">Excel</a>
+            <a href="?token=<?= urlencode($_GET['token']) ?>&date=<?= urlencode($selectedDate) ?>&format=word" class="btn btn-ghost">Word</a>
+        </div>
     </form>
 
+    <div class="ps-card"><div class="ps-scroll">
     <table>
         <thead>
             <tr>
@@ -222,7 +238,7 @@ $totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_award
         </thead>
         <tbody>
             <?php if (empty($rows)): ?>
-                <tr><td colspan="<?= count($columns) ?>">No attendance records for this date.</td></tr>
+                <tr><td colspan="<?= count($columns) ?>" class="ps-empty">No attendance for this date.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <tr>
@@ -234,10 +250,11 @@ $totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_award
             <?php endif; ?>
         </tbody>
     </table>
+    </div></div>
 
     <?php if ($rows): ?>
-        <p class="summary"><?= count($rows) ?> sign-in(s) by <?= $people ?> attendee(s) &middot; <?= \VetBoard\Points::format($totalPoints) ?> point(s) awarded</p>
+        <p class="ps-foot"><?= count($rows) ?> sign-ins by <?= $people ?> people &middot; <?= \VetBoard\Points::format($totalPoints) ?> points awarded</p>
     <?php endif; ?>
-
+</main>
 </body>
 </html>

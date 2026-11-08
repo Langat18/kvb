@@ -364,7 +364,7 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                         <input type="checkbox" name="day_confirmation" value="1" style="width:auto;margin:0;" <?= isTruthyDbBool($v['day_confirmation'] ?? false) ? 'checked' : '' ?>>
                         Confirm attendees on each event day
                     </label>
-                    <small style="color:var(--text-muted);">Attendees confirm their presence on every day of the event, separate from session sign-in and points.</small>
+                    <small style="color:var(--text-muted);">Attendees confirm presence each day, separate from session sign-in and points.</small>
                 </div>
             </div>
 
@@ -546,7 +546,7 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                 </div>
             </div>
 
-            <div style="margin-top:1.5rem;display:flex;gap:.6rem;">
+            <div class="form-actions">
                 <button type="submit" class="btn btn-primary" id="submit-btn">Save Changes</button>
                 <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Cancel</a>
             </div>

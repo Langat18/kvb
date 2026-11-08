@@ -25,7 +25,7 @@ if (empty($token) || empty($session)) {
 $context = $_SESSION['quiz_context'] ?? null;
 
 if (!$context || $context['token'] !== $token || $context['session'] !== $session) {
-    $_SESSION['attend_error'] = 'Please sign attendance for this session before taking the quiz.';
+    $_SESSION['attend_error'] = 'Sign in for this session before taking the quiz.';
     header('Location: /events/attend.php?token=' . urlencode($token));
     exit;
 }
@@ -140,7 +140,7 @@ if (!$alreadyPassed && !$exhausted) {
         <div class="card" style="text-align:center;padding:2rem;">
             <div style="font-size:3rem;">&#10003;</div>
             <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Quiz Passed</h2>
-            <p>Your attendance for this session is confirmed and points have been recorded.</p>
+            <p>Attendance confirmed. Points recorded.</p>
         </div>
 
     <?php elseif ($result): ?>
@@ -150,21 +150,21 @@ if (!$alreadyPassed && !$exhausted) {
             </div>
             <?php if ($result['passed']): ?>
                 <h2 style="color:var(--kvb-green-dark);">Passed</h2>
-                <p>Your attendance for this session is confirmed and points have been recorded.</p>
+                <p>Attendance confirmed. Points recorded.</p>
             <?php elseif ($result['attempts_remaining'] > 0): ?>
                 <h2 style="color:var(--kvb-red-dark);">Not Quite &mdash; 90% Required</h2>
                 <p>You have <?= $result['attempts_remaining'] ?> attempt<?= $result['attempts_remaining'] === 1 ? '' : 's' ?> remaining.</p>
                 <a href="/events/quiz.php?token=<?= urlencode($token) ?>&session=<?= urlencode($session) ?>" class="btn btn-primary" style="margin-top:1rem;display:inline-block;">Try Again</a>
             <?php else: ?>
                 <h2 style="color:var(--kvb-red-dark);">No Attempts Remaining</h2>
-                <p>Your score did not reach 90% and no further attempts are available. Please speak to the event supervisor.</p>
+                <p>You did not reach 90% and have no attempts left. Speak to the supervisor.</p>
             <?php endif; ?>
         </div>
 
     <?php elseif ($exhausted): ?>
         <div class="card" style="text-align:center;padding:2rem;">
             <h2 style="color:var(--kvb-red-dark);">No Attempts Remaining</h2>
-            <p>Your score did not reach 90% and no further attempts are available. Please speak to the event supervisor.</p>
+            <p>You did not reach 90% and have no attempts left. Speak to the supervisor.</p>
         </div>
 
     <?php else: ?>
