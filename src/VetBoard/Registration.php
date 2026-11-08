@@ -123,6 +123,161 @@ class Registration
         return $attendanceId;
     }
 
+    public function dayConfirmationEnabled(int $eventId): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT day_confirmation FROM events WHERE id = :id');
+        $stmt->execute([':id' => $eventId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function confirmDay(int $registrationId, string $day, string $method, array $meta = []): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'INSERT INTO day_confirmations
+                (registration_id, confirm_date, method, staff_id, device_id, ip_address, geo_verified, distance_m)
+             SELECT r.id, CAST(:day AS date), CAST(:method AS varchar), CAST(:staff AS bigint),
+                    CAST(:device AS varchar), CAST(:ip AS varchar), CAST(:geo AS boolean), CAST(:dist AS integer)
+             FROM registrations r
+             JOIN events e ON e.id = r.event_id
+             WHERE r.id = :rid AND e.day_confirmation
+               AND CAST(:day_check AS date) BETWEEN e.start_date AND e.end_date
+             ON CONFLICT (registration_id, confirm_date) DO NOTHING
+             RETURNING id'
+        );
+
+        $staff  = $meta['staff_id'] ?? null;
+        $device = $meta['device_id'] ?? null;
+        $ip     = $meta['ip'] ?? null;
+        $geo    = $meta['geo_verified'] ?? null;
+        $dist   = $meta['distance_m'] ?? null;
+
+        $stmt->bindValue(':day', $day, PDO::PARAM_STR);
+        $stmt->bindValue(':day_check', $day, PDO::PARAM_STR);
+        $stmt->bindValue(':method', $method, PDO::PARAM_STR);
+        $stmt->bindValue(':staff', $staff, $staff === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $stmt->bindValue(':device', $device, $device === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(':ip', $ip, $ip === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+        $stmt->bindValue(':geo', $geo, $geo === null ? PDO::PARAM_NULL : PDO::PARAM_BOOL);
+        $stmt->bindValue(':dist', $dist, $dist === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $stmt->bindValue(':rid', $registrationId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function removeDayConfirmation(int $registrationId, string $day): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM day_confirmations WHERE registration_id = :rid AND confirm_date = :day'
+        );
+        $stmt->execute([':rid' => $registrationId, ':day' => $day]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    public function isDayConfirmed(int $registrationId, string $day): bool
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT 1 FROM day_confirmations WHERE registration_id = :rid AND confirm_date = :day'
+        );
+        $stmt->execute([':rid' => $registrationId, ':day' => $day]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    // Self-confirmations only; a staff entry never blocks the device it was made from.
+    public function deviceConfirmedOther(string $day, string $deviceId, int $registrationId): bool
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT 1 FROM day_confirmations
+             WHERE confirm_date = :day AND device_id = :device
+               AND registration_id != :rid AND method = 'self'
+             LIMIT 1"
+        );
+        $stmt->execute([':day' => $day, ':device' => $deviceId, ':rid' => $registrationId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    public function confirmedRegNosForDay(int $eventId, string $day): array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT r.reg_no
+             FROM day_confirmations dc
+             JOIN registrations r ON r.id = dc.registration_id
+             WHERE r.event_id = :event AND dc.confirm_date = :day
+             ORDER BY r.reg_no'
+        );
+        $stmt->execute([':event' => $eventId, ':day' => $day]);
+
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    // Observe-only PMS check. Never throws and never changes what the attendee can do.
+    public function pmsObserve(?int $eventId, string $regNo, string $name = '', string $email = '', string $phone = ''): void
+    {
+        try {
+            $mode = $this->pdo
+                ->query("SELECT setting_value FROM integration_settings WHERE setting_key = 'pms_registration_check'")
+                ->fetchColumn();
+
+            if ($mode !== 'observe') {
+                return;
+            }
+
+            $regNo = strtoupper(trim($regNo));
+            $r     = (new PmsClient(null, null, 3, 2))->registration($regNo);
+            $found = $r['status'] === PmsClient::FOUND && is_array($r['data']);
+            $data  = $found ? $r['data'] : [];
+
+            $category = $found ? mb_substr(trim((string) ($data['category'] ?? '')), 0, 120) : null;
+            $prefixOk = $nameOk = $emailOk = $phoneOk = null;
+
+            if ($found) {
+                $expected = preg_match('/^VT([ABC])/', $regNo, $m) ? ['A' => 'bsc', 'B' => 'diploma', 'C' => 'certificate'][$m[1]] : 'surgeon';
+                $prefixOk = str_contains(strtolower((string) $category), $expected);
+
+                $typed  = ' ' . preg_replace('/[^a-z]+/', ' ', strtolower($name)) . ' ';
+                $nameOk = false;
+                foreach (preg_split('/\s+/', strtolower(trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '') . ' ' . ($data['surname'] ?? '')))) as $part) {
+                    if (strlen($part) >= 3 && str_contains($typed, ' ' . $part . ' ')) {
+                        $nameOk = true;
+                        break;
+                    }
+                }
+
+                $pmsEmail = strtolower(trim((string) ($data['email'] ?? '')));
+                $emailOk  = $pmsEmail !== '' ? $pmsEmail === strtolower(trim($email)) : null;
+
+                $digits   = static fn(string $s): string => substr((string) preg_replace('/\D/', '', $s), -9);
+                $pmsPhone = $digits((string) ($data['phone_number'] ?? ''));
+                $phoneOk  = strlen($pmsPhone) >= 7 ? $pmsPhone === $digits($phone) : null;
+            }
+
+            $stmt = $this->pdo->prepare(
+                'INSERT INTO pms_checks (event_id, reg_no, outcome, category, prefix_ok, name_match, email_match, phone_match, http_status, elapsed_ms)
+                 VALUES (:event, :reg, :outcome, :category, :prefix, :name, :email, :phone, :http, :ms)'
+            );
+
+            $flag = static fn(?bool $v): int => $v === null ? PDO::PARAM_NULL : PDO::PARAM_BOOL;
+
+            $stmt->bindValue(':event', $eventId, $eventId === null || $eventId <= 0 ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':reg', $regNo, PDO::PARAM_STR);
+            $stmt->bindValue(':outcome', $r['status'], PDO::PARAM_STR);
+            $stmt->bindValue(':category', $category, $category === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindValue(':prefix', $prefixOk, $flag($prefixOk));
+            $stmt->bindValue(':name', $nameOk, $flag($nameOk));
+            $stmt->bindValue(':email', $emailOk, $flag($emailOk));
+            $stmt->bindValue(':phone', $phoneOk, $flag($phoneOk));
+            $stmt->bindValue(':http', (int) $r['http'], PDO::PARAM_INT);
+            $stmt->bindValue(':ms', (int) $r['ms'], PDO::PARAM_INT);
+            $stmt->execute();
+        } catch (\Throwable $e) {
+            error_log('PMS observe failed: ' . $e->getMessage());
+        }
+    }
+
     // Approves a flagged (out-of-geofence) check-in. Refuses on points_denied — no override possible there.
     public function approveFlagged(int $attendanceId): bool
     {

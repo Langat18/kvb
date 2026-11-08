@@ -32,6 +32,7 @@ final class EventReport
                 'topic'     => (string) $p['topic'],
                 'start'     => substr((string) $p['start_time'], 0, 5),
                 'end'       => substr((string) $p['end_time'], 0, 5),
+                'room'      => (string) ($p['room'] ?? ''),
             ], $presentations[(int) $s['id']] ?? []);
 
             $out[] = [
@@ -52,15 +53,23 @@ final class EventReport
     public function cadreByDay(int $eventId, array $cadreLabels, string $startDate, string $endDate): array
     {
         $perDay = $this->pdo->prepare(<<<'SQL'
-            SELECT a.attendance_date::text AS day, COALESCE(p.cadre::text, '') AS cadre,
-                   COUNT(DISTINCT r.reg_no) AS total
-            FROM attendance a
-            JOIN registrations r ON r.id = a.registration_id
-            JOIN participants p  ON p.reg_no = r.reg_no
-            WHERE r.event_id = :event AND NOT a.flagged AND NOT a.points_denied
+            SELECT x.day, COALESCE(p.cadre::text, '') AS cadre,
+                   COUNT(DISTINCT x.reg_no) AS total
+            FROM (
+                SELECT a.attendance_date::text AS day, r.reg_no
+                FROM attendance a
+                JOIN registrations r ON r.id = a.registration_id
+                WHERE r.event_id = :event AND NOT a.flagged AND NOT a.points_denied
+                UNION
+                SELECT dc.confirm_date::text, r.reg_no
+                FROM day_confirmations dc
+                JOIN registrations r ON r.id = dc.registration_id
+                WHERE r.event_id = :event_dc
+            ) x
+            JOIN participants p ON p.reg_no = x.reg_no
             GROUP BY 1, 2
             SQL);
-        $perDay->execute([':event' => $eventId]);
+        $perDay->execute([':event' => $eventId, ':event_dc' => $eventId]);
 
         $counts   = [];
         $attended = [];
@@ -71,14 +80,22 @@ final class EventReport
         }
 
         $overall = $this->pdo->prepare(<<<'SQL'
-            SELECT COALESCE(p.cadre::text, '') AS cadre, COUNT(DISTINCT r.reg_no) AS total
-            FROM attendance a
-            JOIN registrations r ON r.id = a.registration_id
-            JOIN participants p  ON p.reg_no = r.reg_no
-            WHERE r.event_id = :event AND NOT a.flagged AND NOT a.points_denied
+            SELECT COALESCE(p.cadre::text, '') AS cadre, COUNT(DISTINCT x.reg_no) AS total
+            FROM (
+                SELECT r.reg_no
+                FROM attendance a
+                JOIN registrations r ON r.id = a.registration_id
+                WHERE r.event_id = :event AND NOT a.flagged AND NOT a.points_denied
+                UNION
+                SELECT r.reg_no
+                FROM day_confirmations dc
+                JOIN registrations r ON r.id = dc.registration_id
+                WHERE r.event_id = :event_dc
+            ) x
+            JOIN participants p ON p.reg_no = x.reg_no
             GROUP BY 1
             SQL);
-        $overall->execute([':event' => $eventId]);
+        $overall->execute([':event' => $eventId, ':event_dc' => $eventId]);
 
         $unique = [];
 
@@ -134,7 +151,7 @@ final class EventReport
     {
         $sheet = $workbook->createSheet();
         $sheet->setTitle('Programme');
-        $sheet->fromArray(['Day', 'Session', 'Session time', 'Presenter', 'Topic', 'Presentation time'], null, 'A1');
+        $sheet->fromArray(['Day', 'Session', 'Session time', 'Presenter', 'Topic', 'Room', 'Presentation time'], null, 'A1');
 
         $r = 2;
 
@@ -148,12 +165,13 @@ final class EventReport
                     $s['start'] . ' - ' . $s['end'],
                     $p ? Security::excelSafe($p['presenter']) : '-',
                     $p ? Security::excelSafe($p['topic']) : '-',
+                    $p && $p['room'] !== '' ? Security::excelSafe($p['room']) : '-',
                     $p ? $p['start'] . ' - ' . $p['end'] : '-',
                 ], null, 'A' . $r++);
             }
         }
 
-        self::finishSheet($sheet, 'A1:F1');
+        self::finishSheet($sheet, 'A1:G1');
 
         $summary = $workbook->createSheet();
         $summary->setTitle('Cadre Summary');

@@ -9,9 +9,11 @@ use PDO;
 
 final class SessionPresentation
 {
+    private const ROOM_MAX = 60;
+
     private PDO $pdo;
 
-    /** @var array<string, bool> */
+
     private array $known = [];
 
     public function __construct(?PDO $pdo = null)
@@ -19,15 +21,15 @@ final class SessionPresentation
         $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
-    /** @return array<int, list<array>> Presentations keyed by session id. */
+  
     public function forEvent(int $eventId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT sp.id, sp.session_id, sp.presenter, sp.reg_no, sp.topic, sp.start_time, sp.end_time
+            'SELECT sp.id, sp.session_id, sp.presenter, sp.reg_no, sp.topic, sp.room, sp.start_time, sp.end_time
              FROM session_presentations sp
              JOIN event_sessions s ON s.id = sp.session_id
              WHERE s.event_id = :event
-             ORDER BY sp.session_id, sp.start_time, sp.id'
+             ORDER BY sp.session_id, sp.start_time, sp.room NULLS FIRST, sp.id'
         );
         $stmt->execute([':event' => $eventId]);
 
@@ -76,10 +78,11 @@ final class SessionPresentation
             $presenter = trim((string) ($row['presenter'] ?? ''));
             $topic     = trim((string) ($row['topic'] ?? ''));
             $regNo     = strtoupper(trim((string) ($row['reg_no'] ?? '')));
+            $room      = trim((string) preg_replace('/\s+/u', ' ', (string) ($row['room'] ?? '')));
             $rawStart  = trim((string) ($row['start_time'] ?? ''));
             $rawEnd    = trim((string) ($row['end_time'] ?? ''));
 
-            if ($presenter === '' && $topic === '' && $regNo === '' && $rawStart === '' && $rawEnd === '') {
+            if ($presenter === '' && $topic === '' && $regNo === '' && $room === '' && $rawStart === '' && $rawEnd === '') {
                 continue;
             }
 
@@ -92,6 +95,10 @@ final class SessionPresentation
 
             if (mb_strlen($presenter) > 150 || mb_strlen($topic) > 255) {
                 throw new InvalidArgumentException($where . 'presenter is limited to 150 characters and topic to 255.');
+            }
+
+            if (mb_strlen($room) > self::ROOM_MAX) {
+                throw new InvalidArgumentException($where . 'room names are limited to ' . self::ROOM_MAX . ' characters.');
             }
 
             if ($regNo !== '' && !$this->participantExists($regNo)) {
@@ -110,16 +117,33 @@ final class SessionPresentation
                 'presenter' => $presenter,
                 'reg_no'    => $regNo !== '' ? $regNo : null,
                 'topic'     => $topic,
+                'room'      => $room !== '' ? $room : null,
+                'room_key'  => mb_strtolower($room),
+                'who'       => $regNo !== ''
+                    ? 'r:' . $regNo
+                    : 'n:' . mb_strtolower((string) preg_replace('/\s+/u', ' ', $presenter)),
                 'start'     => $start,
                 'end'       => $end,
             ];
         }
 
-        usort($out, static fn(array $a, array $b): int => strcmp($a['start'], $b['start']));
+        usort($out, static fn(array $a, array $b): int =>
+            strcmp($a['start'], $b['start']) ?: strcmp($a['room_key'], $b['room_key']));
 
-        for ($i = 1; $i < count($out); $i++) {
-            if ($out[$i]['start'] < $out[$i - 1]['end']) {
-                throw new InvalidArgumentException($where . 'presentations must not overlap.');
+        $count = count($out);
+
+        // Sorted by start time, so every later row that starts before this one ends overlaps it.
+        for ($i = 0; $i < $count; $i++) {
+            for ($j = $i + 1; $j < $count && $out[$j]['start'] < $out[$i]['end']; $j++) {
+                if ($out[$i]['room_key'] === $out[$j]['room_key']) {
+                    throw new InvalidArgumentException($where . ($out[$i]['room'] === null
+                        ? 'presentations without a room cannot overlap. Give each its own room to run them at the same time.'
+                        : 'presentations in room "' . $out[$i]['room'] . '" must not overlap.'));
+                }
+
+                if ($out[$i]['who'] === $out[$j]['who']) {
+                    throw new InvalidArgumentException($where . $out[$i]['presenter'] . ' cannot present in two rooms at the same time.');
+                }
             }
         }
 
@@ -133,8 +157,8 @@ final class SessionPresentation
             ->execute([':session' => $sessionId]);
 
         $insert = $this->pdo->prepare(
-            'INSERT INTO session_presentations (session_id, presenter, reg_no, topic, start_time, end_time, sort_order)
-             VALUES (:session, :presenter, :reg, :topic, :start, :end, :sort)'
+            'INSERT INTO session_presentations (session_id, presenter, reg_no, topic, room, start_time, end_time, sort_order)
+             VALUES (:session, :presenter, :reg, :topic, :room, :start, :end, :sort)'
         );
 
         foreach ($rows as $i => $row) {
@@ -143,6 +167,7 @@ final class SessionPresentation
                 ':presenter' => $row['presenter'],
                 ':reg'       => $row['reg_no'],
                 ':topic'     => $row['topic'],
+                ':room'      => $row['room'],
                 ':start'     => $row['start'],
                 ':end'       => $row['end'],
                 ':sort'      => $i,
