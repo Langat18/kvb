@@ -54,7 +54,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <title>Events - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .filter-bar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: var(--space-4); }
 .filter-bar .form-group { margin-bottom: 0; flex: 1; min-width: 160px; }
@@ -143,7 +143,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <span>Page <?= $page ?> of <?= $totalPages ?> (<?= $total ?> events)</span>
                     <div class="pagination-links">
                         <?php $baseParams = ['per_page' => $perPage, 'search' => $search, 'event_mode' => $modeFilter, 'date' => $dateFilter]; ?>
-                        <a href="?<?= http_build_query(['page' => $page - 1] + $baseParams) ?>" class="<?= $page <= 1 ? 'disabled' : '' ?>">&lsaquo; Prev</a>
+                        <a href="?<?= http_build_query(['page' => $page - 1] + $baseParams) ?>" class="<?= $page <= 1 ? 'disabled' : '' ?>">Previous</a>
                         <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                             <?php if ($p === $page): ?>
                                 <span class="current"><?= $p ?></span>
@@ -151,7 +151,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                 <a href="?<?= http_build_query(['page' => $p] + $baseParams) ?>"><?= $p ?></a>
                             <?php endif; ?>
                         <?php endfor; ?>
-                        <a href="?<?= http_build_query(['page' => $page + 1] + $baseParams) ?>" class="<?= $page >= $totalPages ? 'disabled' : '' ?>">Next &rsaquo;</a>
+                        <a href="?<?= http_build_query(['page' => $page + 1] + $baseParams) ?>" class="<?= $page >= $totalPages ? 'disabled' : '' ?>">Next</a>
                     </div>
                 </div>
             <?php endif; ?>

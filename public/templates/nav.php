@@ -1,6 +1,6 @@
 <?php
 ?>
-<script src="/assets/js/ui.js" defer></script>
+<script src="/assets/js/ui.js?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/js/ui.js') ?>" defer></script>
 <div class="navbar">
     <div class="navbar-brand">
         <img src="/assets/img/kvb_logo.png" alt="KVB">
@@ -46,14 +46,32 @@
 <aside class="app-sidebar" id="appSidebar">
     <div class="app-sidebar-brand"><img src="/assets/img/kvb_logo.png" alt="KVB"></div>
 
+    <div class="app-sidebar-profile-wrap app-profile-top">
+        <div class="app-profile-card">
+            <span class="avatar"><?php
+                $__n = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($user['name']));
+                $__p = array_filter(explode(' ', $__n));
+                echo htmlspecialchars(implode('', array_map(fn($x) => strtoupper($x[0]), array_slice($__p, 0, 2))) ?: '?', ENT_QUOTES, 'UTF-8');
+            ?></span>
+            <span class="app-profile-text">
+                <span class="name"><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="role"><?= htmlspecialchars($user['role_label'] ?: $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
+            </span>
+        </div>
+        <div class="app-profile-links">
+            <a href="/account/change_password.php">Change password</a>
+            <a href="/logout.php" class="logout">Log out</a>
+        </div>
+    </div>
+
     <div class="app-sidebar-body">
         <?php if (!empty($sidebarActionGroups)): ?>
         <details class="app-sidebar-actions" open>
-            <summary>Quick Actions <span class="chev">&rsaquo;</span></summary>
+            <summary>Quick Actions <span class="chev" aria-hidden="true"></span></summary>
             <?php foreach ($sidebarActionGroups as $groupLabel => $groupActions): ?>
                 <?php if (empty($groupActions)) { continue; } ?>
                 <details class="app-sidebar-group">
-                    <summary><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> <span class="chev">&rsaquo;</span></summary>
+                    <summary><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> <span class="chev" aria-hidden="true"></span></summary>
                     <?php foreach ($groupActions as $a): ?>
                         <a href="<?= htmlspecialchars($a['url'], ENT_QUOTES, 'UTF-8') ?>" class="app-action-row">
                             <span class="badge"><?= $a['icon'] ?></span>
@@ -69,26 +87,6 @@
         <?php endif; ?>
     </div>
 
-    <div class="app-sidebar-profile-wrap">
-        <details>
-            <summary>
-                <span class="avatar"><?php
-                    $__n = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($user['name']));
-                    $__p = array_filter(explode(' ', $__n));
-                    echo htmlspecialchars(implode('', array_map(fn($x) => strtoupper($x[0]), array_slice($__p, 0, 2))) ?: '?', ENT_QUOTES, 'UTF-8');
-                ?></span>
-                <span>
-                    <span class="name"><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <span class="role"><?= htmlspecialchars($user['role_label'] ?: $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
-                </span>
-                <span class="chev">&#9650;</span>
-            </summary>
-            <div class="app-sidebar-profile-menu">
-                <a href="/account/change_password.php">Change Password</a>
-                <a href="/logout.php">Log Out</a>
-            </div>
-        </details>
-    </div>
 </aside>
 <script>
 (function () {
@@ -128,7 +126,7 @@
 <div class="<?= !empty($useAppSidebar) ? 'sidebar-breadcrumb' : 'page-body-outer' ?>">
     <div class="breadcrumb">
         <?php foreach ($breadcrumbs as $i => $crumb): ?>
-            <?php if ($i > 0): ?> &rsaquo; <?php endif; ?>
+            <?php if ($i > 0): ?><span class="crumb-sep" aria-hidden="true">/</span><?php endif; ?>
             <?php if (!empty($crumb['url'])): ?>
                 <a href="<?= htmlspecialchars($crumb['url'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></a>
             <?php else: ?>

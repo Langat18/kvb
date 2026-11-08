@@ -52,7 +52,7 @@ function pageUrl(int $page, string $search): string
 <title>Providers - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 </head>
 <body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
@@ -120,7 +120,7 @@ function pageUrl(int $page, string $search): string
             <div class="pagination">
                 <span>Page <?= $currentPage ?> of <?= $totalPages ?> (<?= $totalCount ?> providers)</span>
                 <div class="pagination-links">
-                    <a href="<?= pageUrl($currentPage - 1, $search) ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">&lsaquo; Prev</a>
+                    <a href="<?= pageUrl($currentPage - 1, $search) ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">Previous</a>
                     <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                         <?php if ($p === $currentPage): ?>
                             <span class="current"><?= $p ?></span>
@@ -128,7 +128,7 @@ function pageUrl(int $page, string $search): string
                             <a href="<?= pageUrl($p, $search) ?>"><?= $p ?></a>
                         <?php endif; ?>
                     <?php endfor; ?>
-                    <a href="<?= pageUrl($currentPage + 1, $search) ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next &rsaquo;</a>
+                    <a href="<?= pageUrl($currentPage + 1, $search) ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next</a>
                 </div>
             </div>
         <?php endif; ?>

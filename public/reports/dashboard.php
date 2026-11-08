@@ -35,7 +35,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <title>Reports</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
 .chart-card h2 { font-size: .95rem; font-weight: 600; color: var(--kvb-green-dark); margin-bottom: 1rem; }

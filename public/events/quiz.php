@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../templates/icons.php';
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
@@ -112,7 +113,7 @@ if (!$alreadyPassed && !$exhausted) {
 <title>Session Quiz - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .quiz-question { margin-bottom: 1.4rem; }
 .quiz-question p.q-text { font-weight: 600; margin-bottom: .5rem; }
@@ -138,7 +139,7 @@ if (!$alreadyPassed && !$exhausted) {
 
     <?php if ($alreadyPassed): ?>
         <div class="card" style="text-align:center;padding:2rem;">
-            <div style="font-size:3rem;">&#10003;</div>
+            <div class="outcome-ico ok"><?= ui_icon('check', 34) ?></div>
             <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Quiz Passed</h2>
             <p>Attendance confirmed. Points recorded.</p>
         </div>

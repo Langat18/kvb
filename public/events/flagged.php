@@ -102,7 +102,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <title>Pending Approvals - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .distance-badge { color: var(--kvb-red-dark); font-weight: 600; font-size: .82rem; }
 .score-badge { color: var(--kvb-red-dark); font-weight: 600; font-size: .82rem; }
@@ -117,7 +117,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <div class="page-with-sidebar">
     <div class="app-page-hero">
         <div><h1>Pending Approvals</h1></div>
-        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">&larr; Back to Event</a>
+        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Back to Event</a>
     </div>
 
     <?php if ($success): ?>

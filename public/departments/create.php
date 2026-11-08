@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <title>New Department</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 body { display: block; padding: 2.5rem; }
 .container { max-width: 480px; margin: 0 auto; }
@@ -77,7 +77,7 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/departments/index.php" class="btn btn-secondary">&larr; Back to Departments</a>
+        <a href="/departments/index.php" class="btn btn-secondary">Back to Departments</a>
     </div>
 </div>
 </body>

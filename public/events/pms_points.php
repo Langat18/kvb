@@ -109,15 +109,6 @@ foreach ($people as $p) {
     $rows[]    = ['reg_no' => $p['reg_no'], 'name' => $p['name'], 'hours' => $hours, 'points' => $points];
 }
 
-$payload = ($provider !== '' ? ['provider_name' => $provider] : []) + ['records' => $records];
-
-if (($_GET['format'] ?? '') === 'json') {
-    header('Content-Type: application/json');
-    header('Content-Disposition: attachment; filename="pms_points_event_' . $eventId . '.json"');
-    header('Cache-Control: no-store');
-    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
-}
 
 $checks = [];
 
@@ -155,10 +146,6 @@ $checks[] = $flaggedPending > 0
     ? ['warn', $flaggedPending . ' flagged attendance record(s) are still unreviewed. Their points are not included.']
     : ['ok', 'No flagged attendance is waiting for review.'];
 
-if ($zeroHours > 0) {
-    $checks[] = ['warn', $zeroHours . ' record(s) have no session hours (for example presenter bonuses). KVB treats zero hours as pointless.'];
-}
-
 if ($fractional > 0) {
     $checks[] = ['warn', $fractional . ' record(s) have fractional points. Confirm with KVB that decimals are accepted.'];
 }
@@ -172,6 +159,7 @@ $breadcrumbs = [
     ['label' => 'PMS Points', 'url' => null],
 ];
 
+$user = Auth::user();
 require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <?php
@@ -181,6 +169,9 @@ $fmtPoints  = static fn(float $v): string => number_format($v, fmod($v, 1.0) ===
 $fmtHours   = static fn(float $v): string => number_format($v, 1);
 $viewToken  = urlencode((string) $event['view_token']);
 $activity   = (string) ($pmsData['title'] ?? '');
+$normTitle = static fn(string $t): string => (string) preg_replace('/[^a-z0-9]/', '', strtolower($t));
+$hasFlags = (bool) array_filter($rows, static fn($r) => fmod((float) $r['points'], 1.0) !== 0.0);
+$pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((string) $title);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -190,7 +181,7 @@ $activity   = (string) ($pmsData['title'] ?? '');
 <title>PMS Points - <?= $h($title) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .pp { --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --soft:#f8fafc; --ok:#15803d; --ok-bg:#ecfdf3; --warn:#a16207; --warn-bg:#fffbeb; --warn-line:#fde68a; --brand:var(--kvb-green-dark,#14532d); color:var(--ink); font-size:.9rem; line-height:1.5; }
 .pp *, .pp *::before, .pp *::after { box-sizing:border-box; }
@@ -201,26 +192,12 @@ $activity   = (string) ($pmsData['title'] ?? '');
 .pp-card-h { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding:.85rem 1.1rem; border-bottom:1px solid var(--line); background:var(--soft); }
 .pp-card-h h2 { margin:0; font-size:.78rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
 .pp-card-b { padding:1rem 1.1rem; }
-.pp-banner { display:flex; gap:.85rem; align-items:flex-start; padding:1rem 1.1rem; border-radius:12px; border:1px solid; margin-bottom:1rem; }
-.pp-banner.ok { background:var(--ok-bg); border-color:#bbf7d0; }
-.pp-banner.warn { background:var(--warn-bg); border-color:var(--warn-line); }
-.pp-banner strong { display:block; font-size:.95rem; }
-.pp-banner span.t { color:var(--muted); font-size:.85rem; }
-.pp-ico { flex:none; width:22px; height:22px; margin-top:1px; }
-.pp-banner.ok .pp-ico, .pp-row.ok .pp-ico { color:var(--ok); }
-.pp-banner.warn .pp-ico, .pp-row.warn .pp-ico { color:var(--warn); }
-.pp-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.75rem; margin-bottom:1rem; }
-.pp-stat { background:#fff; border:1px solid var(--line); border-radius:12px; padding:.8rem 1rem; }
-.pp-stat .k { font-size:.7rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
-.pp-stat .v { margin-top:.15rem; font-size:1.45rem; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
-.pp-stat .v.mono { font-size:.95rem; font-weight:600; line-height:1.9; }
 .pp-mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
 .pp-ctx { margin:0 0 1rem; color:#334155; font-size:.85rem; }
 .pp-ctx b { color:var(--ink); font-weight:600; }
 .pp-list { list-style:none; margin:0; padding:0; }
 .pp-row { display:flex; gap:.7rem; align-items:flex-start; padding:.65rem 1.1rem; border-bottom:1px solid var(--line); }
 .pp-row:last-child { border-bottom:0; }
-.pp-row .pp-ico { width:18px; height:18px; margin-top:2px; }
 .pp-sum { font-size:.8rem; font-weight:500; color:var(--muted); text-transform:none; letter-spacing:0; }
 .pp-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .95rem; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); font:inherit; font-size:.85rem; font-weight:600; text-decoration:none; cursor:pointer; }
 .pp-btn:hover { background:var(--soft); border-color:#cbd5e1; }
@@ -246,8 +223,37 @@ $activity   = (string) ($pmsData['title'] ?? '');
 .pp details { padding:.85rem 1.1rem; }
 .pp summary { cursor:pointer; font-weight:600; font-size:.85rem; }
 .pp pre { margin:.75rem 0 0; padding:.85rem 1rem; background:#0f172a; color:#e2e8f0; border-radius:8px; overflow:auto; font-size:.78rem; line-height:1.55; }
-@media (max-width:640px) { .pp-head h1 { font-size:1.25rem; } .pp-stat:nth-child(n+4) { grid-column:1 / -1; } .pp-table th, .pp-table td { padding:.5rem .65rem; } }
-@media print { .pp-actions, .pp-search, .pp details, .app-page-hero a { display:none !important; } .pp-scroll { max-height:none; overflow:visible; } .pp-card, .pp-stat { box-shadow:none; break-inside:avoid; } }
+.pp-summary { padding:0; }
+.pp-status { display:flex; gap:.75rem; align-items:center; padding:1rem 1.25rem; border-bottom:1px solid var(--line); }
+.pp-status strong { display:block; font-size:.95rem; line-height:1.3; }
+.pp-status span { color:var(--muted); font-size:.82rem; }
+.pp-status.ok { background:var(--ok-bg); } .pp-status.ok .pp-ico { color:var(--ok); }
+.pp-status.warn { background:var(--warn-bg); } .pp-status.warn .pp-ico { color:var(--warn); }
+.pp-ico { flex:none; width:22px; height:22px; }
+.pp-row .pp-ico { width:18px; height:18px; margin-top:2px; }
+.pp-row.ok .pp-ico { color:var(--ok); } .pp-row.warn .pp-ico { color:var(--warn); }
+.pp-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin:0; }
+.pp-facts > div { padding:.9rem 1.25rem; border-right:1px solid var(--line); }
+.pp-facts > div:last-child { border-right:0; }
+.pp-facts dt { font-size:.7rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.pp-facts dd { margin:.2rem 0 0; font-size:1.2rem; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.01em; overflow-wrap:anywhere; }
+.pp-facts dd.pp-mono { font-size:.95rem; font-weight:600; line-height:1.75; }
+.pp-ctx { display:flex; flex-wrap:wrap; gap:.25rem 1.5rem; margin:0; padding:.7rem 1.25rem; border-top:1px solid var(--line); background:var(--soft); color:var(--muted); font-size:.8rem; }
+.pp-ctx b { color:var(--ink); font-weight:600; }
+.pp details.pp-checks { padding:0; }
+.pp-facts dd.pp-mono { white-space:nowrap; overflow-wrap:normal; }
+.pp-checks summary { display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:.85rem 1.25rem; cursor:pointer; list-style:none; font-size:.78rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.pp-checks summary::-webkit-details-marker { display:none; }
+.pp-checks summary::after { content:""; flex:none; width:7px; height:7px; margin-left:.25rem; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg); transition:transform .15s; }
+.pp-checks[open] summary::after { transform:rotate(-135deg); }
+.pp-checks summary > span:first-child { flex:1; }
+.pp-checks[open] summary { border-bottom:1px solid var(--line); }
+.pp-checks summary:focus-visible { outline:2px solid var(--brand); outline-offset:-2px; }
+.pp-row { padding:.7rem 1.25rem; }
+@media (max-width:900px) { .pp-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } .pp-facts > div:nth-child(2) { border-right:0; } .pp-facts > div:nth-child(n+3) { border-top:1px solid var(--line); } }
+@media (max-width:640px) { .pp-facts dd.pp-mono { font-size:.82rem; } .pp-head h1 { font-size:1.25rem; } .pp-table th, .pp-table td { padding:.5rem .65rem; } .pp-table .idx { display:none; } .pp-actions { width:100%; } .pp-search { flex:1; min-width:0; width:auto; } .pp-card-h { padding:.8rem 1rem; } }
+@media print { .pp-checks:not([open]) .pp-list { display:block; } }
+@media print { .pp-actions, .pp-search, .pp details, .app-page-hero a { display:none !important; } .pp-scroll { max-height:none; overflow:visible; } .pp-card { box-shadow:none; break-inside:avoid; } }
 </style>
 </head>
 <body class="has-app-sidebar">
@@ -258,41 +264,40 @@ $activity   = (string) ($pmsData['title'] ?? '');
     <div class="pp-head">
         <div>
             <h1>PMS Points</h1>
-            <p class="pp-lead">Preview of the CPD points that would be submitted to KVB for this event. This page is read-only and sends nothing.</p>
+            <p class="pp-lead">Points that would be sent to KVB for this event. Read-only.</p>
         </div>
-        <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">&larr; Back to event</a>
+        <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">Back to event</a>
     </div>
 
-    <p class="pp-ctx">
-        <b><?= $h($title) ?></b><?= $provider !== '' ? ' &middot; ' . $h($provider) : '' ?>
-        <?php if ($activity !== '' && $activity !== $title): ?><br>PMS title: <?= $h($activity) ?><?php endif; ?>
-    </p>
+    <section class="pp-card pp-summary" aria-label="Summary">
+        <div class="pp-status <?= $attention === 0 ? 'ok' : 'warn' ?>" role="status">
+            <?php if ($attention === 0): ?>
+            <svg class="pp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 3 3 5-6"/></svg>
+            <div><strong>Ready for submission</strong><span>All <?= count($checks) ?> checks passed</span></div>
+            <?php else: ?>
+            <svg class="pp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <div><strong>Needs attention</strong><span><?= $attention ?> of <?= count($checks) ?> checks to review</span></div>
+            <?php endif; ?>
+        </div>
+        <dl class="pp-facts">
+            <div><dt>Practitioners</dt><dd><?= number_format(count($rows)) ?></dd></div>
+            <div><dt>CPD points</dt><dd><?= $h($fmtPoints($totalPts)) ?></dd></div>
+            <div><dt>Activity number</dt><dd class="pp-mono"><?= $h($code !== '' ? $code : '—') ?></dd></div>
+            <div><dt>Date</dt><dd><?= $h(date('d M Y', strtotime($endDate) ?: time())) ?></dd></div>
+        </dl>
+        <?php if ($provider !== '' || $pmsTitleDiffers): ?>
+        <div class="pp-ctx">
+            <?php if ($provider !== ''): ?><span>Provider: <b><?= $h($provider) ?></b></span><?php endif; ?>
+            <?php if ($pmsTitleDiffers): ?><span>Listed in PMS as: <b><?= $h($activity) ?></b></span><?php endif; ?>
+        </div>
+        <?php endif; ?>
+    </section>
 
-    <?php if ($attention === 0): ?>
-    <div class="pp-banner ok" role="status">
-        <svg class="pp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 3 3 5-6"/></svg>
-        <div><strong>All <?= count($checks) ?> checks passed</strong><span class="t">This event is ready for submission once sending is switched on.</span></div>
-    </div>
-    <?php else: ?>
-    <div class="pp-banner warn" role="status">
-        <svg class="pp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
-        <div><strong><?= $attention ?> of <?= count($checks) ?> checks need attention</strong><span class="t">Review the items below before this event's points are submitted.</span></div>
-    </div>
-    <?php endif; ?>
-
-    <div class="pp-stats">
-        <div class="pp-stat"><div class="k">Practitioners</div><div class="v"><?= number_format(count($rows)) ?></div></div>
-        <div class="pp-stat"><div class="k">CPD points</div><div class="v"><?= $h($fmtPoints($totalPts)) ?></div></div>
-        <div class="pp-stat"><div class="k">CPD hours</div><div class="v"><?= $h($fmtHours($totalHrs)) ?></div></div>
-        <div class="pp-stat"><div class="k">Activity number</div><div class="v mono pp-mono"><?= $h($code !== '' ? $code : '—') ?></div></div>
-        <div class="pp-stat"><div class="k">Date of activity</div><div class="v mono pp-mono"><?= $h($endDate) ?></div></div>
-    </div>
-
-    <section class="pp-card" aria-labelledby="pp-checks">
-        <div class="pp-card-h">
-            <h2 id="pp-checks">Readiness checks</h2>
+    <details class="pp-card pp-checks" aria-labelledby="pp-checks"<?= $attention > 0 ? ' open' : '' ?>>
+        <summary>
+            <span id="pp-checks">Readiness checks</span>
             <span class="pp-sum"><?= $passed ?> passed<?= $attention > 0 ? ' &middot; ' . $attention . ' to review' : '' ?></span>
-        </div>
+        </summary>
         <ul class="pp-list">
             <?php foreach ($checks as [$level, $text]): ?>
             <li class="pp-row <?= $level === 'ok' ? 'ok' : 'warn' ?>">
@@ -305,14 +310,13 @@ $activity   = (string) ($pmsData['title'] ?? '');
             </li>
             <?php endforeach; ?>
         </ul>
-    </section>
+    </details>
 
     <section class="pp-card" aria-labelledby="pp-records">
         <div class="pp-card-h">
             <h2 id="pp-records">Records <span class="pp-sum">(<span id="pp-shown"><?= count($rows) ?></span> of <?= count($rows) ?>)</span></h2>
             <div class="pp-actions">
                 <?php if ($rows): ?><input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off"><?php endif; ?>
-                <a class="pp-btn primary" href="/events/pms_points.php?token=<?= $viewToken ?>&amp;format=json">Download for KVB</a>
                 <button type="button" class="pp-btn" disabled title="Sending is not switched on yet">Send to KVB</button>
             </div>
         </div>
@@ -323,7 +327,7 @@ $activity   = (string) ($pmsData['title'] ?? '');
         <div class="pp-scroll">
         <table class="pp-table">
             <thead>
-                <tr><th class="idx">#</th><th>Reg No</th><th>Name</th><th class="n">Hours</th><th class="n">Points</th><th>Flags</th></tr>
+                <tr><th class="idx">#</th><th>Reg No</th><th>Name</th><th class="n">Points</th><?php if ($hasFlags): ?><th>Flags</th><?php endif; ?></tr>
             </thead>
             <tbody id="pp-body">
                 <?php foreach ($rows as $i => $r): ?>
@@ -331,17 +335,13 @@ $activity   = (string) ($pmsData['title'] ?? '');
                     <td class="idx"><?= $i + 1 ?></td>
                     <td class="pp-mono"><?= $h($r['reg_no']) ?></td>
                     <td><?= $h($r['name']) ?></td>
-                    <td class="n"><?= $h($fmtHours((float) $r['hours'])) ?></td>
                     <td class="n pts"><?= $h($fmtPoints((float) $r['points'])) ?></td>
-                    <td>
-                        <?php if ($r['hours'] <= 0): ?><span class="pp-badge">No session hours</span><?php endif; ?>
-                        <?php if (fmod((float) $r['points'], 1.0) !== 0.0): ?><span class="pp-badge">Fractional points</span><?php endif; ?>
-                    </td>
+                    <?php if ($hasFlags): ?><td><?php if (fmod((float) $r['points'], 1.0) !== 0.0): ?><span class="pp-badge">Fractional points</span><?php endif; ?></td><?php endif; ?>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
             <tfoot>
-                <tr><td></td><td></td><td>Total (<?= number_format(count($rows)) ?> practitioners)</td><td class="n"><?= $h($fmtHours($totalHrs)) ?></td><td class="n"><?= $h($fmtPoints($totalPts)) ?></td><td></td></tr>
+                <tr><td></td><td></td><td>Total (<?= number_format(count($rows)) ?> practitioners)</td><td class="n"><?= $h($fmtPoints($totalPts)) ?></td><?php if ($hasFlags): ?><td></td><?php endif; ?></tr>
             </tfoot>
         </table>
         <div class="pp-empty" id="pp-none" hidden>No records match your search.</div>

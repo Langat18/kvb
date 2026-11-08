@@ -43,7 +43,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <title>Staff Accounts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .role-select { padding: .3rem .5rem; font-size: .82rem; border-radius: 6px; border: 1px solid #d8dde3; }
 </style>
@@ -126,7 +126,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <div class="pagination">
                 <span>Page <?= $currentPage ?> of <?= $totalPages ?> (<?= $totalStaff ?> staff)</span>
                 <div class="pagination-links">
-                    <a href="?page=<?= $currentPage - 1 ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">&lsaquo; Prev</a>
+                    <a href="?page=<?= $currentPage - 1 ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">Previous</a>
                     <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                         <?php if ($p === $currentPage): ?>
                             <span class="current"><?= $p ?></span>
@@ -134,7 +134,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                             <a href="?page=<?= $p ?>"><?= $p ?></a>
                         <?php endif; ?>
                     <?php endfor; ?>
-                    <a href="?page=<?= $currentPage + 1 ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next &rsaquo;</a>
+                    <a href="?page=<?= $currentPage + 1 ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next</a>
                 </div>
             </div>
         <?php endif; ?>

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../templates/icons.php';
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
@@ -187,7 +188,7 @@ $v = $formData;
 <title>New Event - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 .quiz-panel { margin-top: 1.5rem; }
@@ -341,7 +342,7 @@ $v = $formData;
                 <div class="geo-map" id="geo-map"></div>
 
                 <div class="form-group full">
-                    <button type="button" class="btn btn-ghost btn-sm" onclick="detectLocation()">&#128205; Use My Location</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="detectLocation()"><?= ui_icon('pin', 16) ?> Use my location</button>
                 </div>
 
                 <div class="form-group">
@@ -389,7 +390,7 @@ $v = $formData;
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/event-geo-form.js') ?>"></script>
 <script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
-<script src="/assets/js/quiz-builder.js"></script>
+<script src="/assets/js/quiz-builder.js?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/js/quiz-builder.js') ?>"></script>
 <script>
 // Quiz + meeting fields only apply to virtual/hybrid — hide both for onsite.
 (function () {

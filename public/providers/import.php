@@ -67,7 +67,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <title>Import Providers - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .result-list { font-size: .82rem; color: var(--text-muted); margin-top: .5rem; max-height: 180px; overflow-y: auto; }
 </style>
@@ -116,7 +116,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/providers/index.php" class="btn btn-secondary">&larr; Back to Providers</a>
+        <a href="/providers/index.php" class="btn btn-secondary">Back to Providers</a>
     </div>
 </div>
 </body>

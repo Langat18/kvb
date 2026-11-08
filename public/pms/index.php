@@ -156,58 +156,70 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
 <title>PMS Activities</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .pd { --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --soft:#f8fafc; --ok:#15803d; --ok-bg:#ecfdf3; --warn:#a16207; --warn-bg:#fffbeb; --warn-line:#fde68a; --bad:#b91c1c; --bad-bg:#fef2f2; --brand:var(--kvb-green-dark,#14532d); color:var(--ink); font-size:.9rem; line-height:1.5; }
 .pd *, .pd *::before, .pd *::after { box-sizing:border-box; }
-.pd-head { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+.pd-head { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:1.25rem; }
 .pd-head h1 { margin:0; font-size:1.5rem; font-weight:700; letter-spacing:-.01em; }
-.pd-lead { margin:.25rem 0 0; color:#334155; font-size:.875rem; max-width:64ch; }
+.pd-lead { margin:.2rem 0 0; color:var(--muted); font-size:.875rem; }
+.pd-sync { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.pd-sync .m { color:var(--muted); font-size:.8rem; }
 .pd-card { background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 2px rgba(15,23,42,.04); margin-bottom:1rem; overflow:hidden; }
 .pd-card-h { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding:.8rem 1.1rem; border-bottom:1px solid var(--line); background:var(--soft); }
 .pd-card-h h2 { margin:0; font-size:.78rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
-.pd-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .85rem; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); font:inherit; font-size:.82rem; font-weight:600; text-decoration:none; cursor:pointer; }
+.pd-btn { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:.4rem .9rem; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); font:inherit; font-size:.82rem; font-weight:600; text-decoration:none; cursor:pointer; }
 .pd-btn:hover { background:var(--soft); border-color:#cbd5e1; }
 .pd-btn.primary { background:var(--brand); border-color:var(--brand); color:#fff; }
 .pd-btn.primary:hover { filter:brightness(1.1); }
-.pd-btn.small { padding:.3rem .65rem; font-size:.78rem; }
-.pd-btn.link { border:0; background:none; color:var(--muted); padding:.2rem .4rem; font-weight:500; text-decoration:underline; }
+.pd-btn.small { min-height:32px; padding:.25rem .7rem; font-size:.78rem; }
 .pd-flash { padding:.7rem 1rem; border-radius:10px; border:1px solid; margin-bottom:1rem; font-size:.875rem; }
 .pd-flash.ok { background:var(--ok-bg); border-color:#bbf7d0; color:#14532d; }
 .pd-flash.err { background:var(--bad-bg); border-color:#fecaca; color:#7f1d1d; }
-.pd-strip { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding:.7rem 1rem; border-radius:12px; border:1px solid var(--line); background:#fff; margin-bottom:1rem; font-size:.85rem; }
-.pd-strip.warn { background:var(--warn-bg); border-color:var(--warn-line); }
-.pd-strip .m { color:var(--muted); }
-.pd-tabs { display:flex; gap:.25rem; border-bottom:1px solid #cbd5e1; margin-bottom:1rem; flex-wrap:wrap; }
-.pd-tab { padding:.55rem .95rem; border-radius:8px 8px 0 0; text-decoration:none; color:#334155; font-weight:600; font-size:.85rem; border:1px solid transparent; border-bottom:0; }
-.pd-tab.on { background:#fff; border-color:var(--line); color:var(--brand); }
-.pd-count { display:inline-block; min-width:1.4rem; padding:0 .4rem; margin-left:.3rem; border-radius:999px; background:var(--warn-bg); border:1px solid var(--warn-line); color:var(--warn); font-size:.72rem; text-align:center; }
-.pd-filters { display:flex; gap:.5rem; flex-wrap:wrap; padding:.8rem 1.1rem; border-bottom:1px solid var(--line); }
-.pd-filters input, .pd-filters select { padding:.42rem .65rem; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:#fff; color:var(--ink); }
-.pd-filters input[type=search] { flex:1; min-width:200px; }
-.pd-month { padding:.5rem 1.1rem; background:var(--soft); border-bottom:1px solid var(--line); font-size:.72rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); }
-.pd-act { display:grid; grid-template-columns:140px 1fr auto; gap:1rem; padding:.9rem 1.1rem; border-bottom:1px solid #f1f5f9; align-items:start; }
+.pd-flash.warn { background:var(--warn-bg); border-color:var(--warn-line); color:#713f12; }
+.pd-tabs { display:flex; gap:1.5rem; border-bottom:1px solid var(--line); margin-bottom:1rem; overflow-x:auto; }
+.pd-tab { padding:.6rem 0; text-decoration:none; color:var(--muted); font-weight:600; font-size:.88rem; border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+.pd-tab:hover { color:var(--ink); }
+.pd-tab.on { color:var(--brand); border-bottom-color:var(--brand); }
+.pd-count { display:inline-block; min-width:1.4rem; padding:0 .4rem; margin-left:.35rem; border-radius:999px; background:var(--warn-bg); border:1px solid var(--warn-line); color:var(--warn); font-size:.72rem; text-align:center; }
+.pd-filters { display:grid; grid-template-columns:minmax(200px,1fr) repeat(3,minmax(130px,auto)) auto; gap:.5rem; padding:.8rem 1.1rem; border-bottom:1px solid var(--line); }
+.pd-filters input, .pd-filters select { width:100%; min-height:36px; padding:.35rem .65rem; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; background:#fff; color:var(--ink); }
+.pd-month { padding:.45rem 1.1rem; background:var(--soft); border-bottom:1px solid var(--line); font-size:.72rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); }
+.pd-act { display:grid; grid-template-columns:150px 1fr auto; gap:1rem; padding:.9rem 1.1rem; border-bottom:1px solid #f1f5f9; align-items:start; }
 .pd-act:last-child { border-bottom:0; }
 .pd-date { font-weight:600; font-size:.82rem; font-variant-numeric:tabular-nums; }
-.pd-date small { display:block; color:var(--muted); font-weight:400; }
 .pd-title { font-weight:600; }
 .pd-meta { color:var(--muted); font-size:.8rem; margin-top:.15rem; }
 .pd-mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-.pd-badge { display:inline-block; padding:.08rem .5rem; border-radius:999px; font-size:.72rem; font-weight:600; border:1px solid var(--line); background:var(--soft); color:#475569; white-space:nowrap; }
+.pd-badge { display:inline-block; padding:.05rem .5rem; border-radius:999px; font-size:.72rem; font-weight:600; border:1px solid var(--line); background:var(--soft); color:#475569; white-space:nowrap; }
 .pd-badge.ok { background:var(--ok-bg); border-color:#bbf7d0; color:var(--ok); }
 .pd-badge.warn { background:var(--warn-bg); border-color:var(--warn-line); color:var(--warn); }
-.pd-act details { margin-top:.35rem; font-size:.8rem; }
+.pd-act details { margin-top:.3rem; font-size:.8rem; }
 .pd-act summary { cursor:pointer; color:var(--muted); }
 .pd-act ul { margin:.3rem 0 0; padding-left:1.1rem; color:#334155; }
-.pd-side { text-align:right; display:flex; flex-direction:column; gap:.35rem; align-items:flex-end; }
+.pd-side { display:flex; align-items:center; min-height:32px; }
 .pd-empty { padding:2rem 1.1rem; text-align:center; color:var(--muted); }
+.pd-scroll { overflow-x:auto; }
 .pd-table { width:100%; border-collapse:separate; border-spacing:0; font-size:.85rem; }
-.pd-table th { text-align:left; padding:.55rem 1rem; font-size:.7rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--soft); border-bottom:1px solid var(--line); }
-.pd-table td { padding:.55rem 1rem; border-bottom:1px solid #f1f5f9; vertical-align:top; }
-.pd-pager { display:flex; justify-content:space-between; align-items:center; padding:.7rem 1.1rem; border-top:1px solid var(--line); color:var(--muted); font-size:.8rem; }
-.pd-sub { padding:.9rem 1.1rem 0; font-size:.85rem; color:#334155; }
+.pd-table th { text-align:left; padding:.55rem 1rem; font-size:.7rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--soft); border-bottom:1px solid var(--line); white-space:nowrap; }
+.pd-table td { padding:.6rem 1rem; border-bottom:1px solid #f1f5f9; vertical-align:top; }
+.pd-table tr:last-child td { border-bottom:0; }
+.pd-pager { display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.7rem 1.1rem; border-top:1px solid var(--line); color:var(--muted); font-size:.8rem; }
+.pd-pager .go { display:flex; gap:.4rem; }
+.pd-sec { display:flex; justify-content:space-between; align-items:baseline; gap:.75rem; flex-wrap:wrap; padding:.9rem 1.1rem .6rem; }
+.pd-sec h3 { margin:0; font-size:.9rem; font-weight:600; }
+.pd-sec span { color:var(--muted); font-size:.8rem; }
+.pd-sec + .pd-empty { padding-top:.5rem; }
+.pd-cand { margin-top:.4rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
 .pd form:not(.pd-filters) { display:inline; margin:0; }
-@media (max-width:720px) { .pd-act { grid-template-columns:1fr; gap:.4rem; } .pd-side { align-items:flex-start; text-align:left; } .pd-head h1 { font-size:1.25rem; } }
+@media (max-width:900px) { .pd-filters { grid-template-columns:1fr 1fr; } .pd-filters input[type=search] { grid-column:1 / -1; } .pd-filters button { grid-column:1 / -1; } }
+@media (max-width:520px) { .pd-filters { grid-template-columns:1fr; } }
+@media (max-width:720px) {
+  .pd-head h1 { font-size:1.25rem; }
+  .pd-head, .pd-sync { align-items:flex-start; }
+  .pd-act { grid-template-columns:1fr; gap:.35rem; }
+  .pd-table th:nth-child(n+3), .pd-table td:nth-child(n+3) { white-space:normal; }
+}
 </style>
 </head>
 <body class="has-app-sidebar">
@@ -218,32 +230,29 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
     <div class="pd-head">
         <div>
             <h1>PMS Activities</h1>
-            <p class="pd-lead">KVB-approved CPD activities and providers, synced from PMS. Create events with the right activity number.</p>
+            <p class="pd-lead">Approved CPD activities and providers from PMS.</p>
         </div>
-        <form method="post" action="/pms/index.php">
-            <input type="hidden" name="csrf_token" value="<?= $h($csrf) ?>">
-            <input type="hidden" name="action" value="sync_now">
-            <button type="submit" class="pd-btn primary">Sync now</button>
-        </form>
+        <div class="pd-sync">
+            <?php if ($lastOk): ?><span class="m">Synced <?= $h($ago((string) $lastOk['finished_at'])) ?> &middot; <?= (int) $lastOk['activities_seen'] ?> activities, <?= (int) $lastOk['providers_seen'] ?> providers</span><?php endif; ?>
+            <form method="post" action="/pms/index.php">
+                <input type="hidden" name="csrf_token" value="<?= $h($csrf) ?>">
+                <input type="hidden" name="action" value="sync_now">
+                <button type="submit" class="pd-btn primary">Sync now</button>
+            </form>
+        </div>
     </div>
 
     <?php if ($flashed): ?>
         <div class="pd-flash <?= $h($flashed[0]) ?>" role="status"><?= $h($flashed[1]) ?></div>
     <?php endif; ?>
 
-    <div class="pd-strip <?= ($failed || $stale) ? 'warn' : '' ?>">
-        <?php if (!$lastOk): ?>
-            <span><strong>Not synced yet.</strong> Press “Sync now” to load the PMS list.</span>
-        <?php else: ?>
-            <span><strong>Synced <?= $h($ago((string) $lastOk['finished_at'])) ?></strong>
-                <span class="m">&middot; <?= (int) $lastOk['activities_seen'] ?> activities &middot; <?= (int) $lastOk['providers_seen'] ?> providers &middot; refreshes automatically every night</span></span>
-        <?php endif; ?>
-        <?php if ($failed): ?>
-            <span><strong>The last sync failed</strong> <span class="m">(<?= $h($ago((string) $lastRun['started_at'])) ?>): <?= $h($lastRun['message'] ?? '') ?></span></span>
-        <?php elseif ($lastOk && $stale): ?>
-            <span><strong>The list is more than a day and a half old.</strong> <span class="m">Check the nightly sync.</span></span>
-        <?php endif; ?>
-    </div>
+    <?php if (!$lastOk): ?>
+        <div class="pd-flash warn">Not synced yet. Press Sync now to load the PMS list.</div>
+    <?php elseif ($failed): ?>
+        <div class="pd-flash warn">The last sync failed <?= $h($ago((string) $lastRun['started_at'])) ?>: <?= $h($lastRun['message'] ?? '') ?></div>
+    <?php elseif ($stale): ?>
+        <div class="pd-flash warn">The list is over a day old. Check the nightly sync.</div>
+    <?php endif; ?>
 
     <nav class="pd-tabs" aria-label="PMS sections">
         <a class="pd-tab <?= $tab === 'activities' ? 'on' : '' ?>" href="<?= $h($tabUrl('activities')) ?>">Activities</a>
@@ -257,20 +266,20 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
             <input type="hidden" name="tab" value="activities">
             <input type="search" name="q" value="<?= $h($filters['q']) ?>" placeholder="Search title, number or provider" aria-label="Search activities">
             <select name="scope" aria-label="When">
-                <?php foreach (['recent' => 'Upcoming and last 30 days', 'upcoming' => 'Upcoming only', 'past' => 'Past', 'all' => 'All dates', 'undated' => 'No schedule'] as $k => $label): ?>
+                <?php foreach (['recent' => 'Recent and upcoming', 'upcoming' => 'Upcoming', 'past' => 'Past', 'all' => 'All dates', 'undated' => 'No schedule'] as $k => $label): ?>
                     <option value="<?= $k ?>" <?= $filters['scope'] === $k ? 'selected' : '' ?>><?= $label ?></option>
                 <?php endforeach; ?>
             </select>
             <select name="type" aria-label="Type">
-                <option value="">Any type</option>
+                <option value="">All types</option>
                 <?php foreach ($types as $t): ?>
                     <option value="<?= $h($t) ?>" <?= $filters['type'] === $t ? 'selected' : '' ?>><?= $h($t) ?></option>
                 <?php endforeach; ?>
             </select>
-            <select name="linked" aria-label="Linked">
-                <option value="">Linked or not</option>
-                <option value="yes" <?= $filters['linked'] === 'yes' ? 'selected' : '' ?>>Has an event</option>
-                <option value="no" <?= $filters['linked'] === 'no' ? 'selected' : '' ?>>No event yet</option>
+            <select name="linked" aria-label="Event status">
+                <option value="">Any status</option>
+                <option value="yes" <?= $filters['linked'] === 'yes' ? 'selected' : '' ?>>With event</option>
+                <option value="no" <?= $filters['linked'] === 'no' ? 'selected' : '' ?>>Without event</option>
             </select>
             <button class="pd-btn" type="submit">Filter</button>
         </form>
@@ -283,27 +292,26 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
                     <div class="pd-month"><?= $h($month) ?></div>
                 <?php endif; ?>
                 <article class="pd-act">
-                    <div class="pd-date"><?= $h($range($a['start_date'], $a['end_date'])) ?>
-                        <?php if (count($a['schedules']) > 1): ?><small><?= count($a['schedules']) ?> sessions</small><?php endif; ?></div>
+                    <div class="pd-date"><?= $h($range($a['start_date'], $a['end_date'])) ?></div>
                     <div>
                         <div class="pd-title"><?= $h($a['title']) ?></div>
                         <div class="pd-meta">
-                            <?php if ($a['activity_number']): ?><span class="pd-mono"><?= $h($a['activity_number']) ?></span><?php else: ?><span class="pd-badge warn">No activity number</span><?php endif; ?>
-                            <?php if ((int) $a['number_shared'] > 0): ?><span class="pd-badge warn" title="Another PMS activity uses the same number">Number shared</span><?php endif; ?>
-                            <?php if ($a['activity_type']): ?><span class="pd-badge"><?= $h($a['activity_type']) ?></span><?php endif; ?>
+                            <?php if ($a['activity_number']): ?><span class="pd-mono"><?= $h($a['activity_number']) ?></span><?php else: ?><span class="pd-badge warn">No number</span><?php endif; ?>
+                            <?php if ((int) $a['number_shared'] > 0): ?><span class="pd-badge warn" title="Another PMS activity uses the same number">Shared number</span><?php endif; ?>
                             <?php if ($a['provider_name']): ?> &middot; <?= $h($a['provider_name']) ?><?php endif; ?>
-                            <?php if ($a['venue']): ?> &middot; <?= $h($a['venue']) ?><?php endif; ?>
-                            <?php if ($a['coordinator']): ?> &middot; Coordinator: <?= $h($a['coordinator']) ?><?php endif; ?>
                         </div>
+                        <?php if ($a['venue'] || $a['activity_type']): ?>
+                            <div class="pd-meta"><?= $h(implode(' · ', array_filter([(string) $a['activity_type'], (string) $a['venue']]))) ?></div>
+                        <?php endif; ?>
                         <?php if (count($a['schedules']) > 1): ?>
-                            <details><summary>Show all <?= count($a['schedules']) ?> sessions</summary>
+                            <details><summary><?= count($a['schedules']) ?> sessions</summary>
                                 <ul><?php foreach ($a['schedules'] as $s): ?><li><?= $h($range($s['start_date'], $s['end_date'])) ?><?= $s['venue'] !== '' ? ' &middot; ' . $h($s['venue']) : '' ?></li><?php endforeach; ?></ul>
                             </details>
                         <?php endif; ?>
                     </div>
                     <div class="pd-side">
                         <?php foreach ($a['linked_events'] as $ev): ?>
-                            <span><a class="pd-badge ok" href="/events/view.php?token=<?= $h(urlencode((string) $ev['token'])) ?>" title="<?= $h($ev['title']) ?>">Event created</a></span>
+                            <a class="pd-badge ok" href="/events/view.php?token=<?= $h(urlencode((string) $ev['token'])) ?>" title="<?= $h($ev['title']) ?>">Event created</a>
                         <?php endforeach; ?>
                         <?php if (!$a['linked_events'] && Auth::can('create_events')): ?>
                             <form method="post" action="/pms/index.php">
@@ -317,10 +325,10 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
                 </article>
             <?php endforeach; ?>
             <div class="pd-pager">
-                <span><?= number_format($total) ?> activit<?= $total === 1 ? 'y' : 'ies' ?> &middot; page <?= $page ?> of <?= $pages ?></span>
-                <span>
-                    <?php if ($page > 1): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page - 1])) ?>">&larr; Previous</a><?php endif; ?>
-                    <?php if ($page < $pages): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page + 1])) ?>">Next &rarr;</a><?php endif; ?>
+                <span><?= number_format(($page - 1) * $perPage + 1) ?>&ndash;<?= number_format(min($total, $page * $perPage)) ?> of <?= number_format($total) ?></span>
+                <span class="go">
+                    <?php if ($page > 1): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page - 1])) ?>">Previous</a><?php endif; ?>
+                    <?php if ($page < $pages): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page + 1])) ?>">Next</a><?php endif; ?>
                 </span>
             </div>
         <?php endif; ?>
@@ -328,38 +336,38 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
 
 <?php elseif ($tab === 'links'): ?>
     <section class="pd-card">
-        <div class="pd-card-h"><h2>Events without a PMS activity</h2><span class="pd-badge"><?= count($unlinked) ?> from the last 120 days and upcoming</span></div>
-        <p class="pd-sub">An event is linked automatically when its code matches one PMS activity number and the dates overlap. The ones below need a look.</p>
+        <div class="pd-card-h"><h2>Events without a PMS activity</h2><span class="pd-badge"><?= count($unlinked) ?></span></div>
         <?php if (!$unlinked): ?>
-            <div class="pd-empty">Every recent event is linked to a PMS activity.</div>
+            <div class="pd-empty">Every recent event is linked.</div>
         <?php else: ?>
+            <div class="pd-scroll">
             <table class="pd-table">
-                <thead><tr><th>Event</th><th>Code</th><th>Dates</th><th>What to do</th></tr></thead>
+                <thead><tr><th>Event</th><th>Code</th><th>Dates</th><th>Action</th></tr></thead>
                 <tbody>
                 <?php foreach ($unlinked as $ev): ?>
                     <tr>
                         <td><a href="/events/view.php?token=<?= $h(urlencode((string) $ev['view_token'])) ?>"><?= $h($ev['title']) ?></a></td>
                         <td class="pd-mono"><?= $h($ev['event_code'] ?: '—') ?></td>
-                        <td><?= $h($range($ev['start_date'], $ev['end_date'])) ?></td>
+                        <td style="white-space:nowrap;"><?= $h($range($ev['start_date'], $ev['end_date'])) ?></td>
                         <td>
                             <?php if ($ev['reason'] === 'no_code'): ?>
-                                <span class="pd-badge warn">No activity number</span> Add the PMS activity number on the event.
+                                <span class="pd-badge warn">No code</span> Add the activity number to the event.
                             <?php elseif ($ev['reason'] === 'unknown_code'): ?>
-                                <span class="pd-badge warn">Unknown number</span> PMS has no activity numbered <span class="pd-mono"><?= $h($ev['event_code']) ?></span>. Check for a typo or the wrong year.
+                                <span class="pd-badge warn">Unknown code</span> PMS has no activity <span class="pd-mono"><?= $h($ev['event_code']) ?></span>. Check for a typo.
                             <?php else: ?>
                                 <?php if ($ev['reason'] === 'ambiguous'): ?>
-                                    <span class="pd-badge warn">Shared number</span> More than one PMS activity has this number. Choose the right one:
+                                    <span class="pd-badge warn">Shared number</span> Pick the right activity:
                                 <?php else: ?>
-                                    <span class="pd-badge warn">Dates differ</span> The number exists in PMS, but not on these dates:
+                                    <span class="pd-badge warn">Dates differ</span> Same number, different dates:
                                 <?php endif; ?>
                                 <?php foreach ($ev['candidates'] as $c): ?>
-                                    <div style="margin-top:.3rem;"><?= $h($c['title']) ?> <span class="pd-meta">(<?= $h($range($c['start'], $c['end'])) ?>)</span>
+                                    <div class="pd-cand"><span><?= $h($c['title']) ?> <span class="pd-meta">(<?= $h($range($c['start'], $c['end'])) ?>)</span></span>
                                         <form method="post" action="/pms/index.php?tab=links">
                                             <input type="hidden" name="csrf_token" value="<?= $h($csrf) ?>">
                                             <input type="hidden" name="action" value="link">
                                             <input type="hidden" name="event_id" value="<?= (int) $ev['id'] ?>">
                                             <input type="hidden" name="activity_id" value="<?= (int) $c['id'] ?>">
-                                            <button class="pd-btn small" type="submit">Link to this</button>
+                                            <button class="pd-btn small" type="submit">Link</button>
                                         </form>
                                     </div>
                                 <?php endforeach; ?>
@@ -369,6 +377,7 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php endif; ?>
     </section>
 
@@ -376,18 +385,19 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
     <?php $c = $report['counts']; ?>
     <section class="pd-card">
         <div class="pd-card-h"><h2>Providers</h2>
-            <span class="pd-badge"><?= (int) $c['pms'] ?> in PMS &middot; <?= (int) $c['local'] ?> in your list &middot; <?= (int) $c['matched'] ?> matched</span></div>
+            <span class="pd-badge"><?= (int) $c['pms'] ?> in PMS &middot; <?= (int) $c['matched'] ?> matched</span></div>
 
-        <p class="pd-sub"><strong>In PMS but not in your providers (<?= count($report['pms_only']) ?>)</strong>. Only approved providers can be added.</p>
+        <div class="pd-sec"><h3>Not in your list (<?= count($report['pms_only']) ?>)</h3><span>Only approved providers can be added.</span></div>
         <?php if (!$report['pms_only']): ?>
-            <div class="pd-empty">Every PMS provider is in your list.</div>
+            <div class="pd-empty">None. Every PMS provider is in your list.</div>
         <?php else: ?>
+            <div class="pd-scroll">
             <table class="pd-table">
                 <thead><tr><th>Accreditation no.</th><th>Name</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 <?php foreach (array_slice($report['pms_only'], 0, 100) as $p): ?>
                     <tr>
-                        <td class="pd-mono"><?= $h($p['accred_num']) ?></td>
+                        <td class="pd-mono" style="white-space:nowrap;"><?= $h($p['accred_num']) ?></td>
                         <td><?= $h($p['name']) ?></td>
                         <td><span class="pd-badge <?= $p['status'] === 'approved' ? 'ok' : 'warn' ?>"><?= $h(ucfirst((string) $p['status'])) ?></span></td>
                         <td style="text-align:right;">
@@ -404,32 +414,37 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php endif; ?>
 
-        <p class="pd-sub"><strong>Same number, different name (<?= count($report['name_differs']) ?>)</strong>. Nothing is changed automatically.</p>
+        <div class="pd-sec"><h3>Name differs (<?= count($report['name_differs']) ?>)</h3><span>Same number, different name. Nothing changes automatically.</span></div>
         <?php if (!$report['name_differs']): ?>
-            <div class="pd-empty">All matched providers have the same name.</div>
+            <div class="pd-empty">None. All matched names agree.</div>
         <?php else: ?>
+            <div class="pd-scroll">
             <table class="pd-table">
                 <thead><tr><th>Accreditation no.</th><th>PMS name</th><th>Your name</th></tr></thead>
                 <tbody>
                 <?php foreach (array_slice($report['name_differs'], 0, 100) as $p): ?>
-                    <tr><td class="pd-mono"><?= $h($p['accred_num']) ?></td><td><?= $h($p['pms_name']) ?></td><td><?= $h($p['local_name']) ?></td></tr>
+                    <tr><td class="pd-mono" style="white-space:nowrap;"><?= $h($p['accred_num']) ?></td><td><?= $h($p['pms_name']) ?></td><td><?= $h($p['local_name']) ?></td></tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php endif; ?>
 
-        <p class="pd-sub"><strong>In your list but not in PMS (<?= count($report['local_only']) ?>)</strong>. Worth checking with KVB if you still use them.</p>
         <?php if ($report['local_only']): ?>
+            <div class="pd-sec"><h3>Not in PMS (<?= count($report['local_only']) ?>)</h3><span>Worth confirming with KVB.</span></div>
+            <div class="pd-scroll">
             <table class="pd-table">
                 <thead><tr><th>Accreditation no.</th><th>Name</th></tr></thead>
                 <tbody>
                 <?php foreach (array_slice($report['local_only'], 0, 100) as $p): ?>
-                    <tr><td class="pd-mono"><?= $h($p['accreditation_no']) ?></td><td><?= $h($p['name']) ?></td></tr>
+                    <tr><td class="pd-mono" style="white-space:nowrap;"><?= $h($p['accreditation_no']) ?></td><td><?= $h($p['name']) ?></td></tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         <?php endif; ?>
     </section>
 <?php endif; ?>
