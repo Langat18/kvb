@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../templates/icons.php';
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
@@ -341,7 +342,7 @@ $v = $formData;
                 <div class="geo-map" id="geo-map"></div>
 
                 <div class="form-group full">
-                    <button type="button" class="btn btn-ghost btn-sm" onclick="detectLocation()">&#128205; Use My Location</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="detectLocation()"><?= ui_icon('pin', 16) ?> Use my location</button>
                 </div>
 
                 <div class="form-group">

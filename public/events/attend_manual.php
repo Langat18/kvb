@@ -204,7 +204,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <h1>Record Manual Attendance</h1>
             <p class="sub">For attendees without a working device &mdash; uses your device's location, same rules as self check-in.</p>
         </div>
-        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">&larr; Back to Event</a>
+        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Back to Event</a>
     </div>
 
     <?php if ($success): ?>

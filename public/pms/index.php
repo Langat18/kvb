@@ -319,8 +319,8 @@ $tabUrl = static fn(string $t): string => '/pms/index.php?tab=' . $t;
             <div class="pd-pager">
                 <span><?= number_format($total) ?> activit<?= $total === 1 ? 'y' : 'ies' ?> &middot; page <?= $page ?> of <?= $pages ?></span>
                 <span>
-                    <?php if ($page > 1): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page - 1])) ?>">&larr; Previous</a><?php endif; ?>
-                    <?php if ($page < $pages): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page + 1])) ?>">Next &rarr;</a><?php endif; ?>
+                    <?php if ($page > 1): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page - 1])) ?>">Previous</a><?php endif; ?>
+                    <?php if ($page < $pages): ?><a class="pd-btn small" href="<?= $h($back(['page' => $page + 1])) ?>">Next</a><?php endif; ?>
                 </span>
             </div>
         <?php endif; ?>

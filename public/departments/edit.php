@@ -84,7 +84,7 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/departments/index.php" class="btn btn-secondary">&larr; Back to Departments</a>
+        <a href="/departments/index.php" class="btn btn-secondary">Back to Departments</a>
     </div>
 </div>
 </body>

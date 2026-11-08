@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../templates/icons.php';
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
@@ -432,13 +433,13 @@ unset(
     <?php if ($attendSuccess): ?>
         <div class="card" style="text-align:center;padding:2rem;">
             <?php if ($attendPointsDenied): ?>
-                <div style="font-size:3rem;">&#9888;</div>
+                <div class="outcome-ico warn"><?= ui_icon('alert', 34) ?></div>
                 <h2 style="color:var(--kvb-red-dark);margin:.5rem 0;">Attendance Recorded</h2>
                 <p style="font-weight:600;color:var(--kvb-red-dark);">Points are not awarded — offsite.</p>
                 <p style="font-size:.82rem;color:var(--text-muted);margin-top:.5rem;">Your check-in was too far from the venue to qualify for CPD points.</p>
 
             <?php else: ?>
-                <div style="font-size:3rem;">&#10003;</div>
+                <div class="outcome-ico ok"><?= ui_icon('check', 34) ?></div>
                 <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Attendance Recorded</h2>
                 <p>Your <?= htmlspecialchars($sessionLabels[$attendSession] ?? $attendSession, ENT_QUOTES, 'UTF-8') ?> session attendance has been saved.</p>
 

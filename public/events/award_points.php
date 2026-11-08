@@ -117,7 +117,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <div class="page-with-sidebar">
     <div class="app-page-hero">
         <div><h1>Add Points</h1></div>
-        <a href="<?= $h($viewUrl) ?>" class="btn btn-ghost">&larr; Back to Event</a>
+        <a href="<?= $h($viewUrl) ?>" class="btn btn-ghost">Back to Event</a>
     </div>
 
     <div class="app-card">

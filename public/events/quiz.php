@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../templates/icons.php';
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
@@ -138,7 +139,7 @@ if (!$alreadyPassed && !$exhausted) {
 
     <?php if ($alreadyPassed): ?>
         <div class="card" style="text-align:center;padding:2rem;">
-            <div style="font-size:3rem;">&#10003;</div>
+            <div class="outcome-ico ok"><?= ui_icon('check', 34) ?></div>
             <h2 style="color:var(--kvb-green-dark);margin:.5rem 0;">Quiz Passed</h2>
             <p>Attendance confirmed. Points recorded.</p>
         </div>

@@ -116,7 +116,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/providers/index.php" class="btn btn-secondary">&larr; Back to Providers</a>
+        <a href="/providers/index.php" class="btn btn-secondary">Back to Providers</a>
     </div>
 </div>
 </body>

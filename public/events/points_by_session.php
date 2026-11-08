@@ -207,7 +207,7 @@ $totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_award
 </head>
 <body>
 <main class="ps">
-    <a class="ps-back" href="/events/view.php?token=<?= urlencode((string) $_GET['token']) ?>">&larr; Back to event</a>
+    <a class="ps-back" href="/events/view.php?token=<?= urlencode((string) $_GET['token']) ?>">Back to event</a>
     <h1>Points by Session</h1>
     <p class="ps-sub"><?= $h($event['title']) ?> &middot; <?= $startDate ?> to <?= $endDate ?></p>
 

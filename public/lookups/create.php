@@ -131,7 +131,7 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/lookups/<?= urlencode($type) ?>" class="btn btn-secondary">&larr; Back</a>
+        <a href="/lookups/<?= urlencode($type) ?>" class="btn btn-secondary">Back</a>
     </div>
 </div>
 </body>

@@ -96,7 +96,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <div class="page-with-sidebar">
     <div class="app-page-hero">
         <div><h1>Edit Attendee</h1></div>
-        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">&larr; Back to Event</a>
+        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Back to Event</a>
     </div>
 
     <div class="app-card">

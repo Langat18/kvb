@@ -67,11 +67,11 @@
     <div class="app-sidebar-body">
         <?php if (!empty($sidebarActionGroups)): ?>
         <details class="app-sidebar-actions" open>
-            <summary>Quick Actions <span class="chev">&rsaquo;</span></summary>
+            <summary>Quick Actions <span class="chev" aria-hidden="true"></span></summary>
             <?php foreach ($sidebarActionGroups as $groupLabel => $groupActions): ?>
                 <?php if (empty($groupActions)) { continue; } ?>
                 <details class="app-sidebar-group">
-                    <summary><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> <span class="chev">&rsaquo;</span></summary>
+                    <summary><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?> <span class="chev" aria-hidden="true"></span></summary>
                     <?php foreach ($groupActions as $a): ?>
                         <a href="<?= htmlspecialchars($a['url'], ENT_QUOTES, 'UTF-8') ?>" class="app-action-row">
                             <span class="badge"><?= $a['icon'] ?></span>
@@ -126,7 +126,7 @@
 <div class="<?= !empty($useAppSidebar) ? 'sidebar-breadcrumb' : 'page-body-outer' ?>">
     <div class="breadcrumb">
         <?php foreach ($breadcrumbs as $i => $crumb): ?>
-            <?php if ($i > 0): ?> &rsaquo; <?php endif; ?>
+            <?php if ($i > 0): ?><span class="crumb-sep" aria-hidden="true">/</span><?php endif; ?>
             <?php if (!empty($crumb['url'])): ?>
                 <a href="<?= htmlspecialchars($crumb['url'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($crumb['label'], ENT_QUOTES, 'UTF-8') ?></a>
             <?php else: ?>

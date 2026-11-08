@@ -179,7 +179,7 @@ $isOnsite  = $event['event_mode'] === 'onsite';
                 <p style="color:var(--kvb-red-dark);font-size:.85rem;">No meeting link yet. Contact the organizer.</p>
             <?php endif; ?>
             <p style="margin-top:1rem;font-size:.85rem;">
-                <a href="/events/attend.php?token=<?= urlencode($token) ?><?= $regNo ? '&amp;reg_no=' . urlencode($regNo) : '' ?>" style="color:var(--kvb-green-dark);">Earn Session Points &rarr;</a>
+                <a href="/events/attend.php?token=<?= urlencode($token) ?><?= $regNo ? '&amp;reg_no=' . urlencode($regNo) : '' ?>" style="color:var(--kvb-green-dark);">Earn Session Points</a>
                 (opens <?= $eventModel->signInWhenText((int) $event['id']) ?>)
             </p>
         </div>

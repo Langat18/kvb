@@ -99,7 +99,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/staff/index.php" class="btn btn-secondary">&larr; Back to Staff List</a>
+        <a href="/staff/index.php" class="btn btn-secondary">Back to Staff List</a>
     </div>
 </div>
 </body>

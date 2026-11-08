@@ -438,9 +438,9 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                     <?php else: ?>
                         <?php foreach ($p['attendance'] as $a): ?>
                             <?php if (!in_array(nrStatus($a), ['Verified', 'Approved'], true)): ?>
-                                <div class="flag-badge">&#9888; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?><?php if ((int) $a['distance_m'] > 0): ?> (<?= (int) $a['distance_m'] ?>m)<?php endif; ?></div>
+                                <div class="flag-badge"><?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?><?php if ((int) $a['distance_m'] > 0): ?> (<?= (int) $a['distance_m'] ?>m)<?php endif; ?></div>
                             <?php else: ?>
-                                <div class="ok-badge">&#10003; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="ok-badge"><?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?></div>
                             <?php endif; ?>
                         <?php endforeach; ?>
                     <?php endif; ?>

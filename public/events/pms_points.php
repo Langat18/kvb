@@ -252,7 +252,7 @@ $activity   = (string) ($pmsData['title'] ?? '');
             <h1>PMS Points</h1>
             <p class="pp-lead">Preview of the CPD points that would be submitted to KVB for this event. This page is read-only and sends nothing.</p>
         </div>
-        <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">&larr; Back to event</a>
+        <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">Back to event</a>
     </div>
 
     <p class="pp-ctx">

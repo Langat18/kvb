@@ -143,7 +143,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <span>Page <?= $page ?> of <?= $totalPages ?> (<?= $total ?> events)</span>
                     <div class="pagination-links">
                         <?php $baseParams = ['per_page' => $perPage, 'search' => $search, 'event_mode' => $modeFilter, 'date' => $dateFilter]; ?>
-                        <a href="?<?= http_build_query(['page' => $page - 1] + $baseParams) ?>" class="<?= $page <= 1 ? 'disabled' : '' ?>">&lsaquo; Prev</a>
+                        <a href="?<?= http_build_query(['page' => $page - 1] + $baseParams) ?>" class="<?= $page <= 1 ? 'disabled' : '' ?>">Previous</a>
                         <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                             <?php if ($p === $page): ?>
                                 <span class="current"><?= $p ?></span>
@@ -151,7 +151,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                 <a href="?<?= http_build_query(['page' => $p] + $baseParams) ?>"><?= $p ?></a>
                             <?php endif; ?>
                         <?php endfor; ?>
-                        <a href="?<?= http_build_query(['page' => $page + 1] + $baseParams) ?>" class="<?= $page >= $totalPages ? 'disabled' : '' ?>">Next &rsaquo;</a>
+                        <a href="?<?= http_build_query(['page' => $page + 1] + $baseParams) ?>" class="<?= $page >= $totalPages ? 'disabled' : '' ?>">Next</a>
                     </div>
                 </div>
             <?php endif; ?>

@@ -71,7 +71,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .form-group { margin-bottom: 1rem; }
 .pw-wrap { position: relative; }
 .pw-wrap input { padding-right: 2.5rem; }
-.pw-toggle { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: .85rem; color: var(--text-muted); padding: 0; }
+.pw-toggle { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: .75rem; font-weight: 600; color: var(--text-muted); padding: 0 .25rem; }
 </style>
 </head>
 <body class="has-app-sidebar">
@@ -99,7 +99,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <label for="current_password">Current Password</label>
                 <div class="pw-wrap">
                     <input type="password" id="current_password" name="current_password" required>
-                    <button type="button" class="pw-toggle" data-target="current_password">&#128065;</button>
+                    <button type="button" class="pw-toggle" data-target="current_password">Show</button>
                 </div>
             </div>
 
@@ -107,7 +107,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <label for="new_password">New Password</label>
                 <div class="pw-wrap">
                     <input type="password" id="new_password" name="new_password" required minlength="8">
-                    <button type="button" class="pw-toggle" data-target="new_password">&#128065;</button>
+                    <button type="button" class="pw-toggle" data-target="new_password">Show</button>
                 </div>
                 <small style="color:var(--text-muted);">At least 8 characters.</small>
             </div>
@@ -116,7 +116,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <label for="confirm_password">Confirm New Password</label>
                 <div class="pw-wrap">
                     <input type="password" id="confirm_password" name="confirm_password" required minlength="8">
-                    <button type="button" class="pw-toggle" data-target="confirm_password">&#128065;</button>
+                    <button type="button" class="pw-toggle" data-target="confirm_password">Show</button>
                 </div>
             </div>
 
@@ -130,6 +130,7 @@ document.querySelectorAll('.pw-toggle').forEach(btn => {
     btn.addEventListener('click', function() {
         const input = document.getElementById(this.dataset.target);
         input.type = input.type === 'password' ? 'text' : 'password';
+        this.textContent = input.type === 'password' ? 'Show' : 'Hide';
     });
 });
 </script>

@@ -201,7 +201,7 @@ body { display: block; padding: 2.5rem; }
     </div>
 
     <div style="margin-top:1rem;">
-        <a href="/roles/index.php" class="btn btn-secondary">&larr; Back to Roles</a>
+        <a href="/roles/index.php" class="btn btn-secondary">Back to Roles</a>
     </div>
 </div>
 

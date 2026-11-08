@@ -126,7 +126,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <div class="pagination">
                 <span>Page <?= $currentPage ?> of <?= $totalPages ?> (<?= $totalStaff ?> staff)</span>
                 <div class="pagination-links">
-                    <a href="?page=<?= $currentPage - 1 ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">&lsaquo; Prev</a>
+                    <a href="?page=<?= $currentPage - 1 ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">Previous</a>
                     <?php for ($p = 1; $p <= $totalPages; $p++): ?>
                         <?php if ($p === $currentPage): ?>
                             <span class="current"><?= $p ?></span>
@@ -134,7 +134,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                             <a href="?page=<?= $p ?>"><?= $p ?></a>
                         <?php endif; ?>
                     <?php endfor; ?>
-                    <a href="?page=<?= $currentPage + 1 ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next &rsaquo;</a>
+                    <a href="?page=<?= $currentPage + 1 ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next</a>
                 </div>
             </div>
         <?php endif; ?>

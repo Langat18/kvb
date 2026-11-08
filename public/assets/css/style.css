@@ -965,7 +965,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--k
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .card-flush, .app-card.card-flush { overflow-x: auto; }
 .data-table th { white-space: nowrap; }
-.data-table td { overflow-wrap: anywhere; }
+.data-table td { overflow-wrap: break-word; }
+.roster td:nth-child(1), .roster td:nth-child(3) { white-space: nowrap; }
 
 /* Key/value tables read as stacked pairs on phones */
 @media (max-width: 640px) {
@@ -1040,3 +1041,36 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--k
 .app-profile-links a:hover { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
 .app-profile-links a.logout:hover { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
 @media (max-width: 1020px) { .app-sidebar-brand + .app-profile-top, .app-sidebar > .app-profile-top:first-child { margin-top: .25rem; } }
+
+/* ==========================================================================
+   Icons and calmer surface: neutral page, white cards, tighter corners
+   ========================================================================== */
+.ui-icon { display: inline-block; vertical-align: -.15em; flex: 0 0 auto; }
+.pill .ui-icon { vertical-align: -.1em; margin-right: .1rem; }
+.btn .ui-icon, .btn-ghost .ui-icon { vertical-align: -.2em; }
+.app-action-row .badge .ui-icon { display: block; }
+
+/* Disclosure chevron drawn in CSS (rotates with the existing open/closed rules) */
+.chev { display: inline-flex; align-items: center; justify-content: center; width: 1em; height: 1em; font-size: .9rem; }
+.chev::before { content: ""; width: .4em; height: .4em; border-right: 1.75px solid currentColor; border-top: 1.75px solid currentColor; transform: rotate(45deg); }
+.crumb-sep { margin: 0 .45rem; opacity: .55; }
+
+/* Outcome icon on sign-in and quiz result cards */
+.outcome-ico { width: 64px; height: 64px; margin: 0 auto .5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.outcome-ico.ok { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
+.outcome-ico.warn { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
+
+/* Calmer surface */
+:root { --card-radius: 14px; --shadow-sm: 0 1px 2px rgba(15, 23, 42, .05), 0 2px 8px rgba(15, 23, 42, .05); --shadow-md: 0 2px 4px rgba(15, 23, 42, .06), 0 8px 20px rgba(15, 23, 42, .08); }
+body { background: #f3f5f7; }
+.card, .app-card, .dash-main-card { border-radius: var(--card-radius); }
+.card:hover { box-shadow: var(--shadow-sm); }
+.dash-main-card, .app-card { border: 1px solid var(--line); border-left: 1px solid var(--line); }
+.btn, .btn-ghost, .btn-danger, .btn-success, .kvb-btn { border-radius: 10px; }
+input, select, textarea { border-radius: 10px; }
+.pill, .role-badge { border-radius: 999px; }
+.app-action-row .badge { border-radius: 9px; }
+@media (max-width: 780px) { .card { border-radius: 12px; } }
+@media (max-width: 480px) { .card { border-radius: 12px; } }
+
+.app-action-row .title, .app-action-row .desc { display: block; line-height: 1.35; }

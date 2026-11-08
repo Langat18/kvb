@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../templates/icons.php';
 require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 
@@ -127,7 +128,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <a href="/events/calendar.php?token=<?= urlencode($event['token']) ?>" class="btn btn-ghost">Add to Calendar</a>
             <?php if ($flaggedTotal > 0 && Auth::can('review_flagged_attendance')): ?>
                 <a href="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-danger">
-                    &#9888; Review Flagged (<?= $flaggedTotal ?>)
+                    Review Flagged (<?= $flaggedTotal ?>)
                 </a>
             <?php endif; ?>
         </div>
@@ -171,7 +172,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <th>Geofence</th>
                     <td>
                         <span title="Coordinates: <?= $event['geo_lat'] ?>, <?= $event['geo_lng'] ?>" style="cursor:help;border-bottom:1px dotted var(--text-muted);">
-                            &#128205; <?= (int) $event['geo_radius_m'] ?>m radius around venue
+                            <?= ui_icon('pin', 14) ?> <?= (int) $event['geo_radius_m'] ?>m radius around venue
                         </span>
                     </td>
                 </tr>
@@ -221,11 +222,11 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                 <?php foreach ($p['attendance'] as $a): ?>
                                     <?php if ($a['flagged']): ?>
                                         <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);" title="<?= (int) $a['distance_m'] ?>m from venue">
-                                            &#9888; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
+                                            <?= ui_icon('alert', 12) ?> <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php else: ?>
                                         <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="Verified">
-                                            &#10003; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
+                                            <?= ui_icon('check', 12) ?> <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php endif; ?>
                                 <?php endforeach; ?>
@@ -239,7 +240,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                             <div class="session-badges">
                                 <?php foreach ($p['days_present'] as $day => $source): ?>
                                     <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="<?= $source === 'signin' ? 'Signed in to a session' : ($source === 'staff' ? 'Confirmed by staff' : 'Confirmed by attendee') ?>">
-                                        &#10003; <?= htmlspecialchars(date('d M', strtotime((string) $day)), ENT_QUOTES, 'UTF-8') ?>
+                                        <?= ui_icon('check', 12) ?> <?= htmlspecialchars(date('d M', strtotime((string) $day)), ENT_QUOTES, 'UTF-8') ?>
                                     </span>
                                 <?php endforeach; ?>
                             </div>
