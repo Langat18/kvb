@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE session_presentations ADD COLUMN IF NOT EXISTS room VARCHAR(60);
+
+COMMIT;

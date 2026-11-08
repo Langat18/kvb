@@ -28,11 +28,12 @@ class Event
                 'INSERT INTO events
                     (title, event_code, event_mode_id, venue, provider_id, coordinator,
                      start_date, end_date, geo_lat, geo_lng, geo_radius_m,
-                     meeting_provider, meeting_link, token, view_token, created_by)
+                     meeting_provider, meeting_link, token, view_token, created_by, day_confirmation)
                  VALUES
                     (:title, :event_code, :event_mode_id, :venue, :provider_id, :coordinator,
                      :start_date, :end_date, :geo_lat, :geo_lng, :geo_radius_m,
-                     :meeting_provider, :meeting_link, :token, :view_token, :created_by)
+                     :meeting_provider, :meeting_link, :token, :view_token, :created_by,
+                     CAST(:day_confirmation AS boolean))
                  RETURNING id'
             );
 
@@ -53,6 +54,7 @@ class Event
                 ':token'            => bin2hex(random_bytes(16)),
                 ':view_token'       => bin2hex(random_bytes(16)),
                 ':created_by'       => $data['created_by'] ?? null,
+                ':day_confirmation' => !empty($data['day_confirmation']) ? 'true' : 'false',
             ]);
 
             $eventId = (int) $stmt->fetchColumn();
@@ -83,12 +85,16 @@ class Event
                     venue = :venue, provider_id = :provider_id,
                     coordinator = :coordinator, start_date = :start_date, end_date = :end_date,
                     geo_lat = :geo_lat, geo_lng = :geo_lng, geo_radius_m = :geo_radius_m,
-                    meeting_provider = :meeting_provider, meeting_link = :meeting_link
+                    meeting_provider = :meeting_provider, meeting_link = :meeting_link,
+                    day_confirmation = COALESCE(CAST(:day_confirmation AS boolean), day_confirmation)
                  WHERE id = :id'
             );
 
             $result = $stmt->execute([
                 ':id'               => $id,
+                ':day_confirmation' => array_key_exists('day_confirmation', $data)
+                    ? (!empty($data['day_confirmation']) ? 'true' : 'false')
+                    : null,
                 ':title'            => trim($data['title']),
                 ':event_code'       => trim($data['event_code'] ?? ''),
                 ':event_mode_id'    => (int) $data['event_mode_id'],
@@ -603,7 +609,32 @@ class Event
         $stmt->execute([':event_id' => $eventId]);
         $participants = $stmt->fetchAll();
 
+        $dayStmt = $this->pdo->prepare(
+            "SELECT x.registration_id, x.day, x.source
+             FROM (
+                 SELECT a.registration_id, a.attendance_date::text AS day, 'signin' AS source, 0 AS ord
+                 FROM attendance a
+                 JOIN registrations r ON r.id = a.registration_id
+                 WHERE r.event_id = :event_id AND NOT a.flagged AND NOT a.points_denied
+                 UNION ALL
+                 SELECT dc.registration_id, dc.confirm_date::text, dc.method, 1
+                 FROM day_confirmations dc
+                 JOIN registrations r ON r.id = dc.registration_id
+                 WHERE r.event_id = :event_id_dc
+             ) x
+             ORDER BY x.registration_id, x.day, x.ord"
+        );
+        $dayStmt->execute([':event_id' => $eventId, ':event_id_dc' => $eventId]);
+
+        $daysPresent = [];
+
+        foreach ($dayStmt->fetchAll() as $row) {
+            $daysPresent[(int) $row['registration_id']][$row['day']] ??= $row['source'];
+        }
+
         foreach ($participants as &$participant) {
+            $participant['days_present'] = $daysPresent[(int) $participant['registration_id']] ?? [];
+
             $attStmt = $this->pdo->prepare(
                 'SELECT a.session_id, es.label AS session_label, a.attendance_date, a.method, a.flagged, a.points_denied, a.reviewed_at, a.distance_m, a.flag_reason
                  FROM attendance a

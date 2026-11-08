@@ -10,6 +10,7 @@ $sidebarActionGroups = (function (): array {
         'Events' => [
             ['perm' => 'create_events', 'url' => '/events/create.php', 'icon' => '&#128197;', 'label' => 'New Event',  'desc' => 'On-site, virtual, or hybrid'],
             ['perm' => 'view_events',   'url' => '/events/index.php',  'icon' => '&#128203;', 'label' => 'All Events', 'desc' => 'Browse and manage'],
+            ['perm' => 'manage_events', 'url' => '/pms/index.php', 'icon' => '&#127760;', 'label' => 'PMS Activities', 'desc' => 'KVB-approved CPD activities'],
         ],
         'Insights' => [
             ['perm' => 'view_leaderboard', 'url' => '/points/leaderboard.php', 'icon' => '&#127942;', 'label' => 'Leaderboard', 'desc' => 'Points across participants'],

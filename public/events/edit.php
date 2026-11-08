@@ -48,15 +48,7 @@ $success  = $_SESSION['success']   ?? null;
 $formData = $_SESSION['form_data'] ?? [];
 unset($_SESSION['error'], $_SESSION['success'], $_SESSION['form_data']);
 
-/**
- * Parses the quiz[] POST block into a save-ready structure keyed by session id:
- * [ session_id => ['clear' => bool, 'questions' => [...]] ]
- *
- * The id is a numeric session id, or a client placeholder (new_N) for a session
- * added in the same submission. Sessions with a blank panel are omitted so an
- * untouched quiz is never cleared. A mismatch between the submitted and received
- * question counts is logged.
- */
+
 function parseQuizSubmission(array $post, int $eventId): array
 {
     $result = [];
@@ -147,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
+        'day_confirmation'          => ($_POST['day_confirmation'] ?? '') === '1',
         'sessions'                  => $_POST['sessions'] ?? [],
         'presentations'             => $_POST['presentations'] ?? [],
     ];
@@ -364,6 +357,15 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                     <label for="provider_name_display">Provider Name</label>
                     <input type="text" id="provider_name_display" readonly value="<?= htmlspecialchars($providerNameDisplay, ENT_QUOTES, 'UTF-8') ?>" placeholder="Fills in automatically">
                 </div>
+
+                <div class="form-group full">
+                    <input type="hidden" name="day_confirmation" value="0">
+                    <label style="display:flex;align-items:center;gap:.5rem;font-weight:500;">
+                        <input type="checkbox" name="day_confirmation" value="1" style="width:auto;margin:0;" <?= isTruthyDbBool($v['day_confirmation'] ?? false) ? 'checked' : '' ?>>
+                        Confirm attendees on each event day
+                    </label>
+                    <small style="color:var(--text-muted);">Attendees confirm their presence on every day of the event, separate from session sign-in and points.</small>
+                </div>
             </div>
 
             <div class="form-grid" id="meeting-fields">
@@ -466,6 +468,7 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
                                         <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][presenter]" value="<?= htmlspecialchars((string) ($p['presenter'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Presenter" maxlength="150" aria-label="Presenter">
                                         <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][reg_no]" value="<?= htmlspecialchars((string) ($p['reg_no'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">
                                         <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][topic]" value="<?= htmlspecialchars((string) ($p['topic'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Topic" maxlength="255" aria-label="Topic">
+                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][room]" value="<?= htmlspecialchars((string) ($p['room'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Room (optional)" maxlength="60" aria-label="Room">
                                         <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][start_time]" value="<?= htmlspecialchars(substr((string) ($p['start_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="Start time">
                                         <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][end_time]" value="<?= htmlspecialchars(substr((string) ($p['end_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="End time">
                                         <button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../config/constants.php';
 require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
+use VetBoard\Registration;
 Auth::startSession();
 $token = trim($_GET['token'] ?? '');
 if (empty($token)) {
@@ -20,6 +21,10 @@ die('Event not found or link is invalid.');
 $startDate = date('d M Y', strtotime($event['start_date']));
 $endDate   = date('d M Y', strtotime($event['end_date']));
 $isPureOnsite = $event['event_mode'] === 'onsite';
+$today             = date('Y-m-d');
+$dayConfirmEnabled = $today >= $event['start_date'] && $today <= $event['end_date']
+    && (new Registration())->dayConfirmationEnabled((int) $event['id']);
+$dayNumber         = (new DateTimeImmutable($event['start_date']))->diff(new DateTimeImmutable($today))->days + 1;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -41,6 +46,7 @@ $isPureOnsite = $event['event_mode'] === 'onsite';
 .choice-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .choice-btn-register { background: var(--kvb-green-dark); color: #fff; }
 .choice-btn-attend   { background: var(--kvb-gold); color: var(--kvb-black); }
+.choice-btn-confirm  { background: #fff; color: var(--kvb-green-dark); border: 2px solid var(--kvb-green-dark); }
 .choice-btn small { display: block; font-weight: 400; font-size: .78rem; margin-top: .25rem; opacity: .85; }
 .virtual-notice {
     font-size: .8rem; color: var(--kvb-green-dark); background: var(--kvb-green-light);
@@ -75,6 +81,12 @@ $isPureOnsite = $event['event_mode'] === 'onsite';
                 Earn Session Points
 <small>Registered? Earn Session Points.</small>
 </a>
+<?php if ($dayConfirmEnabled): ?>
+<a href="/events/attend.php?token=<?= urlencode($token) ?>&amp;confirm=1" class="choice-btn choice-btn-confirm">
+                Day <?= (int) $dayNumber ?> Confirmation
+<small>Registered? Confirm you are here today.</small>
+</a>
+<?php endif; ?>
 </div>
 <p style="margin-top:1.5rem;font-size:.78rem;">
 <a href="/points/mylookup.php" style="color:var(--text-muted);">Check my CPD points</a>

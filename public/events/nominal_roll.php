@@ -67,6 +67,18 @@ function nrStatus(array $a): string
     return 'Verified';
 }
 
+function nrDayLines(array $p): array
+{
+    $lines = [];
+
+    foreach ($p['days_present'] ?? [] as $day => $source) {
+        $label   = $source === 'signin' ? 'Signed in' : ($source === 'staff' ? 'Confirmed (staff)' : 'Confirmed');
+        $lines[] = date('d M', strtotime((string) $day)) . ': ' . $label;
+    }
+
+    return $lines;
+}
+
 $providerName = $event['provider_name'] ?: '-';
 $providerAcc  = $event['provider_accreditation_no'] ?: '-';
 
@@ -145,7 +157,7 @@ if ($format === 'word') {
 
     $section->addTextBreak(1);
 
-    $colWidths = [450, 1500, 2600, 2600, 1500, 900, 800, 2000, 2600];
+    $colWidths = [450, 1400, 2300, 2300, 1400, 800, 700, 1800, 2300, 1500];
     $table = $section->addTable([
         'borderSize'  => 6,
         'borderColor' => 'CCCCCC',
@@ -156,7 +168,7 @@ if ($format === 'word') {
     $hPara  = ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER];
 
     $table->addRow();
-    foreach (['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions', 'Points', 'Mode', 'Status'] as $idx => $h) {
+    foreach (['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions', 'Points', 'Mode', 'Status', 'Days present'] as $idx => $h) {
         $table->addCell($colWidths[$idx])->addText($h, $hStyle, $hPara);
     }
 
@@ -184,6 +196,7 @@ if ($format === 'word') {
         $statusParts = array_map(fn($a) => ($a['session_label'] ?? 'Unknown') . ': ' . nrStatus($a), $p['attendance']);
         $table->addCell($colWidths[7])->addText(str_replace('&', 'and', implode('; ', $modeParts) ?: '-'), $cStyle);
         $table->addCell($colWidths[8])->addText(str_replace('&', 'and', implode('; ', $statusParts) ?: 'None'), $cStyle);
+        $table->addCell($colWidths[9])->addText(str_replace('&', 'and', implode('; ', nrDayLines($p)) ?: '-'), $cStyle);
     }
 
     $section->addTextBreak(1);
@@ -220,16 +233,16 @@ if ($format === 'excel') {
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
 
-    $sheet->mergeCells('A1:I1');
+    $sheet->mergeCells('A1:J1');
     $sheet->setCellValue('A1', $event['title'] . ' — Nominal Roll');
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
     $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
-    $sheet->mergeCells('A2:I2');
+    $sheet->mergeCells('A2:J2');
     $sheet->setCellValue('A2', ($event['venue'] ?? '') . ' | ' . $startDate . ' - ' . $endDate);
     $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
 
-    $sheet->mergeCells('A3:I3');
+    $sheet->mergeCells('A3:J3');
     $sheet->setCellValue(
         'A3',
         'Provider: ' . $providerName
@@ -240,12 +253,12 @@ if ($format === 'excel') {
     $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
     $sheet->getStyle('A3')->getFont()->setItalic(true)->setSize(9);
 
-    $sheet->mergeCells('A4:I4');
+    $sheet->mergeCells('A4:J4');
     $sheet->setCellValue('A4', 'Points per Session: ' . $pointsLine);
     $sheet->getStyle('A4')->getAlignment()->setHorizontal('center');
     $sheet->getStyle('A4')->getFont()->setItalic(true)->setSize(9);
 
-    $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions Signed', 'Points', 'Mode', 'Status'];
+    $headers = ['#', 'Reg No', 'Full Name', 'Email', 'Phone', 'Sessions Signed', 'Points', 'Mode', 'Status', 'Days present'];
     foreach ($headers as $col => $h) {
         $cell = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1) . '5';
         $sheet->setCellValue($cell, $h);
@@ -278,12 +291,13 @@ if ($format === 'excel') {
         );
         $sheet->setCellValue('H' . $row, Security::excelSafe(implode("\n", $modeParts) ?: "\u{2014}"));
         $sheet->setCellValue('I' . $row, Security::excelSafe(implode("\n", $statusLines) ?: "\u{2014}"));
-        $sheet->getStyle('A' . $row . ':I' . $row)->getAlignment()->setVertical('top');
-        $sheet->getStyle('H' . $row . ':I' . $row)->getAlignment()->setWrapText(true);
-        $sheet->getRowDimension($row)->setRowHeight(max(15, count($p['attendance']) * 13 + 4));
+        $sheet->setCellValue('J' . $row, Security::excelSafe(implode("\n", nrDayLines($p)) ?: "\u{2014}"));
+        $sheet->getStyle('A' . $row . ':J' . $row)->getAlignment()->setVertical('top');
+        $sheet->getStyle('H' . $row . ':J' . $row)->getAlignment()->setWrapText(true);
+        $sheet->getRowDimension($row)->setRowHeight(max(15, max(count($p['attendance']), count(nrDayLines($p))) * 13 + 4));
     }
 
-    foreach (['A' => 5, 'B' => 12, 'C' => 26, 'D' => 26, 'E' => 15, 'F' => 14, 'G' => 10, 'H' => 34, 'I' => 40] as $col => $w) {
+    foreach (['A' => 5, 'B' => 12, 'C' => 26, 'D' => 26, 'E' => 15, 'F' => 14, 'G' => 10, 'H' => 34, 'I' => 40, 'J' => 24] as $col => $w) {
         $sheet->getColumnDimension($col)->setWidth($w);
     }
 
@@ -383,12 +397,13 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
             <th>Points</th>
             <th>Mode</th>
             <th>Status</th>
+            <th>Days present</th>
             <th>Signature</th>
         </tr>
     </thead>
     <tbody>
         <?php if (empty($participants)): ?>
-            <tr><td colspan="10" style="text-align:center;padding:.75rem;color:#888;font-style:italic;">No participants registered yet.</td></tr>
+            <tr><td colspan="11" style="text-align:center;padding:.75rem;color:#888;font-style:italic;">No participants registered yet.</td></tr>
         <?php else: ?>
             <?php foreach ($participants as $i => $p):
                 $sessionsSigned = count($p['attendance']);
@@ -420,6 +435,16 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
                             <?php else: ?>
                                 <div class="ok-badge">&#10003; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(nrStatus($a), ENT_QUOTES, 'UTF-8') ?></div>
                             <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <?php $dayLines = nrDayLines($p); ?>
+                    <?php if (empty($dayLines)): ?>
+                        &mdash;
+                    <?php else: ?>
+                        <?php foreach ($dayLines as $line): ?>
+                            <div><?= htmlspecialchars($line, ENT_QUOTES, 'UTF-8') ?></div>
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </td>

@@ -125,5 +125,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     .catch(() => {});
             }, 500);
         });
+
+        // Opened with an accreditation number already filled in (for example from a PMS activity): look up the name now.
+        const providerPrefilled = accInput.value.trim();
+        if (providerPrefilled.length >= 3 && !providerNameDisplay.value) {
+            fetch('/events/provider_lookup.php?accreditation_no=' + encodeURIComponent(providerPrefilled))
+                .then(r => r.json())
+                .then(d => {
+                    if (d.found) {
+                        providerIdInput.value = d.id;
+                        providerNameDisplay.value = d.name;
+                        providerStatus.textContent = 'Provider found.';
+                        providerStatus.style.color = 'var(--kvb-green-dark)';
+                    }
+                })
+                .catch(() => {});
+        }
     }
 });

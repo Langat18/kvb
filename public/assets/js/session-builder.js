@@ -201,6 +201,7 @@
             '<input type="text" name="' + base + '[presenter]" placeholder="Presenter" maxlength="150" aria-label="Presenter">' +
             '<input type="text" name="' + base + '[reg_no]" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">' +
             '<input type="text" name="' + base + '[topic]" placeholder="Topic" maxlength="255" aria-label="Topic">' +
+            '<input type="text" name="' + base + '[room]" placeholder="Room (optional)" maxlength="60" aria-label="Room">' +
             '<input type="time" name="' + base + '[start_time]" aria-label="Start time">' +
             '<input type="time" name="' + base + '[end_time]" aria-label="End time">' +
             '<button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>' +
@@ -254,13 +255,25 @@
                     return flagField(f[2], 'Must fall within the session time (' + sStart.value + ' to ' + sEnd.value + ').');
                 }
 
+                var roomInput = rows[j].querySelector('[name$="[room]"]');
+                var regInput = rows[j].querySelector('[name$="[reg_no]"]');
+                var room = (roomInput ? roomInput.value : '').trim().replace(/\s+/g, ' ').toLowerCase();
+                var reg = (regInput ? regInput.value : '').trim().toUpperCase();
+                var who = reg !== '' ? 'r:' + reg : 'n:' + f[0].value.trim().replace(/\s+/g, ' ').toLowerCase();
+
                 for (var k = 0; k < taken.length; k++) {
-                    if (start < taken[k].end && taken[k].start < end) {
-                        return flagField(f[2], 'Overlaps another presentation in this session.');
+                    if (start >= taken[k].end || taken[k].start >= end) { continue; }
+
+                    if (taken[k].room === room) {
+                        return flagField(f[2], 'Overlaps another presentation in the same room. Use a different room to run them at the same time.');
+                    }
+
+                    if (taken[k].who === who) {
+                        return flagField(f[2], 'The same presenter cannot be in two rooms at the same time.');
                     }
                 }
 
-                taken.push({ start: start, end: end });
+                taken.push({ start: start, end: end, room: room, who: who });
             }
         }
 
