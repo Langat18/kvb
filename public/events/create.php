@@ -108,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'geo_radius_m'              => $_POST['geo_radius_m'] !== '' ? (int) $_POST['geo_radius_m'] : null,
         'meeting_provider'          => $_POST['meeting_provider'] ?? '',
         'meeting_link'              => $_POST['meeting_link']      ?? '',
+        'day_confirmation'          => ($_POST['day_confirmation'] ?? '') === '1',
         'sessions'                  => $_POST['sessions'] ?? [],
         'presentations'             => $_POST['presentations'] ?? [],
         'created_by'                => $user['id'],
@@ -299,6 +300,15 @@ $v = $formData;
                 <div class="form-group">
                     <label for="provider_name_display">Provider Name</label>
                     <input type="text" id="provider_name_display" readonly placeholder="Fills in automatically">
+                </div>
+
+                <div class="form-group full">
+                    <input type="hidden" name="day_confirmation" value="0">
+                    <label style="display:flex;align-items:center;gap:.5rem;font-weight:500;">
+                        <input type="checkbox" name="day_confirmation" value="1" style="width:auto;margin:0;" <?= !empty($v['day_confirmation']) ? 'checked' : '' ?>>
+                        Confirm attendees on each event day
+                    </label>
+                    <small style="color:var(--text-muted);">Attendees confirm their presence on every day of the event, separate from session sign-in and points.</small>
                 </div>
             </div>
 

@@ -1,7 +1,16 @@
 <?php
-/** @var array $programme */
-/** @var array $cadreStats */
 $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
+$hasRooms = false;
+
+foreach ($programme as $s) {
+    foreach ($s['items'] as $p) {
+        if (($p['room'] ?? '') !== '') {
+            $hasRooms = true;
+            break 2;
+        }
+    }
+}
 ?>
 <div class="sec-title">Attendance by Cadre</div>
 <table class="att-table">
@@ -40,7 +49,10 @@ $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <div class="sec-title">Programme</div>
 <table class="att-table">
     <thead>
-        <tr><th>Day</th><th>Session</th><th>Time</th><th>Presenter</th><th>Topic</th></tr>
+        <tr>
+            <th>Day</th><th>Session</th><th>Time</th><th>Presenter</th><th>Topic</th>
+            <?php if ($hasRooms): ?><th>Room</th><?php endif; ?>
+        </tr>
     </thead>
     <tbody>
         <?php foreach ($programme as $s): $items = $s['items'] ?: [null]; ?>
@@ -56,6 +68,9 @@ $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                 <td><?= $p ? $h($p['start']) . ' &ndash; ' . $h($p['end']) : '&mdash;' ?></td>
                 <td><?= $p ? $h($p['presenter']) : '&mdash;' ?></td>
                 <td><?= $p ? $h($p['topic']) : '&mdash;' ?></td>
+                <?php if ($hasRooms): ?>
+                    <td><?= $p && ($p['room'] ?? '') !== '' ? $h($p['room']) : '&mdash;' ?></td>
+                <?php endif; ?>
             </tr>
             <?php endforeach; ?>
         <?php endforeach; ?>

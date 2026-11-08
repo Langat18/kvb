@@ -52,6 +52,7 @@ $token         = trim($_GET['token']);
 $sessionLabels = array_column($eventModel->getSessions((int) $event['id']), 'label', 'id');
 $sessionInfo   = manualDetectSession($event, $eventModel);
 $today         = date('Y-m-d');
+$dayEnabled    = (new Registration())->dayConfirmationEnabled((int) $event['id']);
 
 $error   = $_SESSION['manual_error']   ?? null;
 $success = $_SESSION['manual_success'] ?? null;
@@ -77,6 +78,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$registration) {
         $_SESSION['manual_error'] = $regNo . ' is not registered for this event.';
+        header('Location: /events/attend_manual.php?token=' . urlencode($token));
+        exit;
+    }
+
+    if (($_POST['action'] ?? '') === 'confirm_day') {
+        $done = $registrationModel->confirmDay((int) $registration['id'], $today, 'staff', ['staff_id' => $user['id'] ?? null]);
+
+        if ($done) {
+            $_SESSION['manual_success'] = $regNo . ' confirmed present for today.';
+        } else {
+            $_SESSION['manual_error'] = $regNo . ' is already confirmed for today, or daily confirmation is not enabled for this event.';
+        }
+
         header('Location: /events/attend_manual.php?token=' . urlencode($token));
         exit;
     }
@@ -230,6 +244,25 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 Record Attendance
             </button>
         </form>
+
+        <?php if ($dayEnabled): ?>
+        <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e5e8ec;">
+        <div class="section-label">Confirm Presence for Today</div>
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem;max-width:480px;">
+            Marks the attendee present on <?= htmlspecialchars(date('d M Y'), ENT_QUOTES, 'UTF-8') ?> without a session sign-in. No points are awarded.
+        </p>
+        <form method="POST" action="/events/attend_manual.php?token=<?= urlencode($token) ?>" style="max-width:480px;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="action" value="confirm_day">
+
+            <div class="form-group">
+                <label for="day_reg_no">Registration Number <span class="required">*</span></label>
+                <input type="text" id="day_reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
+            </div>
+
+            <button type="submit" class="btn btn-secondary btn-block" style="margin-top:.5rem;">Confirm Presence</button>
+        </form>
+        <?php endif; ?>
     </div>
 </div>
 

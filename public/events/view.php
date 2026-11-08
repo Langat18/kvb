@@ -118,6 +118,9 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Nominal Roll</a>
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
             <a href="/events/points_by_session.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Points by Session</a>
+            <?php if (Auth::can('manage_events')): ?>
+                <a href="/events/pms_points.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">PMS Points</a>
+            <?php endif; ?>
             <?php if (Auth::can('record_manual_attendance')): ?>
                 <a href="/events/attend_manual.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Record Manual Attendance</a>
             <?php endif; ?>
@@ -199,6 +202,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <th>Name</th>
                     <th>Cadre</th>
                     <th>Sessions</th>
+                    <th>Days present</th>
                     <th>Points</th>
                     <?php $rowActions = Auth::can('edit_attendee_details') || Auth::can('award_manual_points') || Auth::can('delete_registrations'); ?><?php if ($rowActions): ?><th>Actions</th><?php endif; ?>
                 </tr>
@@ -224,6 +228,19 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                             &#10003; <?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?>
                                         </span>
                                     <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php if (empty($p['days_present'])): ?>
+                            &mdash;
+                        <?php else: ?>
+                            <div class="session-badges">
+                                <?php foreach ($p['days_present'] as $day => $source): ?>
+                                    <span class="pill" style="background:var(--kvb-green-light);color:var(--kvb-green-dark);" title="<?= $source === 'signin' ? 'Signed in to a session' : ($source === 'staff' ? 'Confirmed by staff' : 'Confirmed by attendee') ?>">
+                                        &#10003; <?= htmlspecialchars(date('d M', strtotime((string) $day)), ENT_QUOTES, 'UTF-8') ?>
+                                    </span>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>

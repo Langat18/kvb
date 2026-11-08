@@ -112,6 +112,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die('Invalid security token.');
     }
 
+    if (($_POST['action'] ?? '') === 'confirm_day') {
+        $back              = '/events/attend.php?token=' . urlencode($token);
+        if (isset($_GET['confirm'])) {
+            $back .= '&confirm=1';
+        }
+        $regNo             = strtoupper(trim($_POST['reg_no'] ?? ''));
+        $registrationModel = new Registration();
+
+        $fail = static function (string $message) use ($back): void {
+            $_SESSION['attend_error'] = $message;
+            header('Location: ' . $back);
+            exit;
+        };
+
+        if (!$registrationModel->dayConfirmationEnabled((int) $event['id'])) {
+            $fail('Daily confirmation is not enabled for this event.');
+        }
+
+        if ($regNo === '' || !Participant::isValidRegNo($regNo)) {
+            $fail('Please enter a valid registration number.');
+        }
+
+        $registration = $registrationModel->find((int) $event['id'], $regNo);
+
+        if (!$registration) {
+            $fail('You are not registered for this event. Please register first.');
+        }
+
+        $registrationId = (int) $registration['id'];
+
+        if ($registrationModel->isDayConfirmed($registrationId, $today)) {
+            $_SESSION['attend_day_confirmed'] = true;
+            header('Location: ' . $back);
+            exit;
+        }
+
+        $deviceId = Auth::deviceId();
+
+        if ($registrationModel->deviceConfirmedOther($today, $deviceId, $registrationId)) {
+            $fail('This device has already confirmed presence for a different registration number today.');
+        }
+
+        $method = $isHybrid ? ($_POST['day_method'] ?? '') : ($isPureOnsite ? 'onsite' : 'virtual');
+
+        if (!in_array($method, ['onsite', 'virtual'], true)) {
+            $fail('Please select whether you are attending on-site or virtually.');
+        }
+
+        $forwarded = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')[0]);
+        $ip        = filter_var($forwarded, FILTER_VALIDATE_IP) ?: ($_SERVER['REMOTE_ADDR'] ?? null);
+        $meta      = ['device_id' => $deviceId, 'ip' => $ip !== null ? substr((string) $ip, 0, 45) : null];
+
+        if ($method === 'onsite') {
+            $lat = $_POST['geo_lat'] ?? '';
+            $lng = $_POST['geo_lng'] ?? '';
+
+            if ($lat === '' || $lng === '') {
+                $fail('Location access is required to confirm presence on-site.');
+            }
+
+            $geo = $eventModel->isWithinGeofence($event, (float) $lat, (float) $lng);
+
+            if (!$geo['within']) {
+                $fail('You appear to be ' . (int) $geo['distance_m'] . 'm from the venue. Presence can only be confirmed at the venue.');
+            }
+
+            $meta['geo_verified'] = true;
+            $meta['distance_m']   = (int) $geo['distance_m'];
+        }
+
+        try {
+            $registrationModel->confirmDay($registrationId, $today, 'self', $meta);
+            $_SESSION['attend_day_confirmed'] = true;
+        } catch (\Throwable $e) {
+            error_log('Day confirmation error: ' . $e->getMessage());
+            $_SESSION['attend_error'] = 'Failed to confirm presence. Please try again.';
+        }
+
+        header('Location: ' . $back);
+        exit;
+    }
+
     $regNo = strtoupper(trim($_POST['reg_no'] ?? ''));
 
     if (empty($regNo) || !Participant::isValidRegNo($regNo)) {
@@ -300,6 +382,10 @@ $attendMethod          = $_SESSION['attend_method']           ?? '';
 $attendMeetingLink     = $_SESSION['attend_meeting_link']     ?? null;
 $attendMeetingProvider = $_SESSION['attend_meeting_provider'] ?? null;
 $attendQuizPending     = $_SESSION['attend_quiz_pending']     ?? false;
+$dayConfirmed         = $_SESSION['attend_day_confirmed'] ?? false;
+unset($_SESSION['attend_day_confirmed']);
+$dayEnabled           = (new Registration())->dayConfirmationEnabled((int) $event['id']);
+$confirmView          = isset($_GET['confirm']) && $dayEnabled;
 unset(
     $_SESSION['attend_success'], $_SESSION['attend_session'], $_SESSION['attend_flagged'],
     $_SESSION['attend_points_denied'], $_SESSION['attend_method'], $_SESSION['attend_meeting_link'],
@@ -389,6 +475,7 @@ unset(
         </script>
     <?php else: ?>
 
+        <?php if (!$confirmView): ?>
         <div style="text-align:center;margin-bottom:1rem;">
             <?php if ($sessionInfo['session_id']): ?>
                 <span class="pill"><?= htmlspecialchars($sessionLabels[$sessionInfo['session_id']] ?? (string) $sessionInfo['session_id'], ENT_QUOTES, 'UTF-8') ?> Session</span>
@@ -400,10 +487,13 @@ unset(
             <?php endif; ?>
         </div>
 
+        <?php endif; ?>
+
         <?php if ($error): ?>
             <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
         <?php endif; ?>
 
+        <?php if (!$confirmView): ?>
         <?php if (!$isRegisteredView && !$isPureOnsite): ?>
             <div class="card" style="padding:1rem 1.25rem;margin-bottom:1rem;">
                 <p style="font-size:.85rem;margin-bottom:.5rem;">Already registered? Enter your registration number to find your meeting link.</p>
@@ -464,11 +554,117 @@ unset(
                 </button>
             </form>
         </div>
+
+        <?php endif; ?>
+
+        <?php if ($confirmView): ?>
+        <div class="card" style="margin-top:1rem;">
+            <h2 style="font-size:1rem;font-weight:700;color:var(--kvb-green-dark);margin-bottom:.3rem;">Confirm Today&rsquo;s Presence</h2>
+            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.75rem;">
+                Records that you are here on <?= htmlspecialchars(date('d M Y'), ENT_QUOTES, 'UTF-8') ?>.
+            </p>
+
+            <?php if ($dayConfirmed): ?>
+                <div class="alert alert-success">Your presence for today has been confirmed.</div>
+            <?php endif; ?>
+
+            <div id="day-geo-status" class="status-box pending" style="display:none;"></div>
+
+            <form method="POST" action="/events/attend.php?token=<?= urlencode($token) ?><?= $confirmView ? '&amp;confirm=1' : '' ?>" id="day-form">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="action" value="confirm_day">
+                <input type="hidden" name="geo_lat" id="day_geo_lat">
+                <input type="hidden" name="geo_lng" id="day_geo_lng">
+
+                <?php if ($isHybrid): ?>
+                    <div class="method-choice">
+                        <label><input type="radio" name="day_method" value="onsite"> On-site</label>
+                        <label><input type="radio" name="day_method" value="virtual"> Virtual</label>
+                    </div>
+                <?php endif; ?>
+
+                <div class="form-group">
+                    <label for="day_reg_no">Registration Number <span class="required">*</span></label>
+                    <input type="text" id="day_reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
+                </div>
+
+                <button type="submit" class="btn btn-secondary btn-block" id="day-btn" style="margin-top:.5rem;" disabled>
+                    Confirm Presence
+                </button>
+            </form>
+        </div>
+        <script>
+        (function () {
+            const form   = document.getElementById('day-form');
+            const btn    = document.getElementById('day-btn');
+            const status = document.getElementById('day-geo-status');
+            const lat    = document.getElementById('day_geo_lat');
+            const lng    = document.getElementById('day_geo_lng');
+            const mode   = <?= json_encode($eventMode) ?>;
+            let located  = false;
+
+            function method() {
+                if (mode !== 'hybrid') { return mode; }
+                const checked = form.querySelector('input[name="day_method"]:checked');
+                return checked ? checked.value : null;
+            }
+
+            function denied() {
+                located = false;
+                status.style.display = '';
+                status.textContent = 'Location access is required to confirm presence on-site. Please enable location and reload this page.';
+                status.className = 'status-box denied';
+                btn.disabled = true;
+            }
+
+            function locate() {
+                status.style.display = '';
+                status.textContent = 'Checking location access…';
+                status.className = 'status-box pending';
+
+                if (!navigator.geolocation) { denied(); return; }
+
+                navigator.geolocation.getCurrentPosition(function (position) {
+                    lat.value = position.coords.latitude;
+                    lng.value = position.coords.longitude;
+                    located = true;
+                    status.textContent = 'Location confirmed.';
+                    status.className = 'status-box granted';
+                    btn.disabled = false;
+                }, denied, { enableHighAccuracy: true, timeout: 10000 });
+            }
+
+            function refresh() {
+                const m = method();
+
+                if (m === 'onsite') {
+                    if (located) { btn.disabled = false; } else { btn.disabled = true; locate(); }
+                    return;
+                }
+
+                status.style.display = 'none';
+                btn.disabled = m === null;
+            }
+
+            form.querySelectorAll('input[name="day_method"]').forEach(function (radio) {
+                radio.addEventListener('change', function () {
+                    form.querySelectorAll('.method-choice label').forEach(function (l) {
+                        l.classList.toggle('selected', l.querySelector('input').checked);
+                    });
+                    refresh();
+                });
+            });
+
+            refresh();
+        })();
+        </script>
+        <?php endif; ?>
+
     <?php endif; ?>
 </div>
 </div>
 
-<?php if (!$attendSuccess): ?>
+<?php if (!$attendSuccess && !$confirmView): ?>
 <script>
 const geoStatus  = document.getElementById('geo-status');
 const submitBtn  = document.getElementById('submit-btn');

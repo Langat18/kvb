@@ -108,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $registrationModel->create((int) $event['id'], $regNo, $signature);
+        $registrationModel->pmsObserve((int) $event['id'], $regNo, $name, $email, $phone);
 
         // Registration confirms interest, not presence 
         // It persists on reload (queried fresh from $event each
@@ -219,6 +220,13 @@ $isOnsite  = $event['event_mode'] === 'onsite';
                 </div>
             </div>
 
+            <div class="form-group" id="dob-group" hidden>
+                    <label for="dob">Date of Birth</label>
+                    <input type="date" id="dob" autocomplete="bday">
+                    <small style="color:var(--text-muted);">Optional. Enter it to fill your details from the KVB register. It is checked once and not stored.</small>
+                    <button type="button" class="btn btn-ghost" id="dob-fetch" style="margin-top:.5rem;">Fill my details</button>
+                </div>
+    
             <div class="form-group">
                 <label for="name">Full Name <span class="required">*</span></label>
                 <input type="text" id="name" name="name" required>
@@ -293,7 +301,10 @@ const regNoEl      = document.getElementById('reg_no');
 const lookupStatus = document.getElementById('lookup-status');
 let lookupTimer;
 
+let lookupFilled = false;
+
 function lockFields(data) {
+    lookupFilled = true;
     document.getElementById('name').value  = data.name  ?? '';
     document.getElementById('email').value = data.email ?? '';
     document.getElementById('phone').value = data.phone ?? '';
@@ -308,9 +319,59 @@ function unlockFields() {
     ['name', 'email', 'phone'].forEach(id => {
         document.getElementById(id).removeAttribute('readonly');
     });
+    if (lookupFilled) {
+        ['name', 'email', 'phone'].forEach(id => { document.getElementById(id).value = ''; });
+        lookupFilled = false;
+    }
     lookupStatus.textContent = '';
+    hideDob();
 }
 
+const dobGroup  = document.getElementById('dob-group');
+    const dobInput  = document.getElementById('dob');
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+
+    function showDob() { dobGroup.hidden = false; }
+    function hideDob() { dobGroup.hidden = true; dobInput.value = ''; }
+
+    const dobMessages = {
+        mismatch: 'We could not match those details. Please fill in the form yourself.',
+        not_found: 'This number was not found on the KVB register. Please fill in the form yourself.',
+        limited: 'Too many attempts. Please fill in the form yourself.',
+    };
+
+    document.getElementById('dob-fetch').addEventListener('click', () => {
+        if (!dobInput.value) { return; }
+
+        lookupStatus.textContent = 'Checking the KVB register\u2026';
+        lookupStatus.style.color = 'var(--text-muted)';
+
+        fetch('/events/pms_lookup.php', {
+            method: 'POST',
+            body: new URLSearchParams({ csrf_token: csrfToken, reg_no: regNoEl.value.trim(), dob: dobInput.value }),
+        })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'ok') {
+                    document.getElementById('name').value  = d.data.name;
+                    document.getElementById('email').value = d.data.email;
+                    document.getElementById('phone').value = d.data.phone;
+                    lookupFilled = true;
+                    lookupStatus.textContent = 'Details filled from the KVB register. Check them, then enter your ID number.';
+                    lookupStatus.style.color = 'var(--kvb-green-dark)';
+                    hideDob();
+                    return;
+                }
+                lookupStatus.textContent = dobMessages[d.status] || 'The KVB register could not be checked just now. Please fill in the form yourself.';
+                lookupStatus.style.color = 'var(--kvb-red-dark)';
+            })
+            .catch(() => {
+                lookupStatus.textContent = 'The KVB register could not be checked just now. Please fill in the form yourself.';
+                lookupStatus.style.color = 'var(--kvb-red-dark)';
+            });
+    });
+
+    
 regNoEl.addEventListener('input', () => {
     clearTimeout(lookupTimer);
     unlockFields();
@@ -319,7 +380,7 @@ regNoEl.addEventListener('input', () => {
         if (regNo.length < 4) return;
         fetch('/events/lookup.php?reg_no=' + encodeURIComponent(regNo))
             .then(r => r.json())
-            .then(d => { if (d.found) lockFields(d); })
+            .then(d => { if (d.found) { lockFields(d); } else if (d.pms) { showDob(); } })
             .catch(() => {});
     }, 500);
 });

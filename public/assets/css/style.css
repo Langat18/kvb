@@ -915,7 +915,7 @@ body.has-app-sidebar .navbar-toggle { display: none; }
 
 .presentations { margin: .75rem 0; }
 .presentations-title { font-weight: 600; font-size: .85rem; margin-bottom: .4rem; }
-.presentation-row { display: grid; grid-template-columns: 2fr 1.2fr 3fr 1fr 1fr auto; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+.presentation-row { display: grid; grid-template-columns: 2fr 1.2fr 3fr 1.4fr 1fr 1fr auto; gap: .5rem; align-items: center; margin-bottom: .5rem; }
 @media (max-width: 780px) {
     .presentation-row { grid-template-columns: 1fr 1fr; }
     .presentation-row input[type="text"] { grid-column: 1 / -1; }
