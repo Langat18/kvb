@@ -146,10 +146,6 @@ $checks[] = $flaggedPending > 0
     ? ['warn', $flaggedPending . ' flagged attendance record(s) are still unreviewed. Their points are not included.']
     : ['ok', 'No flagged attendance is waiting for review.'];
 
-if ($zeroHours > 0) {
-    $checks[] = ['warn', $zeroHours . ' record(s) have no session hours (for example presenter bonuses). KVB treats zero hours as pointless.'];
-}
-
 if ($fractional > 0) {
     $checks[] = ['warn', $fractional . ' record(s) have fractional points. Confirm with KVB that decimals are accepted.'];
 }
@@ -275,7 +271,6 @@ $activity   = (string) ($pmsData['title'] ?? '');
     <div class="pp-stats">
         <div class="pp-stat"><div class="k">Practitioners</div><div class="v"><?= number_format(count($rows)) ?></div></div>
         <div class="pp-stat"><div class="k">CPD points</div><div class="v"><?= $h($fmtPoints($totalPts)) ?></div></div>
-        <div class="pp-stat"><div class="k">CPD hours</div><div class="v"><?= $h($fmtHours($totalHrs)) ?></div></div>
         <div class="pp-stat"><div class="k">Activity number</div><div class="v mono pp-mono"><?= $h($code !== '' ? $code : '—') ?></div></div>
         <div class="pp-stat"><div class="k">Date of activity</div><div class="v mono pp-mono"><?= $h($endDate) ?></div></div>
     </div>
@@ -314,7 +309,7 @@ $activity   = (string) ($pmsData['title'] ?? '');
         <div class="pp-scroll">
         <table class="pp-table">
             <thead>
-                <tr><th class="idx">#</th><th>Reg No</th><th>Name</th><th class="n">Hours</th><th class="n">Points</th><th>Flags</th></tr>
+                <tr><th class="idx">#</th><th>Reg No</th><th>Name</th><th class="n">Points</th><th>Flags</th></tr>
             </thead>
             <tbody id="pp-body">
                 <?php foreach ($rows as $i => $r): ?>
@@ -322,17 +317,15 @@ $activity   = (string) ($pmsData['title'] ?? '');
                     <td class="idx"><?= $i + 1 ?></td>
                     <td class="pp-mono"><?= $h($r['reg_no']) ?></td>
                     <td><?= $h($r['name']) ?></td>
-                    <td class="n"><?= $h($fmtHours((float) $r['hours'])) ?></td>
                     <td class="n pts"><?= $h($fmtPoints((float) $r['points'])) ?></td>
                     <td>
-                        <?php if ($r['hours'] <= 0): ?><span class="pp-badge">No session hours</span><?php endif; ?>
                         <?php if (fmod((float) $r['points'], 1.0) !== 0.0): ?><span class="pp-badge">Fractional points</span><?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
             <tfoot>
-                <tr><td></td><td></td><td>Total (<?= number_format(count($rows)) ?> practitioners)</td><td class="n"><?= $h($fmtHours($totalHrs)) ?></td><td class="n"><?= $h($fmtPoints($totalPts)) ?></td><td></td></tr>
+                <tr><td></td><td></td><td>Total (<?= number_format(count($rows)) ?> practitioners)</td><td class="n"><?= $h($fmtPoints($totalPts)) ?></td><td></td></tr>
             </tfoot>
         </table>
         <div class="pp-empty" id="pp-none" hidden>No records match your search.</div>
