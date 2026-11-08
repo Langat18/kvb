@@ -193,18 +193,57 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Record Manual Attendance - <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
+<style>
+.ma { --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --soft:#f8fafc; --ok:#15803d; --warn:#a16207; --bad:#b91c1c; --brand:var(--kvb-green-dark,#14532d); color:var(--ink); font-size:.9rem; line-height:1.5; }
+.ma *, .ma *::before, .ma *::after { box-sizing:border-box; }
+.ma-head { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.ma-head h1 { margin:0; font-size:1.5rem; font-weight:700; letter-spacing:-.01em; }
+.ma-head p { margin:.2rem 0 0; color:var(--muted); font-size:.875rem; }
+.ma-grid { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:1rem; align-items:start; }
+.ma-grid.single { grid-template-columns:minmax(0,640px); }
+.ma-card { background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 1px 2px rgba(15,23,42,.04); overflow:hidden; }
+.ma-card-h { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding:.85rem 1.25rem; border-bottom:1px solid var(--line); background:var(--soft); }
+.ma-card-h h2 { margin:0; font-size:.78rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.ma-card-b { padding:1.25rem; }
+.ma-tag { display:inline-block; padding:.1rem .6rem; border-radius:999px; font-size:.75rem; font-weight:600; background:#ecfdf3; color:var(--ok); border:1px solid #bbf7d0; }
+.ma-tag.off { background:#fffbeb; color:var(--warn); border-color:#fde68a; }
+.ma-loc { display:flex; align-items:center; gap:.55rem; margin-bottom:1.1rem; font-size:.85rem; color:var(--muted); }
+.ma-dot { flex:none; width:9px; height:9px; border-radius:50%; background:#f59e0b; }
+.ma-loc.granted { color:var(--ok); } .ma-loc.granted .ma-dot { background:#16a34a; }
+.ma-loc.denied { color:var(--bad); } .ma-loc.denied .ma-dot { background:#dc2626; }
+.ma label { display:block; margin-bottom:.35rem; font-size:.85rem; font-weight:600; }
+.ma .req { color:var(--bad); }
+.ma-row { display:flex; gap:.6rem; }
+.ma-row input { flex:1; min-width:0; min-height:44px; padding:.55rem .8rem; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:.95rem; background:#fff; color:var(--ink); }
+.ma-row input:focus { outline:2px solid var(--brand); outline-offset:1px; border-color:transparent; }
+.ma-btn { flex:none; min-height:44px; padding:.55rem 1.2rem; border-radius:8px; border:1px solid var(--brand); background:var(--brand); color:#fff; font:inherit; font-size:.9rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+.ma-btn:hover:not([disabled]) { filter:brightness(1.12); }
+.ma-btn.alt { background:#fff; color:var(--brand); }
+.ma-btn.alt:hover:not([disabled]) { background:var(--soft); filter:none; }
+.ma-btn[disabled] { opacity:.5; cursor:not-allowed; }
+.ma-note { margin:.7rem 0 0; font-size:.8rem; color:var(--muted); }
+.ma-text { margin:0 0 1rem; font-size:.85rem; color:#334155; }
+@media (max-width:900px) { .ma-grid { grid-template-columns:minmax(0,1fr); } .ma-grid.single { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:520px) {
+  .ma-head h1 { font-size:1.25rem; }
+  .ma-card-b { padding:1rem; }
+  .ma-row { flex-direction:column; }
+  .ma-btn { width:100%; }
+}
+</style>
 </head>
 <body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
 <div class="page-with-sidebar">
-    <div class="app-page-hero">
+<div class="ma">
+    <div class="ma-head">
         <div>
             <h1>Record Manual Attendance</h1>
-            <p class="sub">For attendees without a working device &mdash; uses your device's location, same rules as self check-in.</p>
+            <p>For attendees without a device. Uses your location and the same rules as self check-in.</p>
         </div>
-        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Back to Event</a>
+        <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Back to event</a>
     </div>
 
     <?php if ($success): ?>
@@ -214,75 +253,82 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="app-card">
-        <div class="section-label">Manual Check-In</div>
-
-        <div style="text-align:center;margin-bottom:1rem;">
-            <?php if ($sessionInfo['session_id']): ?>
-                <span class="pill"><?= htmlspecialchars($sessionLabels[$sessionInfo['session_id']] ?? (string) $sessionInfo['session_id'], ENT_QUOTES, 'UTF-8') ?> Session</span>
-                <?php if (!empty($sessionInfo['late'])): ?>
-                    <p style="font-size:.8rem;color:var(--text-muted);margin:.5rem 0 0;">This session has ended. Late sign-in is open until <?= htmlspecialchars(date('g:i A', (int) $sessionInfo['closes_at']), ENT_QUOTES, 'UTF-8') ?>.</p>
+    <div class="ma-grid<?= $dayEnabled ? '' : ' single' ?>">
+        <section class="ma-card">
+            <div class="ma-card-h">
+                <h2>Session check-in</h2>
+                <?php if ($sessionInfo['session_id']): ?>
+                    <span class="ma-tag"><?= htmlspecialchars($sessionLabels[$sessionInfo['session_id']] ?? (string) $sessionInfo['session_id'], ENT_QUOTES, 'UTF-8') ?> session</span>
+                <?php else: ?>
+                    <span class="ma-tag off">No session open</span>
                 <?php endif; ?>
-            <?php else: ?>
-                <span class="pill" style="background:var(--kvb-red-light);color:var(--kvb-red-dark);">Outside session hours</span>
-            <?php endif; ?>
-        </div>
-
-        <div id="geo-status" class="status-box pending">Checking location access&hellip;</div>
-
-        <form method="POST" action="/events/attend_manual.php?token=<?= urlencode($token) ?>" id="manual-form" style="max-width:480px;">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-            <input type="hidden" name="geo_lat" id="geo_lat">
-            <input type="hidden" name="geo_lng" id="geo_lng">
-
-            <div class="form-group">
-                <label for="reg_no">Registration Number <span class="required">*</span></label>
-                <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234" autofocus>
             </div>
+            <div class="ma-card-b">
+                <div id="geo-status" class="ma-loc"><span class="ma-dot"></span><span id="geo-text">Checking location&hellip;</span></div>
 
-            <button type="submit" class="btn btn-primary btn-block" id="submit-btn" style="margin-top:.5rem;" disabled>
-                Record Attendance
-            </button>
-        </form>
+                <form method="POST" action="/events/attend_manual.php?token=<?= urlencode($token) ?>" id="manual-form">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="geo_lat" id="geo_lat">
+                    <input type="hidden" name="geo_lng" id="geo_lng">
+
+                    <label for="reg_no">Registration number <span class="req">*</span></label>
+                    <div class="ma-row">
+                        <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234" autocomplete="off" autocapitalize="characters" autofocus>
+                        <button type="submit" class="ma-btn" id="submit-btn" disabled>Record attendance</button>
+                    </div>
+                </form>
+
+                <?php if ($sessionInfo['session_id']): ?>
+                    <?php if (!empty($sessionInfo['late'])): ?>
+                        <p class="ma-note">This session has ended. Late sign-in is open until <?= htmlspecialchars(date('g:i A', (int) $sessionInfo['closes_at']), ENT_QUOTES, 'UTF-8') ?>.</p>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <p class="ma-note">Check-in opens when a session starts. Reload the page then.</p>
+                <?php endif; ?>
+            </div>
+        </section>
 
         <?php if ($dayEnabled): ?>
-        <hr style="margin:1.5rem 0;border:none;border-top:1px solid #e5e8ec;">
-        <div class="section-label">Confirm Presence for Today</div>
-        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.75rem;max-width:480px;">
-            Marks the attendee present on <?= htmlspecialchars(date('d M Y'), ENT_QUOTES, 'UTF-8') ?> without a session sign-in. No points are awarded.
-        </p>
-        <form method="POST" action="/events/attend_manual.php?token=<?= urlencode($token) ?>" style="max-width:480px;">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-            <input type="hidden" name="action" value="confirm_day">
+        <section class="ma-card">
+            <div class="ma-card-h"><h2>Confirm presence today</h2></div>
+            <div class="ma-card-b">
+                <p class="ma-text">Marks the attendee present for <?= htmlspecialchars(date('d M Y'), ENT_QUOTES, 'UTF-8') ?>. No session sign-in and no points.</p>
+                <form method="POST" action="/events/attend_manual.php?token=<?= urlencode($token) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="hidden" name="action" value="confirm_day">
 
-            <div class="form-group">
-                <label for="day_reg_no">Registration Number <span class="required">*</span></label>
-                <input type="text" id="day_reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
+                    <label for="day_reg_no">Registration number <span class="req">*</span></label>
+                    <div class="ma-row">
+                        <input type="text" id="day_reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234" autocomplete="off" autocapitalize="characters">
+                        <button type="submit" class="ma-btn alt">Confirm</button>
+                    </div>
+                </form>
             </div>
-
-            <button type="submit" class="btn btn-secondary btn-block" style="margin-top:.5rem;">Confirm Presence</button>
-        </form>
+        </section>
         <?php endif; ?>
     </div>
+</div>
 </div>
 
 <script>
 const geoStatus = document.getElementById('geo-status');
+const geoText   = document.getElementById('geo-text');
 const submitBtn = document.getElementById('submit-btn');
 const latInput  = document.getElementById('geo_lat');
 const lngInput  = document.getElementById('geo_lng');
+const hasSession = <?= $sessionInfo['session_id'] ? 'true' : 'false' ?>;
 
 function onGeoSuccess(position) {
     latInput.value = position.coords.latitude;
     lngInput.value = position.coords.longitude;
-    geoStatus.textContent = 'Location confirmed.';
-    geoStatus.className = 'status-box granted';
-    submitBtn.disabled = false;
+    geoText.textContent = 'Location confirmed';
+    geoStatus.className = 'ma-loc granted';
+    submitBtn.disabled = !hasSession;
 }
 
 function onGeoError() {
-    geoStatus.textContent = 'Location access is required. Please enable location in your browser settings and reload.';
-    geoStatus.className = 'status-box denied';
+    geoText.textContent = 'Location is off. Allow location in your browser settings, then reload.';
+    geoStatus.className = 'ma-loc denied';
     submitBtn.disabled = true;
 }
 
