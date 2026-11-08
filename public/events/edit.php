@@ -250,7 +250,7 @@ foreach ($sessionsForDisplay as $sw) {
 <title>Edit Event - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
 body { display: block; padding: 2.5rem; }
@@ -558,7 +558,7 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/event-geo-form.js') ?>"></script>
 <script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
-<script src="/assets/js/quiz-builder.js"></script>
+<script src="/assets/js/quiz-builder.js?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/js/quiz-builder.js') ?>"></script>
 <script>
 // Quiz and meeting fields apply to virtual and hybrid events only.
 (function () {

@@ -1,6 +1,6 @@
 <?php
 ?>
-<script src="/assets/js/ui.js" defer></script>
+<script src="/assets/js/ui.js?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/js/ui.js') ?>" defer></script>
 <div class="navbar">
     <div class="navbar-brand">
         <img src="/assets/img/kvb_logo.png" alt="KVB">

@@ -52,7 +52,7 @@ function pageUrl(int $page, string $search): string
 <title>Providers - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 </head>
 <body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>

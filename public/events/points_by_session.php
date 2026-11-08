@@ -181,7 +181,7 @@ $totalPoints = array_sum(array_map('floatval', array_column($rows, 'points_award
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Points by Session — <?= $h($event['title']) ?></title>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
     <style>
         body { padding: 0; background: #f4f6f8; }
         .ps { max-width: 1180px; margin: 0 auto; padding: clamp(1rem, 3vw, 2rem); }

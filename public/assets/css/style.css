@@ -1074,3 +1074,10 @@ input, select, textarea { border-radius: 10px; }
 @media (max-width: 480px) { .card { border-radius: 12px; } }
 
 .app-action-row .title, .app-action-row .desc { display: block; line-height: 1.35; }
+
+/* Sidebar profile as a soft card with clear space around it */
+.app-sidebar .app-profile-top { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: .7rem; margin: .9rem 0 1.6rem; }
+.app-sidebar .app-profile-card { padding: 0; }
+.app-sidebar .app-profile-links { margin-top: .6rem; }
+.app-sidebar .app-profile-links a { background: #fff; }
+.app-sidebar-brand { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }

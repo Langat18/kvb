@@ -43,7 +43,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <title>Staff Accounts</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/style.css">
+<link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <style>
 .role-select { padding: .3rem .5rem; font-size: .82rem; border-radius: 6px; border: 1px solid #d8dde3; }
 </style>
