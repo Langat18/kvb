@@ -3,44 +3,31 @@
 
     function buildSessionRowHTML(sid, label, startTime, endTime, points, sessionDate, requireLateSignin) {
         var lateChecked = requireLateSignin === false ? '' : 'checked';
+        var n = 'sessions[' + sid + ']';
         return '' +
-            '<div class="session-row" data-sid="' + sid + '" style="border:1.5px solid #d8dde3;border-radius:10px;padding:.85rem;margin-bottom:.75rem;">' +
-            '<div class="form-grid">' +
-            '<div class="form-group">' +
-            '<label>Label</label>' +
-            '<input type="text" class="session-label-input" name="sessions[' + sid + '][label]" value="' + (label || '') + '" required>' +
+            '<div class="session-row ef-session" data-sid="' + sid + '">' +
+            '<div class="ef-session-head">' +
+            '<span class="ef-session-no" aria-hidden="true"></span>' +
+            '<input type="text" class="session-label-input" name="' + n + '[label]" value="' + (label || '') + '" placeholder="Session name, e.g. Morning" aria-label="Session name" required>' +
+            '<button type="button" class="ef-link-btn danger remove-session-btn">Remove session</button>' +
             '</div>' +
-            '<div class="form-group">' +
-            '<label>Start Time</label>' +
-            '<input type="time" name="sessions[' + sid + '][start_time]" value="' + (startTime || '') + '" required>' +
+            '<div class="ef-session-body">' +
+            '<div class="ef-grid4">' +
+            '<div class="form-group"><label>Starts</label><input type="time" name="' + n + '[start_time]" value="' + (startTime || '') + '" required></div>' +
+            '<div class="form-group"><label>Ends</label><input type="time" name="' + n + '[end_time]" value="' + (endTime || '') + '" required></div>' +
+            '<div class="form-group"><label>Points</label><input type="number" min="0" step="0.1" class="session-points-input" name="' + n + '[points]" value="' + (points != null ? points : 0) + '"></div>' +
+            '<div class="form-group"><label>Day <small>optional</small></label><input type="date" name="' + n + '[session_date]" value="' + (sessionDate || '') + '"></div>' +
             '</div>' +
-            '<div class="form-group">' +
-            '<label>End Time</label>' +
-            '<input type="time" name="sessions[' + sid + '][end_time]" value="' + (endTime || '') + '" required>' +
+            '<details class="ef-adv"><summary>Sign-in window</summary>' +
+            '<div class="ef-grid3">' +
+            '<div class="form-group"><label>Opens before end (min)</label><input type="number" min="1" max="180" name="' + n + '[signin_lead_minutes]" placeholder="Default"></div>' +
+            '<div class="form-group"><label>Closes after end (min)</label><input type="number" min="0" max="180" name="' + n + '[signin_grace_minutes]" placeholder="Default"></div>' +
+            '<div class="form-group ef-check-cell"><label class="ef-check"><input type="checkbox" id="late_signin_' + sid + '" name="' + n + '[require_late_signin]" value="1" ' + lateChecked + '><span>Require late sign-in</span></label></div>' +
             '</div>' +
-            '<div class="form-group">' +
-            '<label>Points</label>' +
-            '<input type="number" min="0" class="session-points-input" step="0.1" name="sessions[' + sid + '][points]" value="' + (points != null ? points : 0) + '">' +
-            '</div>' +
-            '<div class="form-group">' +
-            '<label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>' +
-            '<input type="date" name="sessions[' + sid + '][session_date]" value="' + (sessionDate || '') + '">' +
-            '</div>' +
-            '<div class="form-group">' +
-            '<label>Sign-in opens (min before end)</label>' +
-            '<input type="number" min="1" max="180" name="sessions[' + sid + '][signin_lead_minutes]" placeholder="Default">' +
-            '</div>' +
-            '<div class="form-group">' +
-            '<label>Sign-in closes (min after end)</label>' +
-            '<input type="number" min="0" max="180" name="sessions[' + sid + '][signin_grace_minutes]" placeholder="Default">' +
-            '</div>' +
-            '<div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">' +
-            '<input type="checkbox" id="late_signin_' + sid + '" name="sessions[' + sid + '][require_late_signin]" value="1" ' + lateChecked + ' style="width:auto;">' +
-            '<label for="late_signin_' + sid + '" style="margin:0;font-weight:normal;">Require late sign-in</label>' +
-            '</div>' +
-            '</div>' +
+            '<small class="field-hint">Leave blank to use the defaults from Settings.</small>' +
+            '</details>' +
             buildPresentationsHTML(sid) +
-            '<button type="button" class="btn btn-ghost btn-sm remove-session-btn">Remove Session</button>' +
+            '</div>' +
             '</div>';
     }
 
@@ -48,9 +35,9 @@
         return '' +
             '<div class="quiz-session" data-swid="' + sid + '">' +
             '<input type="hidden" class="quiz-expected-count" name="quiz[' + sid + '][expected_count]" value="0">' +
-            '<div class="quiz-session-header"><strong class="quiz-session-label">' + (label || '') + '</strong></div>' +
+            '<div class="quiz-session-header"><strong class="quiz-session-label">' + (label || '') + '</strong><span class="quiz-rule" aria-live="polite"></span></div>' +
             '<div class="quiz-questions-list"></div>' +
-            '<button type="button" class="btn btn-ghost btn-sm add-question-btn">+ Add Question</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm add-question-btn">Add question</button>' +
             '</div>';
     }
 
@@ -84,7 +71,12 @@
         var span = document.getElementById('points-total');
         if (span) {
             span.textContent = 'Highest daily total: ' + (total / 10) + ' / 8';
-            span.style.color = total > 80 ? 'var(--kvb-red-dark)' : 'var(--text-muted)';
+            span.style.color = total > 80 ? 'var(--kvb-red-dark)' : '';
+        }
+        var bar = document.getElementById('points-bar');
+        if (bar) {
+            bar.style.width = Math.min(100, total / 80 * 100) + '%';
+            bar.className = total > 80 ? 'over' : '';
         }
     }
 
@@ -198,23 +190,23 @@
         var base = 'presentations[' + sid + '][' + pidx + ']';
         return '' +
             '<div class="presentation-row" data-pidx="' + pidx + '">' +
-            '<input type="text" name="' + base + '[presenter]" placeholder="Presenter" maxlength="150" aria-label="Presenter">' +
-            '<input type="text" name="' + base + '[reg_no]" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">' +
-            '<input type="text" name="' + base + '[topic]" placeholder="Topic" maxlength="255" aria-label="Topic">' +
-            '<input type="text" name="' + base + '[room]" placeholder="Room (optional)" maxlength="60" aria-label="Room">' +
-            '<input type="time" name="' + base + '[start_time]" aria-label="Start time">' +
-            '<input type="time" name="' + base + '[end_time]" aria-label="End time">' +
-            '<button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>' +
+            '<div class="pr-f pr-presenter"><label>Presenter</label><input type="text" name="' + base + '[presenter]" maxlength="150"></div>' +
+            '<div class="pr-f pr-reg"><label>Reg no. <small>optional</small></label><input type="text" name="' + base + '[reg_no]" maxlength="10"></div>' +
+            '<div class="pr-f pr-topic"><label>Topic</label><input type="text" name="' + base + '[topic]" maxlength="255"></div>' +
+            '<div class="pr-f pr-room"><label>Room <small>optional</small></label><input type="text" name="' + base + '[room]" maxlength="60"></div>' +
+            '<div class="pr-f pr-start"><label>Starts</label><input type="time" name="' + base + '[start_time]"></div>' +
+            '<div class="pr-f pr-end"><label>Ends</label><input type="time" name="' + base + '[end_time]"></div>' +
+            '<button type="button" class="ef-link-btn danger pr-remove remove-presentation-btn">Remove</button>' +
             '</div>';
     }
 
     function buildPresentationsHTML(sid) {
         return '' +
             '<div class="presentations" data-sid="' + sid + '">' +
-            '<div class="presentations-title">Presentations</div>' +
+            '<div class="presentations-title">Presenters <small>optional</small></div>' +
             '<input type="hidden" name="presentations[' + sid + '][_marker]" value="1">' +
             '<div class="presentation-list"></div>' +
-            '<button type="button" class="btn btn-ghost btn-sm add-presentation-btn">+ Add Presentation</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm add-presentation-btn">Add presenter</button>' +
             '</div>';
     }
 
