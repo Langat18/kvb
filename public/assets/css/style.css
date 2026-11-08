@@ -1027,3 +1027,16 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--k
     .roster.rt-cards td:nth-child(4), .roster.rt-cards td:nth-child(5), .roster.rt-cards td:nth-child(7) { grid-column: 1 / -1; padding-top: .4rem; }
     .roster.rt-cards .session-badges { display: flex; flex-wrap: wrap; gap: .3rem; }
 }
+
+/* Profile sits at the top of the sidebar so it is always visible */
+.app-profile-top { margin: 0 0 var(--space-3); padding: 0 0 var(--space-3); border-top: 0; border-bottom: 1px solid var(--line); }
+.app-profile-card { display: flex; align-items: center; gap: .65rem; padding: .35rem .25rem; }
+.app-profile-card .avatar { flex: 0 0 auto; }
+.app-profile-text { min-width: 0; display: flex; flex-direction: column; }
+.app-profile-text .name { font-weight: 700; font-size: .85rem; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-profile-text .role { font-size: .7rem; color: var(--text-muted); margin-top: .1rem; }
+.app-profile-links { display: flex; gap: .4rem; margin-top: .35rem; }
+.app-profile-links a { flex: 1; text-align: center; padding: .4rem .5rem; border-radius: 8px; font-size: .75rem; font-weight: 600; text-decoration: none; color: var(--text-main); background: var(--surface-2); border: 1px solid var(--line); }
+.app-profile-links a:hover { background: var(--kvb-green-light); color: var(--kvb-green-dark); }
+.app-profile-links a.logout:hover { background: var(--kvb-red-light); color: var(--kvb-red-dark); }
+@media (max-width: 1020px) { .app-sidebar-brand + .app-profile-top, .app-sidebar > .app-profile-top:first-child { margin-top: .25rem; } }

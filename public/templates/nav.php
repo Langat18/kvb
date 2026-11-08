@@ -46,6 +46,24 @@
 <aside class="app-sidebar" id="appSidebar">
     <div class="app-sidebar-brand"><img src="/assets/img/kvb_logo.png" alt="KVB"></div>
 
+    <div class="app-sidebar-profile-wrap app-profile-top">
+        <div class="app-profile-card">
+            <span class="avatar"><?php
+                $__n = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($user['name']));
+                $__p = array_filter(explode(' ', $__n));
+                echo htmlspecialchars(implode('', array_map(fn($x) => strtoupper($x[0]), array_slice($__p, 0, 2))) ?: '?', ENT_QUOTES, 'UTF-8');
+            ?></span>
+            <span class="app-profile-text">
+                <span class="name"><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
+                <span class="role"><?= htmlspecialchars($user['role_label'] ?: $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
+            </span>
+        </div>
+        <div class="app-profile-links">
+            <a href="/account/change_password.php">Change password</a>
+            <a href="/logout.php" class="logout">Log out</a>
+        </div>
+    </div>
+
     <div class="app-sidebar-body">
         <?php if (!empty($sidebarActionGroups)): ?>
         <details class="app-sidebar-actions" open>
@@ -69,26 +87,6 @@
         <?php endif; ?>
     </div>
 
-    <div class="app-sidebar-profile-wrap">
-        <details>
-            <summary>
-                <span class="avatar"><?php
-                    $__n = preg_replace('/^(Mr|Mrs|Ms|Miss|Dr|Prof|Eng|Rev)\.?\s+/i', '', trim($user['name']));
-                    $__p = array_filter(explode(' ', $__n));
-                    echo htmlspecialchars(implode('', array_map(fn($x) => strtoupper($x[0]), array_slice($__p, 0, 2))) ?: '?', ENT_QUOTES, 'UTF-8');
-                ?></span>
-                <span>
-                    <span class="name"><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <span class="role"><?= htmlspecialchars($user['role_label'] ?: $user['role'], ENT_QUOTES, 'UTF-8') ?></span>
-                </span>
-                <span class="chev">&#9650;</span>
-            </summary>
-            <div class="app-sidebar-profile-menu">
-                <a href="/account/change_password.php">Change Password</a>
-                <a href="/logout.php">Log Out</a>
-            </div>
-        </details>
-    </div>
 </aside>
 <script>
 (function () {

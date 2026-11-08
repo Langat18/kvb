@@ -109,15 +109,6 @@ foreach ($people as $p) {
     $rows[]    = ['reg_no' => $p['reg_no'], 'name' => $p['name'], 'hours' => $hours, 'points' => $points];
 }
 
-$payload = ($provider !== '' ? ['provider_name' => $provider] : []) + ['records' => $records];
-
-if (($_GET['format'] ?? '') === 'json') {
-    header('Content-Type: application/json');
-    header('Content-Disposition: attachment; filename="pms_points_event_' . $eventId . '.json"');
-    header('Cache-Control: no-store');
-    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
-}
 
 $checks = [];
 
@@ -172,6 +163,7 @@ $breadcrumbs = [
     ['label' => 'PMS Points', 'url' => null],
 ];
 
+$user = Auth::user();
 require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <?php
@@ -312,7 +304,6 @@ $activity   = (string) ($pmsData['title'] ?? '');
             <h2 id="pp-records">Records <span class="pp-sum">(<span id="pp-shown"><?= count($rows) ?></span> of <?= count($rows) ?>)</span></h2>
             <div class="pp-actions">
                 <?php if ($rows): ?><input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off"><?php endif; ?>
-                <a class="pp-btn primary" href="/events/pms_points.php?token=<?= $viewToken ?>&amp;format=json">Download for KVB</a>
                 <button type="button" class="pp-btn" disabled title="Sending is not switched on yet">Send to KVB</button>
             </div>
         </div>
