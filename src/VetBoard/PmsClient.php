@@ -91,11 +91,22 @@ final class PmsClient
 
         $body = curl_exec($ch);
         $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $errno = curl_errno($ch);
         $err  = curl_error($ch);
-        $ms   = (int) round((microtime(true) - $start) * 1000);
+
+        // One quick retry for transient faults (DNS/connect failure, 429, 5xx). Timeouts are not retried.
+        if (($body === false && in_array($errno, [CURLE_COULDNT_RESOLVE_HOST, CURLE_COULDNT_CONNECT, CURLE_RECV_ERROR, CURLE_SEND_ERROR], true))
+            || ($body !== false && ($http === 429 || $http >= 500))) {
+            usleep(300000);
+            $body  = curl_exec($ch);
+            $http  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err   = curl_error($ch);
+        }
+
+        $ms = (int) round((microtime(true) - $start) * 1000);
 
         if ($body === false) {
-            error_log('PMS ' . $path . ' failed: ' . $err);
+            error_log('PMS ' . $path . ' failed after ' . $ms . 'ms: ' . $err);
 
             return $this->result(self::UNAVAILABLE, null, 'PMS API unreachable', $http, $ms);
         }
@@ -106,8 +117,13 @@ final class PmsClient
             return $this->result(self::UNAVAILABLE, null, 'PMS API authentication failed', $http, $ms);
         }
 
+        // A missing record may come back as HTTP 404/422 with the usual JSON body rather than HTTP 200.
+        if (($http === 404 || $http === 422) && is_array($nf = json_decode((string) $body, true)) && ($nf['success'] ?? null) === false) {
+            return $this->result(self::NOT_FOUND, null, (string) ($nf['message'] ?? 'Not found'), $http, $ms);
+        }
+
         if ($http !== 200) {
-            error_log('PMS ' . $path . ' returned HTTP ' . $http);
+            error_log('PMS ' . $path . ' returned HTTP ' . $http . ' in ' . $ms . 'ms');
 
             return $this->result(self::UNAVAILABLE, null, 'PMS API returned HTTP ' . $http, $http, $ms);
         }
