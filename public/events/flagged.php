@@ -128,7 +128,10 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .fl-bulk { position:sticky; bottom:0; display:none; gap:.6rem; align-items:center; flex-wrap:wrap; padding:.75rem 1rem; background:#0f5132; color:#fff; border-radius:0 0 12px 12px; }
 .fl-bulk.on { display:flex; }
 .fl-bulk input[type=text] { flex:1; min-width:180px; min-height:36px; padding:.3rem .7rem; border:0; border-radius:8px; font:inherit; font-size:.85rem; }
-.fl-bulk .btn { min-height:36px; }
+.fl-bulk .btn { min-height:38px; padding:.4rem 1rem; font-weight:600; border:0; opacity:1; }
+.fl-bulk .btn.fl-yes { background:#fff; color:#0f5132; }
+.fl-bulk .btn.fl-no { background:#dc2626; color:#fff; }
+.fl-bulk .btn:hover { filter:brightness(.93); }
 td.fl-cb, th.fl-cb { width:36px; text-align:center; }
 </style>
 </head>
@@ -212,8 +215,8 @@ td.fl-cb, th.fl-cb { width:36px; text-align:center; }
             <div class="fl-bulk" id="fl-bar">
                 <strong id="fl-count">0 selected</strong>
                 <input type="text" name="review_note" form="fl-bulk" maxlength="255" placeholder="Reason for all selected (optional)">
-                <button type="submit" form="fl-bulk" class="btn btn-success btn-sm" data-do="approve_selected">Approve selected</button>
-                <button type="submit" form="fl-bulk" class="btn btn-danger btn-sm" data-do="deny_selected">Deny selected</button>
+                <button type="submit" form="fl-bulk" class="btn fl-yes" data-do="approve_selected">Approve selected</button>
+                <button type="submit" form="fl-bulk" class="btn fl-no" data-do="deny_selected">Deny selected</button>
             </div>
         </div>
         <script>
