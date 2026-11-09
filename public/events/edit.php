@@ -15,8 +15,6 @@ use VetBoard\EventQuiz;
 Auth::startSession();
 Auth::requirePermission('view_events');
 
-$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Events', 'url' => '/events/index.php'], ['label' => 'Edit Event', 'url' => null]];
-
 $user = Auth::user();
 
 if (empty($_GET['token'])) {
@@ -39,6 +37,13 @@ if (!$canEdit) {
     http_response_code(403);
     die('Access denied.');
 }
+
+$breadcrumbs = [
+    ['label' => 'Dashboard', 'url' => '/index.php'],
+    ['label' => 'Events', 'url' => '/events/index.php'],
+    ['label' => $event['title'], 'url' => '/events/view.php?token=' . urlencode($event['view_token'])],
+    ['label' => 'Edit', 'url' => null],
+];
 
 $eventModeRepo = new EventModeRepository();
 $eventModes    = $eventModeRepo->list(true);
@@ -235,6 +240,12 @@ $presentationsBySession = empty($formData)
     ? (new \VetBoard\SessionPresentation())->forEvent((int) $event['id'])
     : (array) ($formData['presentations'] ?? []);
 
+$formAction  = '/events/edit.php?token=' . urlencode($event['view_token']);
+$submitLabel = 'Save changes';
+$cancelUrl   = '/events/view.php?token=' . urlencode($event['view_token']);
+
+require __DIR__ . '/../templates/sidebar_data.php';
+
 $quizBySession = [];
 foreach ($sessionsForDisplay as $sw) {
     $quizBySession[$sw['id']] = is_numeric($sw['id'])
@@ -249,39 +260,19 @@ foreach ($sessionsForDisplay as $sw) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Edit Event - Kenya Veterinary Board</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: none; margin: 0; padding-inline: clamp(1rem, 4vw, 3rem); }
-body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem); }
-.container h1 { font-size: 1.3rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-.quiz-panel { margin-top: 1.5rem; }
-.quiz-panel > .form-group.full > label { font-weight: 600; }
-.quiz-session {
-    border: 1.5px solid #d8dde3; border-radius: 12px; padding: 1rem;
-    margin-bottom: 1rem; background: #fafbfc;
-}
-.quiz-session-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
-.quiz-session-header strong { font-size: .92rem; }
-.quiz-clear-label { font-size: .78rem; color: var(--text-muted); display: flex; align-items: center; gap: .35rem; cursor: pointer; }
-.quiz-question-block {
-    border: 1px dashed #c8ced6; border-radius: 10px; padding: .85rem;
-    margin-bottom: .75rem; background: #fff;
-}
-.quiz-question-block .form-group { margin-bottom: .5rem; }
-.quiz-option-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
-.quiz-option-row input[type="radio"] { accent-color: var(--kvb-green-dark); width: 16px; height: 16px; flex-shrink: 0; }
-.quiz-option-row input[type="text"] { flex: 1; }
-.quiz-question-actions { display: flex; gap: .5rem; margin-top: .5rem; }
-.quiz-remove-question { color: var(--kvb-red-dark); }
-</style>
 </head>
-<body>
+<body class="has-app-sidebar">
 <?php require __DIR__ . '/../templates/nav.php'; ?>
-<div class="container">
-    <h1>Edit Event</h1>
+<div class="page-with-sidebar">
+    <div class="ef-page-head">
+        <div>
+            <h1>Edit event</h1>
+        </div>
+        <a href="<?= htmlspecialchars($cancelUrl, ENT_QUOTES, 'UTF-8') ?>" class="btn btn-ghost">Back to event</a>
+    </div>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
@@ -290,294 +281,13 @@ body .page-body-outer { max-width: none; padding-inline: clamp(1rem, 4vw, 3rem);
         <div class="alert alert-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
-    <div class="card">
-        <form method="POST" action="/events/edit.php?token=<?= urlencode($event['view_token']) ?>" id="event-form">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-            <input type="hidden" name="provider_id" id="provider_id" value="<?= htmlspecialchars((string) ($v['provider_id'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-
-            <div class="form-grid">
-                <div class="form-group full">
-                    <label for="title">Event Title <span class="required">*</span></label>
-                    <input type="text" id="title" name="title" required
-                           value="<?= htmlspecialchars($v['title'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="event_code">Registration No. of Activity</label>
-                    <input type="text" id="event_code" name="event_code"
-                           value="<?= htmlspecialchars($v['event_code'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="event_mode_id">Mode <span class="required">*</span></label>
-                    <select id="event_mode_id" name="event_mode_id" required>
-                        <option value="">-- Select --</option>
-                        <?php foreach ($eventModes as $mode): ?>
-                            <option value="<?= (int) $mode['id'] ?>"
-                                    data-key="<?= htmlspecialchars($mode['item_key'], ENT_QUOTES, 'UTF-8') ?>"
-                                    <?= (int) ($v['event_mode_id'] ?? 0) === (int) $mode['id'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($mode['label'], ENT_QUOTES, 'UTF-8') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="start_date">Start Date <span class="required">*</span></label>
-                    <input type="date" id="start_date" name="start_date" required
-                           value="<?= htmlspecialchars($v['start_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="end_date">End Date <span class="required">*</span></label>
-                    <input type="date" id="end_date" name="end_date" required
-                           value="<?= htmlspecialchars($v['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="venue">Venue</label>
-                    <input type="text" id="venue" name="venue"
-                           value="<?= htmlspecialchars($v['venue'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="coordinator">Supervisor</label>
-                    <input type="text" id="coordinator" name="coordinator"
-                           value="<?= htmlspecialchars($v['coordinator'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-
-                <div class="form-group">
-                    <label for="provider_accreditation_no">Provider Accreditation No.</label>
-                    <input type="text" id="provider_accreditation_no" name="provider_accreditation_no"
-                           placeholder="e.g. ACC/CPD-P/001/2013"
-                           value="<?= htmlspecialchars($v['provider_accreditation_no'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                    <small id="provider-status" style="color:var(--text-muted);"></small>
-                </div>
-
-                <div class="form-group">
-                    <label for="provider_name_display">Provider Name</label>
-                    <input type="text" id="provider_name_display" readonly value="<?= htmlspecialchars($providerNameDisplay, ENT_QUOTES, 'UTF-8') ?>" placeholder="Fills in automatically">
-                </div>
-
-                <div class="form-group full">
-                    <input type="hidden" name="day_confirmation" value="0">
-                    <label style="display:flex;align-items:center;gap:.5rem;font-weight:500;">
-                        <input type="checkbox" name="day_confirmation" value="1" style="width:auto;margin:0;" <?= isTruthyDbBool($v['day_confirmation'] ?? false) ? 'checked' : '' ?>>
-                        Confirm attendees on each event day
-                    </label>
-                    <small style="color:var(--text-muted);">Attendees confirm presence each day, separate from session sign-in and points.</small>
-                </div>
-            </div>
-
-            <div class="form-grid" id="meeting-fields">
-                <div class="form-group full">
-                    <label>Virtual Meeting</label>
-                </div>
-                <div class="form-group">
-                    <label for="meeting_provider">Provider</label>
-                    <select id="meeting_provider" name="meeting_provider">
-                        <?php foreach (MEETING_PROVIDERS as $key => $label): ?>
-                            <option value="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" <?= ($v['meeting_provider'] ?? '') === $key ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="meeting_link">Meeting Link</label>
-                    <input type="url" id="meeting_link" name="meeting_link" placeholder="https://meet.google.com/xxx-xxxx-xxx"
-                           value="<?= htmlspecialchars($v['meeting_link'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-            </div>
-
-            <div class="form-grid geo-fields" id="geo-fields">
-                <div class="form-group full">
-                    <label>Location <span class="required">*</span></label>
-                </div>
-
-                <div class="geo-map" id="geo-map"></div>
-
-                <div class="form-group full">
-                    <button type="button" class="btn btn-ghost btn-sm" onclick="detectLocation()"><?= ui_icon('pin', 16) ?> Use my location</button>
-                </div>
-
-                <div class="form-group">
-                    <label for="geo_lat">Latitude</label>
-                    <input type="number" step="any" id="geo_lat" name="geo_lat"
-                           value="<?= htmlspecialchars((string) ($v['geo_lat'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-                <div class="form-group">
-                    <label for="geo_lng">Longitude</label>
-                    <input type="number" step="any" id="geo_lng" name="geo_lng"
-                           value="<?= htmlspecialchars((string) ($v['geo_lng'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-                <div class="form-group">
-                    <label for="geo_radius_m">Radius (meters)</label>
-                    <input type="number" id="geo_radius_m" name="geo_radius_m"
-                           value="<?= htmlspecialchars((string) ($v['geo_radius_m'] ?? DEFAULT_GEOFENCE_RADIUS_M), ENT_QUOTES, 'UTF-8') ?>">
-                </div>
-            </div>
-
-            <div style="margin-top:1rem;">
-                <div class="form-group full">
-                    <label>Sessions</label>
-                </div>
-                <div id="sessions-list">
-                    <?php foreach ($sessionsForDisplay as $sw): $sidAttr = htmlspecialchars((string) $sw['id'], ENT_QUOTES, 'UTF-8'); ?>
-                        <div class="session-row" data-sid="<?= $sidAttr ?>" style="border:1.5px solid #d8dde3;border-radius:10px;padding:.85rem;margin-bottom:.75rem;">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Label</label>
-                                    <input type="text" class="session-label-input" name="sessions[<?= $sidAttr ?>][label]" value="<?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?>" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Start Time</label>
-                                    <input type="time" name="sessions[<?= $sidAttr ?>][start_time]" value="<?= htmlspecialchars($sw['start_time'], ENT_QUOTES, 'UTF-8') ?>" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>End Time</label>
-                                    <input type="time" name="sessions[<?= $sidAttr ?>][end_time]" value="<?= htmlspecialchars($sw['end_time'], ENT_QUOTES, 'UTF-8') ?>" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Points</label>
-                                    <input type="number" min="0" class="session-points-input" name="sessions[<?= $sidAttr ?>][points]" step="0.1" value="<?= htmlspecialchars((string) $sw['points'], ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                                <div class="form-group">
-                                    <label>Date <small style="font-weight:normal;color:var(--text-muted);">(optional)</small></label>
-                                    <input type="date" name="sessions[<?= $sidAttr ?>][session_date]" value="<?= htmlspecialchars((string) ($sw['session_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
-                                </div>
-                                <div class="form-group">
-                                    <label>Sign-in opens (min before end)</label>
-                                    <input type="number" min="1" max="180" name="sessions[<?= $sidAttr ?>][signin_lead_minutes]" value="<?= htmlspecialchars((string) ($sw['signin_lead_minutes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Default">
-                                </div>
-                                <div class="form-group">
-                                    <label>Sign-in closes (min after end)</label>
-                                    <input type="number" min="0" max="180" name="sessions[<?= $sidAttr ?>][signin_grace_minutes]" value="<?= htmlspecialchars((string) ($sw['signin_grace_minutes'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Default">
-                                </div>
-                                <div class="form-group full" style="display:flex;align-items:center;gap:.5rem;margin-top:-.5rem;">
-                                    <input type="checkbox" id="late_signin_<?= $sidAttr ?>" name="sessions[<?= $sidAttr ?>][require_late_signin]" value="1" <?= (($sw['require_late_signin'] ?? true) ? 'checked' : '') ?> style="width:auto;">
-                                    <label for="late_signin_<?= $sidAttr ?>" style="margin:0;font-weight:normal;">Require late sign-in</label>
-                                </div>
-                            </div>
-                            <?php $presRows = array_values(array_filter((array) ($presentationsBySession[$sw['id']] ?? []), 'is_array')); ?>
-                            <div class="presentations" data-sid="<?= $sidAttr ?>">
-                                <div class="presentations-title">Presentations</div>
-                                <input type="hidden" name="presentations[<?= $sidAttr ?>][_marker]" value="1">
-                                <div class="presentation-list">
-                                    <?php foreach ($presRows as $pi => $p): ?>
-                                    <div class="presentation-row" data-pidx="<?= $pi ?>">
-                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][presenter]" value="<?= htmlspecialchars((string) ($p['presenter'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Presenter" maxlength="150" aria-label="Presenter">
-                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][reg_no]" value="<?= htmlspecialchars((string) ($p['reg_no'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Reg No (optional)" maxlength="10" aria-label="Presenter registration number">
-                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][topic]" value="<?= htmlspecialchars((string) ($p['topic'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Topic" maxlength="255" aria-label="Topic">
-                                        <input type="text" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][room]" value="<?= htmlspecialchars((string) ($p['room'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" placeholder="Room (optional)" maxlength="60" aria-label="Room">
-                                        <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][start_time]" value="<?= htmlspecialchars(substr((string) ($p['start_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="Start time">
-                                        <input type="time" name="presentations[<?= $sidAttr ?>][<?= $pi ?>][end_time]" value="<?= htmlspecialchars(substr((string) ($p['end_time'] ?? ''), 0, 5), ENT_QUOTES, 'UTF-8') ?>" aria-label="End time">
-                                        <button type="button" class="btn btn-ghost btn-sm remove-presentation-btn">Remove</button>
-                                    </div>
-                                    <?php endforeach; ?>
-                                </div>
-                                <button type="button" class="btn btn-ghost btn-sm add-presentation-btn">+ Add Presentation</button>
-                            </div>
-                            <button type="button" class="btn btn-ghost btn-sm remove-session-btn">Remove Session</button>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-                <button type="button" class="btn btn-ghost btn-sm" id="add-session-btn">+ Add Session</button>
-                <div class="form-group full" style="margin-top:.5rem;">
-                    <span id="points-total" style="font-size:.85rem;color:var(--text-muted);">Total: 0 / 8</span>
-                </div>
-            </div>
-
-            <div class="quiz-panel" id="quiz-panel">
-                <div class="form-group full">
-                    <label>Session Quiz</label>
-                </div>
-
-                <div id="quiz-sessions-list">
-                <?php foreach ($sessionsForDisplay as $sw):
-                    $existingQuestions = $quizBySession[$sw['id']] ?? [];
-                    $swAttr = htmlspecialchars((string) $sw['id'], ENT_QUOTES, 'UTF-8');
-                ?>
-                    <div class="quiz-session" data-swid="<?= $swAttr ?>">
-                        <input type="hidden" class="quiz-expected-count" name="quiz[<?= $swAttr ?>][expected_count]" value="<?= count($existingQuestions) ?>">
-                        <div class="quiz-session-header">
-                            <strong class="quiz-session-label"><?= htmlspecialchars($sw['label'], ENT_QUOTES, 'UTF-8') ?></strong>
-                            <?php if (!empty($existingQuestions)): ?>
-                                <label class="quiz-clear-label">
-                                    <input type="checkbox" name="quiz[<?= $swAttr ?>][clear]" value="1">
-                                    Remove all quiz questions for this session
-                                </label>
-                            <?php endif; ?>
-                        </div>
-
-                        <div class="quiz-questions-list">
-                            <?php foreach ($existingQuestions as $qIdx => $q): ?>
-                                <div class="quiz-question-block" data-qidx="<?= $qIdx ?>">
-                                    <div class="form-group">
-                                        <label>Question</label>
-                                        <input type="text"
-                                               name="quiz[<?= $swAttr ?>][questions][<?= $qIdx ?>][text]"
-                                               value="<?= htmlspecialchars($q['question_text'], ENT_QUOTES, 'UTF-8') ?>">
-                                    </div>
-                                    <p style="font-size:.75rem;color:var(--text-muted);margin:.3rem 0;">Click the circle beside the correct answer &mdash; exactly one is required.</p>
-                                    <div class="quiz-options" data-swid="<?= $swAttr ?>" data-qidx="<?= $qIdx ?>">
-                                        <?php foreach ($q['options'] as $oIdx => $opt): ?>
-                                            <div class="quiz-option-row">
-                                                <input type="radio"
-                                                       name="quiz[<?= $swAttr ?>][questions][<?= $qIdx ?>][correct]"
-                                                       value="<?= $oIdx ?>" required
-                                                       <?= isTruthyDbBool($opt['is_correct']) ? 'checked' : '' ?>>
-                                                <input type="text"
-                                                       name="quiz[<?= $swAttr ?>][questions][<?= $qIdx ?>][options][<?= $oIdx ?>]"
-                                                       value="<?= htmlspecialchars($opt['option_text'], ENT_QUOTES, 'UTF-8') ?>">
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                    <div class="quiz-question-actions">
-                                        <button type="button" class="btn btn-ghost btn-sm add-option-btn">+ Add Option</button>
-                                        <button type="button" class="btn btn-ghost btn-sm quiz-remove-question remove-question-btn">Remove Question</button>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-
-                        <button type="button" class="btn btn-ghost btn-sm add-question-btn">+ Add Question</button>
-                    </div>
-                <?php endforeach; ?>
-                </div>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" id="submit-btn">Save Changes</button>
-                <a href="/events/view.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">Cancel</a>
-            </div>
-        </form>
-    </div>
+    <?php require __DIR__ . '/../templates/event_form.php'; ?>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="/assets/js/event-geo-form.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/event-geo-form.js') ?>"></script>
 <script src="/assets/js/session-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/session-builder.js') ?>"></script>
-<script src="/assets/js/quiz-builder.js?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/js/quiz-builder.js') ?>"></script>
-<script>
-// Quiz and meeting fields apply to virtual and hybrid events only.
-(function () {
-    var modeSelect    = document.getElementById('event_mode_id');
-    var quizPanel     = document.getElementById('quiz-panel');
-    var meetingFields = document.getElementById('meeting-fields');
-    if (!modeSelect) return;
-
-    function toggle() {
-        var selected = modeSelect.options[modeSelect.selectedIndex];
-        var key = selected ? selected.getAttribute('data-key') : '';
-        var hide = (key === 'onsite') ? 'none' : '';
-        if (quizPanel)     quizPanel.style.display = hide;
-        if (meetingFields) meetingFields.style.display = hide;
-    }
-
-    modeSelect.addEventListener('change', toggle);
-    toggle();
-})();
-</script>
+<script src="/assets/js/quiz-builder.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/quiz-builder.js') ?>"></script>
+<script src="/assets/js/event-form-ui.js?v=<?= (int) @filemtime(__DIR__ . '/../assets/js/event-form-ui.js') ?>"></script>
 </body>
 </html>
