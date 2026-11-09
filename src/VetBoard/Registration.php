@@ -776,6 +776,34 @@ class Registration
         return $stmt->fetchAll();
     }
 
+    // Approves or denies several flagged check-ins at once. Only rows still flagged on this
+    // event are touched; each row is reviewed on its own, so one failure never blocks the rest.
+    public function reviewFlaggedBatch(int $eventId, array $ids, string $decision, ?int $staffId, ?string $note = null): array
+    {
+        $ids = array_slice(array_values(array_unique(array_filter(array_map('intval', $ids), static fn($i) => $i > 0))), 0, 300);
+
+        if (!$ids || !in_array($decision, ['approve', 'deny'], true)) {
+            return ['done' => 0, 'skipped' => 0, 'ids' => []];
+        }
+
+        $stmt = $this->pdo->prepare(
+            'SELECT a.id FROM attendance a JOIN registrations r ON r.id = a.registration_id
+             WHERE r.event_id = :event AND a.flagged = true AND a.id = ANY (string_to_array(:ids, \',\')::bigint[])'
+        );
+        $stmt->execute([':event' => $eventId, ':ids' => implode(',', $ids)]);
+        $eligible = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+        $done = 0;
+        foreach ($eligible as $id) {
+            if ($this->reviewAttendance($id, $decision, $staffId, $note)['ok']) {
+                $done++;
+                error_log(sprintf('[flagged] action=batch_%s attendance_id=%d staff_id=%s result=ok', $decision, $id, $staffId ?? 'none'));
+            }
+        }
+
+        return ['done' => $done, 'skipped' => count($ids) - $done];
+    }
+
     // Supervisor queue for quiz overrides. Virtual-only — onsite never gets gated by a quiz.
     // Excludes denied records (points_denied) so they stop appearing once a supervisor has acted.
     public function quizFailedForEvent(int $eventId): array
