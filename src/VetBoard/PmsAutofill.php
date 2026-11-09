@@ -142,8 +142,8 @@ final class PmsAutofill
     {
         $stmt = $this->pdo->prepare(
             "SELECT
-                COUNT(*) FILTER (WHERE ip = :ip AND at > now() - interval '10 minutes' AND outcome <> 'ok') AS ip_fails,
-                COUNT(*) FILTER (WHERE reg_no = :reg AND at > now() - interval '1 hour' AND outcome IN ('bad_dob', 'limited')) AS reg_fails
+                COUNT(*) FILTER (WHERE ip = :ip AND at > now() - interval '10 minutes' AND outcome IN ('bad_dob', 'not_found')) AS ip_fails,
+                COUNT(*) FILTER (WHERE reg_no = :reg AND at > now() - interval '1 hour' AND outcome = 'bad_dob') AS reg_fails
              FROM pms_lookup_log
              WHERE at > now() - interval '1 hour'"
         );

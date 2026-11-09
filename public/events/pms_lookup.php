@@ -27,8 +27,10 @@ if (!$autofill->enabled()) {
     exit;
 }
 
+$remote    = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
 $forwarded = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
-$ip        = filter_var($forwarded, FILTER_VALIDATE_IP) ? $forwarded : (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+$viaProxy  = filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+$ip        = ($viaProxy && filter_var($forwarded, FILTER_VALIDATE_IP)) ? $forwarded : $remote;
 
 try {
     $result = $autofill->verify((string) ($_POST['reg_no'] ?? ''), (string) ($_POST['dob'] ?? ''), $ip);
