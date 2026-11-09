@@ -62,6 +62,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $note         = $note === '' ? null : mb_substr($note, 0, 255);
     $staffId      = isset($user['id']) ? (int) $user['id'] : null;
 
+    if (in_array($action, ['approve_selected', 'deny_selected'], true)) {
+        $ids = (array) ($_POST['ids'] ?? []);
+        $res = $registrationModel->reviewFlaggedBatch((int) $event['id'], $ids, $action === 'approve_selected' ? 'approve' : 'deny', $staffId, $note);
+        $verb = $action === 'approve_selected' ? 'Approved' : 'Denied';
+        $_SESSION['success'] = $res['done'] === 0 && !$ids
+            ? 'Nothing was selected.'
+            : $verb . ' ' . $res['done'] . ' record' . ($res['done'] === 1 ? '' : 's') . '.'
+              . ($res['skipped'] > 0 ? ' ' . $res['skipped'] . ' skipped (already reviewed or points already awarded).' : '');
+        header('Location: /events/flagged.php?token=' . urlencode($event['view_token']));
+        exit;
+    }
+
     if ($attendanceId <= 0 || !in_array($action, ['approve_flag', 'override_quiz', 'deny_flag', 'deny_quiz', 'reopen_review'], true)) {
         error_log(sprintf('[flagged] ignored request action=%s attendance_id=%d', $action, $attendanceId));
         $_SESSION['success'] = 'Nothing was changed: the request was incomplete. Please try again.';
@@ -110,6 +122,14 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .section-heading:first-of-type { margin-top: 0; }
 .review-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
 .review-actions form { display: inline; }
+.fl-tools { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; padding:.7rem 1rem; border-bottom:1px solid #e2e8f0; font-size:.85rem; color:#475569; }
+.fl-tools .btn { min-height:34px; }
+.fl-tools .spacer { flex:1; }
+.fl-bulk { position:sticky; bottom:0; display:none; gap:.6rem; align-items:center; flex-wrap:wrap; padding:.75rem 1rem; background:#0f5132; color:#fff; border-radius:0 0 12px 12px; }
+.fl-bulk.on { display:flex; }
+.fl-bulk input[type=text] { flex:1; min-width:180px; min-height:36px; padding:.3rem .7rem; border:0; border-radius:8px; font:inherit; font-size:.85rem; }
+.fl-bulk .btn { min-height:36px; }
+td.fl-cb, th.fl-cb { width:36px; text-align:center; }
 </style>
 </head>
 <body class="has-app-sidebar">
@@ -128,11 +148,25 @@ require __DIR__ . '/../templates/sidebar_data.php';
     <?php if (empty($flagged)): ?>
         <div class="app-card"><p class="empty-state">No flagged records for this event.</p></div>
     <?php else: ?>
-        <div class="app-card card-flush">
+        <div class="app-card card-flush" id="fl-card">
+            <form id="fl-bulk" method="POST" action="/events/flagged.php?token=<?= urlencode($event['view_token']) ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="action" id="fl-action" value="">
+            <div class="fl-tools">
+                <span><strong><?= count($flagged) ?></strong> awaiting review</span>
+                <span class="spacer"></span>
+                <span>Select:</span>
+                <button type="button" class="btn btn-ghost btn-sm" data-sel="all">All</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-sel="100">Within 100 m</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-sel="250">Within 250 m</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-sel="none">None</button>
+            </div>
+            </form>
             <div class="table-scroll">
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th class="fl-cb"><input type="checkbox" id="fl-all" aria-label="Select all"></th>
                         <th>Reg No</th>
                         <th>Name</th>
                         <th>Session</th>
@@ -145,6 +179,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <tbody>
                     <?php foreach ($flagged as $f): ?>
                     <tr>
+                        <td class="fl-cb"><input type="checkbox" name="ids[]" form="fl-bulk" class="fl-row" value="<?= (int) $f['attendance_id'] ?>" data-dist="<?= (int) $f['distance_m'] ?>" aria-label="Select <?= htmlspecialchars($f['reg_no'], ENT_QUOTES, 'UTF-8') ?>"></td>
                         <td><?= htmlspecialchars($f['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($f['name'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($f['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></td>
@@ -174,7 +209,44 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 </tbody>
             </table>
             </div>
+            <div class="fl-bulk" id="fl-bar">
+                <strong id="fl-count">0 selected</strong>
+                <input type="text" name="review_note" form="fl-bulk" maxlength="255" placeholder="Reason for all selected (optional)">
+                <button type="submit" form="fl-bulk" class="btn btn-success btn-sm" data-do="approve_selected">Approve selected</button>
+                <button type="submit" form="fl-bulk" class="btn btn-danger btn-sm" data-do="deny_selected">Deny selected</button>
+            </div>
         </div>
+        <script>
+        (function () {
+            var rows = [].slice.call(document.querySelectorAll('.fl-row')), all = document.getElementById('fl-all'),
+                bar = document.getElementById('fl-bar'), cnt = document.getElementById('fl-count'),
+                form = document.getElementById('fl-bulk'), act = document.getElementById('fl-action');
+            function sync() {
+                var n = rows.filter(function (r) { return r.checked; }).length;
+                cnt.textContent = n + ' selected';
+                bar.classList.toggle('on', n > 0);
+                all.checked = n > 0 && n === rows.length;
+                all.indeterminate = n > 0 && n < rows.length;
+            }
+            rows.forEach(function (r) { r.addEventListener('change', sync); });
+            all.addEventListener('change', function () { rows.forEach(function (r) { r.checked = all.checked; }); sync(); });
+            document.querySelectorAll('[data-sel]').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    var m = b.getAttribute('data-sel');
+                    rows.forEach(function (r) { r.checked = m === 'all' ? true : m === 'none' ? false : (+r.getAttribute('data-dist') <= +m); });
+                    sync();
+                });
+            });
+            bar.querySelectorAll('[data-do]').forEach(function (b) {
+                b.addEventListener('click', function (e) {
+                    var n = rows.filter(function (r) { return r.checked; }).length, d = b.getAttribute('data-do') === 'approve_selected';
+                    if (!n || !confirm((d ? 'Approve ' : 'Deny ') + n + ' record' + (n === 1 ? '' : 's') + '?' + (d ? ' Points post once other requirements are met.' : ' No points will be awarded.') + ' This is recorded against your account.')) { e.preventDefault(); return; }
+                    act.value = b.getAttribute('data-do');
+                });
+            });
+            sync();
+        })();
+        </script>
     <?php endif; ?>
 
     <h2 class="section-heading">Recently Reviewed</h2>
