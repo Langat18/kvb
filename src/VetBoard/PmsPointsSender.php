@@ -59,7 +59,7 @@ final class PmsPointsSender
      * Looks up the next few practitioners not yet checked. Returns how many still remain.
      * Called repeatedly by the page so no single request runs long.
      */
-    public function resolve(array $regNos, int $limit = 12): int
+    public function resolve(array $regNos, int $limit = 30): int
     {
         $known   = $this->resolutions($regNos);
         $pending = array_values(array_diff($regNos, array_keys($known)));

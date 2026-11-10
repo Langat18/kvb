@@ -41,7 +41,7 @@ final class PmsClient
      * @param list<string> $regNos
      * @return array<string, array> keyed by the number asked for, in the same shape as registration()
      */
-    public function registrations(array $regNos, int $concurrency = 4): array
+    public function registrations(array $regNos, int $concurrency = 6): array
     {
         $out = [];
 
@@ -54,57 +54,58 @@ final class PmsClient
         }
 
         $secure = str_starts_with($this->base, 'https://');
+        $mh     = curl_multi_init();
+        // A fixed number of connections is kept busy and reused, so the secure handshake is paid once, not per lookup.
+        curl_multi_setopt($mh, CURLMOPT_MAX_HOST_CONNECTIONS, max(1, $concurrency));
+        $hs = [];
 
-        foreach (array_chunk(array_values($regNos), max(1, $concurrency)) as $group) {
-            $mh = curl_multi_init();
-            $hs = [];
-
-            foreach ($group as $reg) {
-                $ch = curl_init($this->base . '/registration/search?' . http_build_query(['reg_number' => strtoupper(trim($reg))]));
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_FOLLOWLOCATION => false,
-                    CURLOPT_PROTOCOLS      => $secure ? CURLPROTO_HTTPS : (CURLPROTO_HTTP | CURLPROTO_HTTPS),
-                    CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
-                    CURLOPT_TIMEOUT        => 15,
-                    CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $this->token, 'Accept: application/json', 'User-Agent: KVB-CPD-Attendance/1.0'],
-                ]);
-                curl_multi_add_handle($mh, $ch);
-                $hs[$reg] = $ch;
-            }
-
-            do {
-                $status = curl_multi_exec($mh, $running);
-                if ($running) {
-                    curl_multi_select($mh, 1.0);
-                }
-            } while ($running && $status === CURLM_OK);
-
-            foreach ($hs as $reg => $ch) {
-                $body = curl_multi_getcontent($ch);
-                $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $ms   = (int) round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
-                $json = json_decode((string) $body, true);
-
-                if ($http === 0 || $body === '' || $body === null) {
-                    $out[$reg] = $this->result(self::UNAVAILABLE, null, 'No answer from PMS', $http, $ms);
-                } elseif (in_array($http, [401, 403], true)) {
-                    $out[$reg] = $this->result(self::UNAVAILABLE, null, 'PMS refused the access token', $http, $ms);
-                } elseif (is_array($json) && ($json['success'] ?? null) === true && in_array($http, [200], true)) {
-                    $d = $json['data'] ?? [];
-                    $out[$reg] = $this->result(self::FOUND, is_array($d) ? $d : [], null, $http, $ms);
-                } elseif (is_array($json) && ($json['success'] ?? null) === false && in_array($http, [200, 404, 422], true)) {
-                    $out[$reg] = $this->result(self::NOT_FOUND, null, (string) ($json['message'] ?? 'Not found'), $http, $ms);
-                } else {
-                    $out[$reg] = $this->result(self::UNAVAILABLE, null, 'PMS returned HTTP ' . $http, $http, $ms);
-                }
-
-                curl_multi_remove_handle($mh, $ch);
-                curl_close($ch);
-            }
-
-            curl_multi_close($mh);
+        foreach (array_values(array_unique($regNos)) as $reg) {
+            $ch = curl_init($this->base . '/registration/search?' . http_build_query(['reg_number' => strtoupper(trim($reg))]));
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_PROTOCOLS      => $secure ? CURLPROTO_HTTPS : (CURLPROTO_HTTP | CURLPROTO_HTTPS),
+                CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+                CURLOPT_TIMEOUT        => 20,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_TCP_KEEPALIVE  => 1,
+                CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $this->token, 'Accept: application/json', 'User-Agent: KVB-CPD-Attendance/1.0'],
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $hs[$reg] = $ch;
         }
+
+        do {
+            $status = curl_multi_exec($mh, $running);
+            if ($running) {
+                curl_multi_select($mh, 1.0);
+            }
+        } while ($running && $status === CURLM_OK);
+
+        foreach ($hs as $reg => $ch) {
+            $body = curl_multi_getcontent($ch);
+            $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $ms   = (int) round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
+            $json = json_decode((string) $body, true);
+
+            if ($http === 0 || $body === '' || $body === null) {
+                $out[$reg] = $this->result(self::UNAVAILABLE, null, 'No answer from PMS', $http, $ms);
+            } elseif (in_array($http, [401, 403], true)) {
+                $out[$reg] = $this->result(self::UNAVAILABLE, null, 'PMS refused the access token', $http, $ms);
+            } elseif (is_array($json) && ($json['success'] ?? null) === true && $http === 200) {
+                $d = $json['data'] ?? [];
+                $out[$reg] = $this->result(self::FOUND, is_array($d) ? $d : [], null, $http, $ms);
+            } elseif (is_array($json) && ($json['success'] ?? null) === false && in_array($http, [200, 404, 422], true)) {
+                $out[$reg] = $this->result(self::NOT_FOUND, null, (string) ($json['message'] ?? 'Not found'), $http, $ms);
+            } else {
+                $out[$reg] = $this->result(self::UNAVAILABLE, null, 'PMS returned HTTP ' . $http, $http, $ms);
+            }
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
 
         return $out;
     }

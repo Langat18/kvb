@@ -70,8 +70,18 @@ $stmt->execute([':event' => $eventId]);
 $flaggedPending = (int) $stmt->fetchColumn();
 
 $formatOk = (bool) preg_match('#^REG/CPD-A/\d{4}/\d{4}$#', $code);
-$pms      = $code !== '' ? (new PmsClient(null, null, 8, 3))->activity($code) : null;
-$pmsData  = $pms !== null && $pms['status'] === PmsClient::FOUND ? $pms['data'] : [];
+// The nightly copy of PMS activities answers this without a live call; PMS is asked only if the copy has no match.
+$stmt = $pdo->prepare('SELECT title, activity_type, provider_name AS name_of_provider, schedules FROM pms_activities WHERE upper(trim(activity_number)) = upper(:c) AND removed_at IS NULL LIMIT 1');
+$stmt->execute([':c' => $code]);
+$local = $code !== '' ? $stmt->fetch() : false;
+
+if ($local) {
+    $local['schedules'] = json_decode((string) $local['schedules'], true) ?: [];
+    $pms     = ['status' => PmsClient::FOUND, 'data' => $local];
+} else {
+    $pms     = $code !== '' ? (new PmsClient(null, null, 6, 3))->activity($code) : null;
+}
+$pmsData = $pms !== null && $pms['status'] === PmsClient::FOUND ? $pms['data'] : [];
 
 $num = static fn(float $v) => fmod($v, 1.0) === 0.0 ? (int) $v : round($v, 1);
 
@@ -79,8 +89,6 @@ $records    = [];
 $rows       = [];
 $totalPts   = 0.0;
 $totalHrs   = 0.0;
-$zeroHours  = 0;
-$fractional = 0;
 
 foreach ($people as $p) {
     $points = (float) $p['points'];
@@ -88,8 +96,6 @@ foreach ($people as $p) {
 
     $totalPts += $points;
     $totalHrs += $hours;
-    $zeroHours  += $hours <= 0 ? 1 : 0;
-    $fractional += fmod($points, 1.0) !== 0.0 ? 1 : 0;
 
     $record = [
         'record_sn'           => 'CPD-' . $eventId . '-' . $p['reg_no'],
@@ -109,46 +115,6 @@ foreach ($people as $p) {
     $rows[]    = ['reg_no' => $p['reg_no'], 'name' => $p['name'], 'hours' => $hours, 'points' => $points];
 }
 
-
-$checks = [];
-
-$checks[] = $today >= $endDate
-    ? ['ok', 'The event has reached its final day (' . $endDate . ').']
-    : ['warn', 'The event ends on ' . $endDate . '. Points can still change until then.'];
-
-if ($code === '') {
-    $checks[] = ['warn', 'This event has no activity number. KVB needs one for every record.'];
-} else {
-    if (!$formatOk) {
-        $checks[] = ['warn', 'The activity number "' . $code . '" does not look like REG/CPD-A/NNNN/YYYY.'];
-    }
-
-    if ($pms['status'] === PmsClient::FOUND) {
-        $checks[] = ['ok', 'KVB has this activity: "' . ($pmsData['title'] ?? '') . '"' . (!empty($pmsData['name_of_provider']) ? ' by ' . $pmsData['name_of_provider'] : '') . '.'];
-
-        $overlaps = false;
-        foreach ($pmsData['schedules'] ?? [] as $s) {
-            if (($s['start_date'] ?? '9999') <= $endDate && ($s['end_date'] ?? '0000') >= (string) $event['start_date']) {
-                $overlaps = true;
-            }
-        }
-        $checks[] = $overlaps
-            ? ['ok', 'The event dates overlap a PMS schedule for this activity.']
-            : ['warn', 'The event dates do not overlap any PMS schedule for this activity. Check the number is the right one.'];
-    } elseif ($pms['status'] === PmsClient::NOT_FOUND) {
-        $checks[] = ['warn', 'KVB has no activity with the number "' . $code . '".'];
-    } else {
-        $checks[] = ['warn', 'KVB could not be reached just now, so the activity number was not checked.'];
-    }
-}
-
-$checks[] = $flaggedPending > 0
-    ? ['warn', $flaggedPending . ' flagged attendance record(s) are still unreviewed. Their points are not included.']
-    : ['ok', 'No flagged attendance is waiting for review.'];
-
-if ($fractional > 0) {
-    $checks[] = ['warn', $fractional . ' record(s) have fractional points. Confirm with KVB that decimals are accepted.'];
-}
 
 // ---- Matching against PMS, sending and the ledger of what was sent ----
 $sender   = new PmsPointsSender();
@@ -253,6 +219,7 @@ if (($_GET['export'] ?? '') === 'excluded') {
 $sendBlockers = [];
 if (!$canSend) { $sendBlockers[] = 'Sending to PMS is switched off.'; }
 if (!$activityOk) { $sendBlockers[] = 'The activity number is missing or not confirmed by PMS.'; }
+if ($today < $endDate) { $sendBlockers[] = 'The event has not ended yet (' . $endDate . ').'; }
 if ($cnt['unchecked'] > 0) { $sendBlockers[] = 'Check the practitioners against PMS first.'; }
 if ($cnt['ready'] === 0) { $sendBlockers[] = 'There is nothing left to send.'; }
 
@@ -261,7 +228,6 @@ $fmtPoints = static fn(float $v): string => number_format($v, fmod($v, 1.0) === 
 $fmtHours  = static fn(float $v): string => number_format($v, 1);
 $viewToken = urlencode((string) $event['view_token']);
 $activity  = (string) ($pmsData['title'] ?? '');
-$attention = count(array_filter($checks, static fn($c) => $c[0] !== 'ok'));
 $total     = count($rows);
 $readyPts  = array_sum(array_map(static fn($r) => $r['state'] === 'ready' ? (float) $r['points'] : 0.0, $rows));
 $checked   = $total - $cnt['unchecked'];
@@ -312,10 +278,6 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .pp-confirm { display:flex; gap:.5rem; align-items:flex-start; font-size:.8rem; color:#334155; }
 .pp-confirm { font-weight:400; } .pp-confirm span { font-weight:400; } .pp-confirm input { margin-top:.2rem; width:auto; flex:none; }
 .pp-blockers { margin:0; padding:0; list-style:none; color:var(--warn); font-size:.8rem; }
-.pp-checks { padding:0; } .pp-checks summary { display:flex; justify-content:space-between; gap:1rem; padding:.8rem 1.25rem; cursor:pointer; font-size:.85rem; font-weight:600; list-style:none; }
-.pp-checks summary::-webkit-details-marker { display:none; }
-.pp-checks ul { list-style:none; margin:0; padding:0 1.25rem .8rem; }
-.pp-checks li { padding:.35rem 0; display:flex; gap:.5rem; font-size:.85rem; } .pp-checks li::before { content:"\2713"; color:var(--ok); font-weight:700; } .pp-checks li.warn::before { content:"!"; color:var(--warn); }
 .pp-bar-t { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:.8rem 1.1rem; border-bottom:1px solid var(--line); background:var(--soft); }
 .pp-chips { display:flex; gap:.4rem; flex-wrap:wrap; }
 .pp-chip { padding:.3rem .7rem; border-radius:99px; border:1px solid var(--line); background:#fff; font:inherit; font-size:.78rem; font-weight:600; color:var(--muted); cursor:pointer; }
@@ -345,7 +307,6 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <p class="pp-sub"><b><?= $h($title) ?></b> &middot; <span class="pp-mono"><?= $h($code !== '' ? $code : 'no activity number') ?></span> &middot; <?= $h(date('d M Y', strtotime($endDate) ?: time())) ?><?= $provider !== '' ? ' &middot; ' . $h($provider) : '' ?></p>
         </div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <a href="/reports/pms_unsent.php" class="pp-btn">Not-uploaded report</a>
             <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">Back to event</a>
         </div>
     </div>
@@ -371,6 +332,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <span class="k">2 &middot; Review</span>
                 <span class="big"><?= $cnt['ready'] ?> ready</span>
                 <span class="pp-note"><?= $cnt['sent'] ?> already sent &middot; <?= $cnt['excluded'] ?> not in PMS<?= $cnt['held'] ? ' &middot; ' . $cnt['held'] . ' unclear' : '' ?></span>
+                <?php if ($flaggedPending > 0): ?><span class="pp-note" style="color:var(--warn)"><?= $flaggedPending ?> flagged sign-in(s) still unreviewed, not included</span><?php endif; ?>
                 <div class="actions">
                     <?php if ($cnt['excluded'] > 0): ?><a class="pp-btn" href="<?= $h($self) ?>&amp;export=excluded">Download not-in-PMS list</a><?php endif; ?>
                     <?php if ($cnt['held'] > 0): ?>
@@ -390,10 +352,6 @@ require __DIR__ . '/../templates/sidebar_data.php';
         </div>
     </section>
 
-    <details class="pp-card pp-checks"<?= $attention > 0 ? ' open' : '' ?>>
-        <summary><span>Readiness checks</span><span class="pp-note"><?= count($checks) - $attention ?> passed<?= $attention > 0 ? ' &middot; ' . $attention . ' to review' : '' ?></span></summary>
-        <ul><?php foreach ($checks as [$level, $text]): ?><li class="<?= $level === 'ok' ? '' : 'warn' ?>"><?= $h($text) ?></li><?php endforeach; ?></ul>
-    </details>
 
     <section class="pp-card" aria-label="Records">
         <?php if (!$rows): ?>
