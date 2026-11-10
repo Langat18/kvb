@@ -17,7 +17,8 @@ final class PresenterBonus
         $this->pdo = $pdo ?? Database::getInstance()->getPdo();
     }
 
-
+    // Brings stored bonuses in line with the event's current presentations.
+    /** @return array{added: int, updated: int, removed: int} */
     public function reconcile(int $eventId): array
     {
         $want = [];
