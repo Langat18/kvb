@@ -36,6 +36,80 @@ final class PmsClient
         return $this->lookup('/registration/search', 'reg_number', strtoupper(trim($regNo)));
     }
 
+    /**
+     * Looks up several registration numbers at once (a few at a time) so a long list does not take minutes.
+     * @param list<string> $regNos
+     * @return array<string, array> keyed by the number asked for, in the same shape as registration()
+     */
+    public function registrations(array $regNos, int $concurrency = 6): array
+    {
+        $out = [];
+
+        if ($this->token === null || !$this->safeBase()) {
+            foreach ($regNos as $r) {
+                $out[$r] = $this->result(self::UNAVAILABLE, null, 'PMS API is not configured', 0, 0);
+            }
+
+            return $out;
+        }
+
+        $secure = str_starts_with($this->base, 'https://');
+        $mh     = curl_multi_init();
+        // A fixed number of connections is kept busy and reused, so the secure handshake is paid once, not per lookup.
+        curl_multi_setopt($mh, CURLMOPT_MAX_HOST_CONNECTIONS, max(1, $concurrency));
+        $hs = [];
+
+        foreach (array_map('strval', array_values(array_unique($regNos))) as $reg) {
+            $ch = curl_init($this->base . '/registration/search?' . http_build_query(['reg_number' => strtoupper(trim($reg))]));
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_PROTOCOLS      => $secure ? CURLPROTO_HTTPS : (CURLPROTO_HTTP | CURLPROTO_HTTPS),
+                CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+                CURLOPT_TIMEOUT        => 20,
+                CURLOPT_ENCODING       => '',
+                CURLOPT_TCP_KEEPALIVE  => 1,
+                CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $this->token, 'Accept: application/json', 'User-Agent: KVB-CPD-Attendance/1.0'],
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $hs[$reg] = $ch;
+        }
+
+        do {
+            $status = curl_multi_exec($mh, $running);
+            if ($running) {
+                curl_multi_select($mh, 1.0);
+            }
+        } while ($running && $status === CURLM_OK);
+
+        foreach ($hs as $reg => $ch) {
+            $body = curl_multi_getcontent($ch);
+            $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $ms   = (int) round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
+            $json = json_decode((string) $body, true);
+
+            if ($http === 0 || $body === '' || $body === null) {
+                $out[$reg] = $this->result(self::UNAVAILABLE, null, 'No answer from PMS', $http, $ms);
+            } elseif (in_array($http, [401, 403], true)) {
+                $out[$reg] = $this->result(self::UNAVAILABLE, null, 'PMS refused the access token', $http, $ms);
+            } elseif (is_array($json) && ($json['success'] ?? null) === true && $http === 200) {
+                $d = $json['data'] ?? [];
+                $out[$reg] = $this->result(self::FOUND, is_array($d) ? $d : [], null, $http, $ms);
+            } elseif (is_array($json) && ($json['success'] ?? null) === false && in_array($http, [200, 404, 422], true)) {
+                $out[$reg] = $this->result(self::NOT_FOUND, null, (string) ($json['message'] ?? 'Not found'), $http, $ms);
+            } else {
+                $out[$reg] = $this->result(self::UNAVAILABLE, null, 'PMS returned HTTP ' . $http, $http, $ms);
+            }
+
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+
+        curl_multi_close($mh);
+
+        return $out;
+    }
+
     public function provider(string $accredNum): array
     {
         return $this->lookup('/cpd-provider/search', 'accred_num', trim($accredNum));
@@ -54,6 +128,59 @@ final class PmsClient
     public function activities(): array
     {
         return $this->request('/cpd-activity/index', [], 30);
+    }
+
+    /**
+     * Uploads CPD points. A write is never retried: a repeat could credit the points twice.
+     * @return array{status: string, json: ?array, message: ?string, http: int, ms: int}
+     */
+    public function uploadPoints(array $records, string $providerName = ''): array
+    {
+        if ($this->token === null || !$this->safeBase()) {
+            return ['status' => self::UNAVAILABLE, 'json' => null, 'message' => 'PMS API is not configured', 'http' => 0, 'ms' => 0];
+        }
+
+        $secure  = str_starts_with($this->base, 'https://');
+        $payload = ['records' => array_values($records)];
+        if ($providerName !== '') {
+            $payload['provider_name'] = $providerName;
+        }
+
+        $start = microtime(true);
+        $ch    = curl_init($this->base . '/cpd-points/upload-points');
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS      => $secure ? CURLPROTO_HTTPS : (CURLPROTO_HTTP | CURLPROTO_HTTPS),
+            CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $this->token,
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'User-Agent: KVB-CPD-Attendance/1.0',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        $ms   = (int) round((microtime(true) - $start) * 1000);
+
+        if ($body === false) {
+            error_log('PMS upload-points failed after ' . $ms . 'ms: ' . $err);
+
+            return ['status' => self::UNAVAILABLE, 'json' => null, 'message' => 'No answer from PMS: ' . $err, 'http' => $http, 'ms' => $ms];
+        }
+
+        $json = json_decode((string) $body, true);
+
+        if (!is_array($json) || !array_key_exists('success', $json)) {
+            return ['status' => self::UNAVAILABLE, 'json' => null, 'message' => 'Unexpected reply (HTTP ' . $http . ')', 'http' => $http, 'ms' => $ms];
+        }
+
+        return ['status' => self::FOUND, 'json' => $json, 'message' => isset($json['message']) ? (string) $json['message'] : null, 'http' => $http, 'ms' => $ms];
     }
 
     private function lookup(string $path, string $param, string $value): array

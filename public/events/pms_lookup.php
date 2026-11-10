@@ -33,7 +33,7 @@ $viaProxy  = filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE |
 $ip        = ($viaProxy && filter_var($forwarded, FILTER_VALIDATE_IP)) ? $forwarded : $remote;
 
 try {
-    $result = $autofill->verify((string) ($_POST['reg_no'] ?? ''), (string) ($_POST['dob'] ?? ''), $ip);
+    $result = $autofill->verifyId((string) ($_POST['reg_no'] ?? ''), (string) ($_POST['id_part'] ?? ''), $ip);
 } catch (\Throwable $e) {
     error_log('PMS autofill failed: ' . $e->getMessage());
     $result = ['status' => 'unavailable'];

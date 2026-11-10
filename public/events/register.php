@@ -203,6 +203,14 @@ $isOnsite  = $event['event_mode'] === 'onsite';
             <div id="geo-status" class="status-box pending">Checking location access&hellip;</div>
         <?php endif; ?>
 
+<style>
+.idv { display:flex; gap:.5rem; align-items:stretch; }
+.idv-box { display:flex; align-items:center; gap:.35rem; padding:0 .85rem; border:1px solid var(--border, #cbd5e1); border-radius:8px; background:#fff; flex:0 1 13rem; }
+.idv-box:focus-within { outline:2px solid var(--kvb-green-dark, #14532d); outline-offset:1px; border-color:transparent; }
+.idv-box input { border:0 !important; outline:0 !important; box-shadow:none !important; background:transparent !important; padding:.65rem 0 !important; width:4.2ch; min-width:0; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:1rem; letter-spacing:.18em; }
+.idv-box input::placeholder { color:#cbd5e1; }
+.idv-mask { color:#94a3b8; letter-spacing:.2em; font-size:1rem; user-select:none; }
+</style>
         <form method="POST" action="/events/register.php?token=<?= urlencode($token) ?>" id="reg-form">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="geo_lat" id="geo_lat">
@@ -220,13 +228,19 @@ $isOnsite  = $event['event_mode'] === 'onsite';
                 </div>
             </div>
 
+            <?php $idMode = (new \VetBoard\PmsAutofill())->idMode(); ?>
             <div class="form-group" id="dob-group" hidden>
-                    <label for="dob">Date of Birth</label>
-                    <input type="date" id="dob" autocomplete="bday">
-                    <small style="color:var(--text-muted);">Optional. Used once to fill your details from the KVB register; never stored.</small>
-                    <button type="button" class="btn btn-ghost" id="dob-fetch" style="margin-top:.5rem;">Fill my details</button>
+                <label for="dob">Fill my details from my ID</label>
+                <div class="idv">
+                    <div class="idv-box">
+                        <?php if ($idMode === 'last'): ?><span class="idv-mask" aria-hidden="true">&bull;&bull;&bull;&bull;</span><?php endif; ?>
+                        <input type="text" id="dob" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234" aria-label="<?= $idMode === 'last' ? 'Last' : 'First' ?> 4 digits of your ID number">
+                        <?php if ($idMode !== 'last'): ?><span class="idv-mask" aria-hidden="true">&bull;&bull;&bull;&bull;</span><?php endif; ?>
+                    </div>
+                    <button type="button" class="btn btn-ghost" id="dob-fetch">Fill</button>
                 </div>
-    
+            </div>
+
             <div class="form-group">
                 <label for="name">Full Name <span class="required">*</span></label>
                 <input type="text" id="name" name="name" required>
@@ -327,6 +341,7 @@ function unlockFields() {
     hideDob();
 }
 
+const idMode = <?= json_encode($idMode ?? null) ?>;
 const dobGroup  = document.getElementById('dob-group');
     const dobInput  = document.getElementById('dob');
     const csrfToken = document.querySelector('input[name="csrf_token"]').value;
@@ -336,19 +351,20 @@ const dobGroup  = document.getElementById('dob-group');
 
     const dobMessages = {
         mismatch: 'We could not match those details. Fill in the form yourself.',
+        invalid: 'Check the number and the 4 digits, or fill in the form yourself.',
         not_found: 'Number not found on the KVB register. Fill in the form yourself.',
         limited: 'Too many attempts. Please fill in the form yourself.',
     };
 
     document.getElementById('dob-fetch').addEventListener('click', () => {
-        if (!dobInput.value) { return; }
+        if (dobInput.value.replace(/[^A-Za-z0-9]/g, '').length !== 4) { return; }
 
         lookupStatus.textContent = 'Checking the KVB register\u2026';
         lookupStatus.style.color = 'var(--text-muted)';
 
         fetch('/events/pms_lookup.php', {
             method: 'POST',
-            body: new URLSearchParams({ csrf_token: csrfToken, reg_no: regNoEl.value.trim(), dob: dobInput.value }),
+            body: new URLSearchParams({ csrf_token: csrfToken, reg_no: regNoEl.value.trim(), id_part: dobInput.value }),
         })
             .then(r => r.json())
             .then(d => {
@@ -357,7 +373,7 @@ const dobGroup  = document.getElementById('dob-group');
                     document.getElementById('email').value = d.data.email;
                     document.getElementById('phone').value = d.data.phone;
                     lookupFilled = true;
-                    lookupStatus.textContent = 'Details filled from the KVB register. Check them, then enter your ID number.';
+                    lookupStatus.textContent = 'Details filled from the KVB register. Please check them.';
                     lookupStatus.style.color = 'var(--kvb-green-dark)';
                     hideDob();
                     return;
@@ -380,7 +396,7 @@ regNoEl.addEventListener('input', () => {
         if (regNo.length < 4) return;
         fetch('/events/lookup.php?reg_no=' + encodeURIComponent(regNo))
             .then(r => r.json())
-            .then(d => { if (d.found) { lockFields(d); } else if (d.pms) { showDob(); } })
+            .then(d => { if (d.found) { lockFields(d); } else if (d.pms && idMode) { showDob(); } })
             .catch(() => {});
     }, 500);
 });

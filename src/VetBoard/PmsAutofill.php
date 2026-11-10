@@ -8,6 +8,7 @@ use PDO;
 
 final class PmsAutofill
 {
+    private const ID_KEYS = ['id_passport_number', 'id_number', 'national_id', 'id_no', 'idno', 'national_id_number', 'identification_number', 'id_card_number'];
     private const IP_FAILS_PER_10_MIN  = 30;
     private const REG_FAILS_PER_HOUR   = 5;
 
@@ -33,15 +34,35 @@ final class PmsAutofill
     }
 
     /**
-     * Returns the details of a person on the KVB register once the date of birth they typed matches.
+     * 'last' or 'first' when the ID check is switched on (setting pms_id_check = last4 / first4), otherwise null.
+     * Leave it off until KVB returns an ID number in the registration reply.
+     */
+    public function idMode(): ?string
+    {
+        try {
+            $stmt = $this->pdo->prepare('SELECT setting_value FROM integration_settings WHERE setting_key = :k');
+            $stmt->execute([':k' => 'pms_id_check']);
+            $v = $stmt->fetchColumn();
+            $v = $v === false ? 'first4' : $v;
+
+            return $v === 'last4' ? 'last' : ($v === 'first4' ? 'first' : null);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * The person proves who they are with four characters of their ID number.
+     * The ID itself is never returned. A missing ID on the register and a wrong one give the same reply.
      * @return array{status: string, data?: array{name: string, email: string, phone: string}}
      */
-    public function verify(string $regNo, string $dob, string $ip): array
+    public function verifyId(string $regNo, string $part, string $ip): array
     {
         $regNo = strtoupper(trim($regNo));
-        $dob   = self::normalizeDate($dob);
+        $part  = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $part));
+        $mode  = $this->idMode();
 
-        if (!Participant::isValidNewRegNo($regNo) || $dob === null) {
+        if ($mode === null || !Participant::isValidNewRegNo($regNo) || strlen($part) !== 4) {
             return ['status' => 'invalid'];
         }
 
@@ -69,15 +90,18 @@ final class PmsAutofill
             return ['status' => 'not_found'];
         }
 
-        $pmsDob = self::normalizeDate((string) ($r['data']['dob'] ?? ''));
-
-        if ($pmsDob === null) {
-            $this->log($ip, $regNo, 'unverifiable');
-
-            return ['status' => 'unverifiable'];
+        $id = '';
+        foreach (self::ID_KEYS as $k) {
+            $id = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($r['data'][$k] ?? '')));
+            if ($id !== '') {
+                break;
+            }
         }
 
-        if (!hash_equals($pmsDob, $dob)) {
+        $expected = strlen($id) >= 6 ? ($mode === 'last' ? substr($id, -4) : substr($id, 0, 4)) : '';
+
+        if ($expected === '' || !hash_equals($expected, $part)) {
+            // Counted as a failed try either way, so the reply and the rate limit reveal nothing about the ID.
             $this->log($ip, $regNo, 'bad_dob');
 
             return ['status' => 'mismatch'];
@@ -91,21 +115,6 @@ final class PmsAutofill
             'email' => self::email((string) ($d['email'] ?? '')),
             'phone' => trim((string) ($d['phone_number'] ?? '')),
         ]];
-    }
-
-    public static function normalizeDate(string $v): ?string
-    {
-        $v = trim($v);
-
-        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $v, $m)) {
-            [$y, $mo, $d] = [(int) $m[1], (int) $m[2], (int) $m[3]];
-        } elseif (preg_match('#^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})#', $v, $m)) {
-            [$d, $mo, $y] = [(int) $m[1], (int) $m[2], (int) $m[3]];
-        } else {
-            return null;
-        }
-
-        return checkdate($mo, $d, $y) && $y > 1900 ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
     }
 
     public static function fullName(array $d): string
@@ -128,6 +137,19 @@ final class PmsAutofill
         $v = strtolower(trim($v));
 
         return filter_var($v, FILTER_VALIDATE_EMAIL) ? $v : '';
+    }
+
+    /** The ID or passport number in a PMS registration record, letters and digits only, upper case. */
+    public static function idFrom(array $data): string
+    {
+        foreach (self::ID_KEYS as $k) {
+            $id = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($data[$k] ?? '')));
+            if ($id !== '') {
+                return $id;
+            }
+        }
+
+        return '';
     }
 
     private function exists(string $regNo): bool

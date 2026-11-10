@@ -363,10 +363,12 @@ The Reports page covers events held and who attended them for the period you pic
 
 The PMS page lists approved CPD activities and providers copied from the Board's PMS. From it you can create an event pre-filled from an activity, link an existing event to an activity, and see which providers are missing or named differently in your list. It refreshes nightly if you set up the schedule, and you can refresh it by hand with the Sync now button.
 
-Two optional settings control how PMS is used when people register. Both live in the `integration_settings` table and are off unless you switch them on:
+Optional settings control how PMS is used. They live in the `integration_settings` table:
 
 - `pms_registration_check` set to `observe` quietly compares each registration with the PMS record and stores the result in the pms_checks table. There is no screen for it yet, so read it with a query. It never blocks anyone.
-- `pms_registration_autofill` set to `on` lets a practitioner fill their details from the register by entering their date of birth.
+- `pms_registration_autofill` set to `on` lets a practitioner fill their details from the register by entering the first 4 characters of their ID number. The rest of the number is shown as dots and is never sent back. If the ID does not match, or PMS holds no ID for that number, the person fills the form in themselves.
+- `pms_id_check` chooses which 4 characters are asked for: `first4` (the default when the row is absent), `last4`, or `off`.
+- `pms_points_send` set to `on` lets staff send an event's points to PMS from the event's PMS Points page. It is off by default.
 
 Change either with a single query, for example:
 
@@ -376,6 +378,16 @@ WHERE setting_key = 'pms_registration_autofill';
 ```
 
 ## Backups, updates and troubleshooting
+
+### Sending points to PMS
+
+Open an event, then PMS Points. The page works in three steps:
+
+1. **Check with PMS** looks up every practitioner who earned points. A number PMS does not know stays under Not in PMS. For those, the page lists close spellings that PMS does hold (for example `0908` as `VTA00908`), showing whether the name and the ID match. You can also type a PMS number for someone and look it up. Nothing is applied automatically.
+2. **Review.** On the Not in PMS tab, tick the possible matches you are satisfied are the same person and press Approve selected. They move to Ready. The same PMS number cannot be approved for two practitioners. The not-in-PMS list can be downloaded for that event.
+3. **Send.** Tick the confirmation box and press Send to PMS. Points go in batches of 25. Nobody is ever sent twice: each attempt is recorded, and if PMS gives no clear answer the people in that batch are held as outcome unclear until you have checked PMS and released them.
+
+Sending needs `pms_points_send` set to `on`, an activity number that PMS confirms, and an event that has ended. Points are due in PMS 3 days after the event ends. The page `/reports/pms_unsent.php` lists everyone whose points had not reached PMS by then, with the reason.
 
 ### Back up the database every night
 
@@ -443,7 +455,7 @@ Code changes roll back this way. A migration that has already run does not undo 
 | The QR code leads to the wrong address | `APP_URL` is wrong | Correct it in `.env` and restart. Reprint the poster. |
 | Password-reset emails never arrive | No `BREVO_API_KEY`, or the sender is not verified in Brevo | Set the key and verify the sender address in Brevo. |
 | The PMS page says not synced, or the sync fails | No token, a wrong token, or PMS is unreachable | Check `PMS_API_TOKEN`. Run `docker exec cpd_app php /var/www/html/scripts/pms_sync.php manual` and read the message it prints. |
-| Autofill by date of birth does nothing | The setting is off | Set `pms_registration_autofill` to `on`, as shown in the PMS section above. |
+| Autofill by ID does nothing | The setting is off, or PMS holds no ID for that number | Set `pms_registration_autofill` to `on`, as shown in the PMS section above. |
 
 ### Checking the installation
 

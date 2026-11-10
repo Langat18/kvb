@@ -58,20 +58,19 @@ Form-encoded body, not JSON. It needs the page's CSRF token, which is tied to th
 | --- | --- |
 | `csrf_token` | The token embedded in the registration page. |
 | `reg_no` | Registration number. |
-| `dob` | Date of birth, as `2024-03-21` or `21/03/2024`. |
+| `id_part` | The first 4 characters of the practitioner's ID number (or the last 4 when `pms_id_check` is `last4`). |
 
 The reply is `{"status": "..."}`. Only `ok` carries data: `{"status": "ok", "data": {"name": "...", "email": "...", "phone": "..."}}`.
 
 | Status | Meaning |
 | --- | --- |
-| `ok` | The date of birth matched the PMS record. Details returned. |
-| `mismatch` | The date of birth did not match. |
+| `ok` | The ID digits matched the PMS record. Details returned. |
+| `mismatch` | The ID digits did not match, or PMS holds no ID for that number. The two are not told apart. |
 | `not_found` | PMS has no such registration number. |
-| `unverifiable` | PMS has the record but no usable date of birth. |
 | `local` | The person is already in the local list. Nothing is fetched. |
 | `limited` | Too many failed attempts. Repeated failures are limited per visitor address and per registration number. |
 | `unavailable` | PMS could not be reached or answered badly. |
-| `invalid` | The number or date was malformed, or the CSRF token was wrong (HTTP 403). |
+| `invalid` | The number or digits were malformed, or the CSRF token was wrong (HTTP 403). |
 | `off` | The autofill setting is switched off. |
 
 ### Files the system produces
@@ -118,6 +117,7 @@ The registration lookup is the only call that returns personal data. Fields the 
     "first_name": "Amina",
     "last_name": "Example",
     "surname": "Person",
+    "id_passport_number": "12345678",
     "dob": "1990-01-31",
     "email": "amina@example.org",
     "phone_number": "254700000000"
@@ -127,7 +127,9 @@ The registration lookup is the only call that returns personal data. Fields the 
 
 The activity list gives, for each activity, `id`, `title`, `activity_number`, `activity_type`, `name_of_provider`, `name_of_cordinator` (spelled this way in PMS), `phone_number_cordinator`, `email_cordinator` and a `schedules` list of `venue`, `start_date` and `end_date`. The provider list gives `accred_num`, `name_of_provider`, `status` (approved, new or rejected), `accreditation_year`, `contact_person`, `telephone_number`, `email_address` and `date_added`.
 
-How the system treats the replies: HTTP 200 with `success: true` is a found record, and `success: false` is not found. HTTP 401 or 403 means the token was rejected. Any other status, a timeout, or a body that is not the expected JSON is treated as PMS being unavailable, and the page degrades quietly. Lookups time out after 5 seconds and list downloads after 30. The system does not currently send anything back to PMS. Pushing CPD points to PMS is not available, because no endpoint for it has been provided.
+How the system treats the replies: HTTP 200 with `success: true` is a found record, and `success: false` is not found. HTTP 401 or 403 means the token was rejected. Any other status, a timeout, or a body that is not the expected JSON is treated as PMS being unavailable, and the page degrades quietly. Lookups time out after 5 seconds and list downloads after 30. The system also sends CPD points to PMS, from an event's PMS Points page, once staff confirm:
+
+`POST {base}/cpd-points/upload-points` with a JSON body `{"provider_name": "...", "records": [ ... ]}`. Each record has `record_sn`, `kvb_reg_number`, `activity_number`, `activity_title`, `date_of_activity` (`YYYY-MM-DD`), `cpd_hours` and `cpd_points`. PMS does not de-duplicate, so the system keeps a ledger and never sends a practitioner twice for an event. A reply with `success: false`, or a list of `errors`, marks those people as rejected and shows PMS's reason. A reply that cannot be read, or an HTTP 5xx, marks the batch as outcome unclear, and it is not retried until staff release it.
 
 ## Proposal: a read-only partner API
 
