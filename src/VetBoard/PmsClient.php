@@ -56,6 +56,59 @@ final class PmsClient
         return $this->request('/cpd-activity/index', [], 30);
     }
 
+    /**
+     * Uploads CPD points. A write is never retried: a repeat could credit the points twice.
+     * @return array{status: string, json: ?array, message: ?string, http: int, ms: int}
+     */
+    public function uploadPoints(array $records, string $providerName = ''): array
+    {
+        if ($this->token === null || !$this->safeBase()) {
+            return ['status' => self::UNAVAILABLE, 'json' => null, 'message' => 'PMS API is not configured', 'http' => 0, 'ms' => 0];
+        }
+
+        $secure  = str_starts_with($this->base, 'https://');
+        $payload = ['records' => array_values($records)];
+        if ($providerName !== '') {
+            $payload['provider_name'] = $providerName;
+        }
+
+        $start = microtime(true);
+        $ch    = curl_init($this->base . '/cpd-points/upload-points');
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_PROTOCOLS      => $secure ? CURLPROTO_HTTPS : (CURLPROTO_HTTP | CURLPROTO_HTTPS),
+            CURLOPT_CONNECTTIMEOUT => $this->connectTimeout,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $this->token,
+                'Accept: application/json',
+                'Content-Type: application/json',
+                'User-Agent: KVB-CPD-Attendance/1.0',
+            ],
+        ]);
+        $body = curl_exec($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        $ms   = (int) round((microtime(true) - $start) * 1000);
+
+        if ($body === false) {
+            error_log('PMS upload-points failed after ' . $ms . 'ms: ' . $err);
+
+            return ['status' => self::UNAVAILABLE, 'json' => null, 'message' => 'No answer from PMS: ' . $err, 'http' => $http, 'ms' => $ms];
+        }
+
+        $json = json_decode((string) $body, true);
+
+        if (!is_array($json) || !array_key_exists('success', $json)) {
+            return ['status' => self::UNAVAILABLE, 'json' => null, 'message' => 'Unexpected reply (HTTP ' . $http . ')', 'http' => $http, 'ms' => $ms];
+        }
+
+        return ['status' => self::FOUND, 'json' => $json, 'message' => isset($json['message']) ? (string) $json['message'] : null, 'http' => $http, 'ms' => $ms];
+    }
+
     private function lookup(string $path, string $param, string $value): array
     {
         if (!preg_match('/^[A-Za-z0-9\-\/ ._]{1,60}$/', $value)) {

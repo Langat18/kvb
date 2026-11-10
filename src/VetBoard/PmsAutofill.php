@@ -33,6 +33,89 @@ final class PmsAutofill
     }
 
     /**
+     * 'last' or 'first' when the ID check is switched on (setting pms_id_check = last4 / first4), otherwise null.
+     * Leave it off until KVB returns an ID number in the registration reply.
+     */
+    public function idMode(): ?string
+    {
+        try {
+            $stmt = $this->pdo->prepare('SELECT setting_value FROM integration_settings WHERE setting_key = :k');
+            $stmt->execute([':k' => 'pms_id_check']);
+            $v = $stmt->fetchColumn();
+
+            return $v === 'last4' ? 'last' : ($v === 'first4' ? 'first' : null);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Same as verify(), but the person proves who they are with four characters of their ID number.
+     * The ID itself is never returned. A missing ID on the register and a wrong one give the same reply.
+     * @return array{status: string, data?: array{name: string, email: string, phone: string}}
+     */
+    public function verifyId(string $regNo, string $part, string $ip): array
+    {
+        $regNo = strtoupper(trim($regNo));
+        $part  = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $part));
+        $mode  = $this->idMode();
+
+        if ($mode === null || !Participant::isValidNewRegNo($regNo) || strlen($part) !== 4) {
+            return ['status' => 'invalid'];
+        }
+
+        if ($this->exists($regNo)) {
+            return ['status' => 'local'];
+        }
+
+        if ($this->limited($regNo, $ip)) {
+            $this->log($ip, $regNo, 'limited');
+
+            return ['status' => 'limited'];
+        }
+
+        $r = $this->client->registration($regNo);
+
+        if ($r['status'] === PmsClient::UNAVAILABLE) {
+            $this->log($ip, $regNo, 'unavailable');
+
+            return ['status' => 'unavailable'];
+        }
+
+        if ($r['status'] === PmsClient::NOT_FOUND) {
+            $this->log($ip, $regNo, 'not_found');
+
+            return ['status' => 'not_found'];
+        }
+
+        $id = '';
+        foreach (['id_number', 'national_id', 'id_no'] as $k) {
+            $id = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($r['data'][$k] ?? '')));
+            if ($id !== '') {
+                break;
+            }
+        }
+
+        $expected = strlen($id) >= 6 ? ($mode === 'last' ? substr($id, -4) : substr($id, 0, 4)) : '';
+
+        if ($expected === '' || !hash_equals($expected, $part)) {
+            // Counted as a failed try either way, so the reply and the rate limit reveal nothing about the ID.
+            $this->log($ip, $regNo, 'bad_dob');
+
+            return ['status' => 'mismatch'];
+        }
+
+        $this->log($ip, $regNo, 'ok');
+        $d = $r['data'];
+
+        return ['status' => 'ok', 'data' => [
+            'name'  => self::fullName($d),
+            'email' => self::email((string) ($d['email'] ?? '')),
+            'phone' => trim((string) ($d['phone_number'] ?? '')),
+        ]];
+    }
+
+    /**
      * Returns the details of a person on the KVB register once the date of birth they typed matches.
      * @return array{status: string, data?: array{name: string, email: string, phone: string}}
      */

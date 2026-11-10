@@ -10,6 +10,7 @@ use VetBoard\Auth;
 use VetBoard\Database;
 use VetBoard\Event;
 use VetBoard\PmsClient;
+use VetBoard\PmsPointsSender;
 
 Auth::startSession();
 Auth::requirePermission('manage_events');
@@ -93,7 +94,6 @@ foreach ($people as $p) {
     $record = [
         'record_sn'           => 'CPD-' . $eventId . '-' . $p['reg_no'],
         'kvb_reg_number'      => $p['reg_no'],
-        'registration_number' => $p['reg_no'],
         'activity_number'     => $code,
         'date_of_activity'    => $endDate,
         'activity_title'      => $pmsData['title'] ?? $title,
@@ -149,6 +149,108 @@ $checks[] = $flaggedPending > 0
 if ($fractional > 0) {
     $checks[] = ['warn', $fractional . ' record(s) have fractional points. Confirm with KVB that decimals are accepted.'];
 }
+
+// ---- Matching against PMS, sending and the ledger of what was sent ----
+$sender   = new PmsPointsSender();
+$canSend  = $sender->enabled();
+$activityOk = $formatOk && $pms !== null && $pms['status'] === PmsClient::FOUND;
+$regList  = array_column($rows, 'reg_no');
+
+$flash = $_SESSION['pp_flash'] ?? null;
+unset($_SESSION['pp_flash']);
+$self = '/events/pms_points.php?token=' . urlencode((string) $event['view_token']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $act = (string) ($_POST['action'] ?? '');
+    if (!Auth::validateCsrf((string) ($_POST['csrf_token'] ?? ''))) {
+        $_SESSION['pp_flash'] = ['warn', 'The page expired. Please try again.'];
+        header('Location: ' . $self);
+        exit;
+    }
+
+    if ($act === 'resolve') {
+        $left = $sender->resolve($regList);
+        $_SESSION['pp_flash'] = $left === 0
+            ? ['ok', 'All practitioners have been checked against PMS.']
+            : ['warn', $left . ' practitioner(s) are still unchecked. Press the button again to continue.'];
+    } elseif ($act === 'release') {
+        $n = $sender->releaseUncertain($eventId);
+        $_SESSION['pp_flash'] = ['ok', $n . ' record(s) released for retry.'];
+    } elseif ($act === 'send') {
+        $res  = $sender->resolutions($regList);
+        $done = $sender->sentFor($eventId);
+        $items = [];
+        foreach ($rows as $r) {
+            $x = $res[$r['reg_no']] ?? null;
+            if ($x && $x['status'] === 'found' && (!isset($done[$r['reg_no']]) || $done[$r['reg_no']]['status'] === 'failed')) {
+                $items[] = ['reg_no' => $r['reg_no'], 'pms_reg_no' => (string) $x['pms_reg_no'], 'points' => (float) $r['points'], 'hours' => (float) $r['hours']];
+            }
+        }
+
+        if (!$canSend) {
+            $_SESSION['pp_flash'] = ['warn', 'Sending to PMS is switched off.'];
+        } elseif (!$activityOk) {
+            $_SESSION['pp_flash'] = ['warn', 'The activity number has not been confirmed with PMS, so nothing was sent.'];
+        } elseif (empty($_POST['confirm'])) {
+            $_SESSION['pp_flash'] = ['warn', 'Tick the confirmation box before sending.'];
+        } elseif (!$items) {
+            $_SESSION['pp_flash'] = ['warn', 'There is nothing left to send.'];
+        } else {
+            $out = $sender->send($eventId, $code, $endDate, (string) ($pmsData['title'] ?? $title), $provider, $items, (int) ($_SESSION['user_id'] ?? 0) ?: null);
+            $_SESSION['pp_flash'] = [($out['failed'] + $out['uncertain']) === 0 ? 'ok' : 'warn',
+                'Sent ' . $out['sent'] . ', rejected ' . $out['failed'] . ', outcome unclear ' . $out['uncertain'] . '.' . ($out['message'] !== '' ? ' PMS said: ' . $out['message'] : '')];
+        }
+    }
+    header('Location: ' . $self);
+    exit;
+}
+
+$res  = $sender->resolutions($regList);
+$done = $sender->sentFor($eventId);
+$cnt  = ['ready' => 0, 'sent' => 0, 'excluded' => 0, 'unchecked' => 0, 'held' => 0, 'failed' => 0];
+
+foreach ($rows as &$r) {
+    $x = $res[$r['reg_no']] ?? null;
+    $d = $done[$r['reg_no']] ?? null;
+    $r['pms_reg'] = $x['pms_reg_no'] ?? null;
+
+    if ($d && $d['status'] === 'sent') {
+        $r['state'] = 'sent';  $cnt['sent']++;
+    } elseif ($d && in_array($d['status'], ['pending', 'uncertain'], true)) {
+        $r['state'] = 'held';  $cnt['held']++;
+    } elseif (!$x) {
+        $r['state'] = 'unchecked'; $cnt['unchecked']++;
+    } elseif ($x['status'] === 'not_found') {
+        $r['state'] = 'excluded'; $cnt['excluded']++;
+    } else {
+        $r['state'] = 'ready'; $cnt['ready']++;
+        if ($d && $d['status'] === 'failed') {
+            $r['note'] = (string) $d['response'];
+            $cnt['failed']++;
+        }
+    }
+}
+unset($r);
+
+if (($_GET['export'] ?? '') === 'excluded') {
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="pms-not-matched-' . preg_replace('/[^A-Za-z0-9_-]/', '', $code) . '.csv"');
+    $o = fopen('php://output', 'w');
+    fputcsv($o, ['Reg No', 'Name', 'Hours', 'Points', 'Reason']);
+    foreach ($rows as $r) {
+        if ($r['state'] === 'excluded') {
+            fputcsv($o, [$r['reg_no'], $r['name'], $r['hours'], $r['points'], 'Not found in PMS']);
+        }
+    }
+    fclose($o);
+    exit;
+}
+
+$sendBlockers = [];
+if (!$canSend) { $sendBlockers[] = 'Sending to PMS is switched off.'; }
+if (!$activityOk) { $sendBlockers[] = 'The activity number is missing or not confirmed by PMS.'; }
+if ($cnt['unchecked'] > 0) { $sendBlockers[] = 'Check the practitioners against PMS first.'; }
+if ($cnt['ready'] === 0) { $sendBlockers[] = 'There is nothing left to send.'; }
 
 $h = static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
@@ -250,6 +352,11 @@ $pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((str
 .pp-checks[open] summary { border-bottom:1px solid var(--line); }
 .pp-checks summary:focus-visible { outline:2px solid var(--brand); outline-offset:-2px; }
 .pp-row { padding:.7rem 1.25rem; }
+.pp-flash { padding:.75rem 1rem; border-radius:10px; margin-bottom:1rem; font-size:.87rem; border:1px solid var(--line); }
+.pp-flash.ok { background:var(--ok-bg); color:var(--ok); } .pp-flash.warn { background:var(--warn-bg); border-color:var(--warn-line); color:var(--warn); }
+.pp-facts-s { grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.pp-badge.st-sent, .pp-badge.st-ready { background:var(--ok-bg); border-color:#bbf7d0; color:var(--ok); }
+.pp-badge.st-excluded { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
 @media (max-width:900px) { .pp-facts { grid-template-columns:repeat(2,minmax(0,1fr)); } .pp-facts > div:nth-child(2) { border-right:0; } .pp-facts > div:nth-child(n+3) { border-top:1px solid var(--line); } }
 @media (max-width:640px) { .pp-facts dd.pp-mono { font-size:.82rem; } .pp-head h1 { font-size:1.25rem; } .pp-table th, .pp-table td { padding:.5rem .65rem; } .pp-table .idx { display:none; } .pp-actions { width:100%; } .pp-search { flex:1; min-width:0; width:auto; } .pp-card-h { padding:.8rem 1rem; } }
 @media print { .pp-checks:not([open]) .pp-list { display:block; } }
@@ -264,7 +371,7 @@ $pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((str
     <div class="pp-head">
         <div>
             <h1>PMS Points</h1>
-            <p class="pp-lead">Points that would be sent to KVB for this event. Read-only.</p>
+            <p class="pp-lead">Points for this event, matched against the KVB register and sent to PMS once you confirm.</p>
         </div>
         <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">Back to event</a>
     </div>
@@ -312,12 +419,46 @@ $pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((str
         </ul>
     </details>
 
+    <?php if ($flash): ?>
+    <div class="pp-flash <?= $h($flash[0]) ?>" role="status"><?= $h($flash[1]) ?></div>
+    <?php endif; ?>
+
+    <section class="pp-card" aria-label="Send to PMS">
+        <div class="pp-card-b">
+            <dl class="pp-facts pp-facts-s">
+                <div><dt>Ready to send</dt><dd><?= $cnt['ready'] ?></dd></div>
+                <div><dt>Already sent</dt><dd><?= $cnt['sent'] ?></dd></div>
+                <div><dt>Not in PMS</dt><dd><?= $cnt['excluded'] ?></dd></div>
+                <div><dt>Unchecked / held</dt><dd><?= $cnt['unchecked'] + $cnt['held'] ?></dd></div>
+            </dl>
+            <form method="post" class="pp-actions" style="margin-top:1rem">
+                <input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>">
+                <?php if ($cnt['unchecked'] > 0): ?>
+                <button class="pp-btn" name="action" value="resolve">Check <?= $cnt['unchecked'] ?> against PMS</button>
+                <span class="pp-note">About a second each. Press again if it stops part-way.</span>
+                <?php endif; ?>
+                <?php if ($cnt['excluded'] > 0): ?>
+                <a class="pp-btn" href="<?= $h($self) ?>&amp;export=excluded">Download the <?= $cnt['excluded'] ?> not matched</a>
+                <?php endif; ?>
+                <?php if ($cnt['held'] > 0): ?>
+                <button class="pp-btn" name="action" value="release" onclick="return confirm('Only do this after checking in PMS that these points were not credited. Continue?')">Release <?= $cnt['held'] ?> unclear for retry</button>
+                <?php endif; ?>
+            </form>
+            <form method="post" style="margin-top:1rem">
+                <input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>">
+                <input type="hidden" name="action" value="send">
+                <label class="pp-note" style="display:block;margin-bottom:.6rem"><input type="checkbox" name="confirm" value="1"<?= $sendBlockers ? ' disabled' : '' ?>> I have reviewed this list. Send <?= $cnt['ready'] ?> record(s) to PMS. Points already sent cannot be taken back from here.</label>
+                <button class="pp-btn primary" <?= $sendBlockers ? 'disabled' : '' ?>>Send to PMS</button>
+                <?php foreach ($sendBlockers as $b): ?><div class="pp-note"><?= $h($b) ?></div><?php endforeach; ?>
+            </form>
+        </div>
+    </section>
+
     <section class="pp-card" aria-labelledby="pp-records">
         <div class="pp-card-h">
             <h2 id="pp-records">Records <span class="pp-sum">(<span id="pp-shown"><?= count($rows) ?></span> of <?= count($rows) ?>)</span></h2>
             <div class="pp-actions">
                 <?php if ($rows): ?><input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off"><?php endif; ?>
-                <button type="button" class="pp-btn" disabled title="Sending is not switched on yet">Send to KVB</button>
             </div>
         </div>
 
@@ -327,7 +468,7 @@ $pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((str
         <div class="pp-scroll">
         <table class="pp-table">
             <thead>
-                <tr><th class="idx">#</th><th>Reg No</th><th>Name</th><th class="n">Points</th><?php if ($hasFlags): ?><th>Flags</th><?php endif; ?></tr>
+                <tr><th class="idx">#</th><th>Reg No</th><th>Name</th><th class="n">Hours</th><th class="n">Points</th><th>PMS</th></tr>
             </thead>
             <tbody id="pp-body">
                 <?php foreach ($rows as $i => $r): ?>
@@ -335,19 +476,25 @@ $pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((str
                     <td class="idx"><?= $i + 1 ?></td>
                     <td class="pp-mono"><?= $h($r['reg_no']) ?></td>
                     <td><?= $h($r['name']) ?></td>
+                    <td class="n"><?= $h($fmtHours((float) $r['hours'])) ?></td>
                     <td class="n pts"><?= $h($fmtPoints((float) $r['points'])) ?></td>
-                    <?php if ($hasFlags): ?><td><?php if (fmod((float) $r['points'], 1.0) !== 0.0): ?><span class="pp-badge">Fractional points</span><?php endif; ?></td><?php endif; ?>
+                    <td><?php
+                        $lab = ['sent' => 'Sent', 'held' => 'Outcome unclear', 'unchecked' => 'Not checked', 'excluded' => 'Not in PMS', 'ready' => 'Ready'][$r['state']];
+                        echo '<span class="pp-badge st-' . $h($r['state']) . '">' . $h($lab) . '</span>';
+                        if ($r['pms_reg'] && $r['pms_reg'] !== $r['reg_no']) { echo ' <span class="pp-note">as ' . $h($r['pms_reg']) . '</span>'; }
+                        if (!empty($r['note'])) { echo ' <span class="pp-note">last try: ' . $h($r['note']) . '</span>'; }
+                    ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
             <tfoot>
-                <tr><td></td><td></td><td>Total (<?= number_format(count($rows)) ?> practitioners)</td><td class="n"><?= $h($fmtPoints($totalPts)) ?></td><?php if ($hasFlags): ?><td></td><?php endif; ?></tr>
+                <tr><td></td><td></td><td>Total (<?= number_format(count($rows)) ?> practitioners)</td><td class="n"></td><td class="n"><?= $h($fmtPoints($totalPts)) ?></td><td></td></tr>
             </tfoot>
         </table>
         <div class="pp-empty" id="pp-none" hidden>No records match your search.</div>
         </div>
         <div class="pp-foot">
-            <span>Sending to KVB is not switched on yet.</span>
+            <span>Nothing is sent until you confirm above.</span>
         </div>
         <?php endif; ?>
     </section>

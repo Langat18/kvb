@@ -221,9 +221,20 @@ $isOnsite  = $event['event_mode'] === 'onsite';
             </div>
 
             <div class="form-group" id="dob-group" hidden>
+                    <?php $idMode = (new \VetBoard\PmsAutofill())->idMode(); ?>
+                    <?php if ($idMode !== null): ?>
+                    <label for="dob"><?= $idMode === 'last' ? 'Last 4 characters of your ID number' : 'First 4 characters of your ID number' ?></label>
+                    <div style="display:flex;align-items:center;gap:.5rem;">
+                        <?php if ($idMode === 'last'): ?><span aria-hidden="true" style="letter-spacing:.15em;color:var(--text-muted);">&bull;&bull;&bull;&bull;</span><?php endif; ?>
+                        <input type="text" id="dob" inputmode="numeric" maxlength="4" autocomplete="off" style="width:6rem;letter-spacing:.2em;">
+                        <?php if ($idMode === 'first'): ?><span aria-hidden="true" style="letter-spacing:.15em;color:var(--text-muted);">&bull;&bull;&bull;&bull;</span><?php endif; ?>
+                    </div>
+                    <small style="color:var(--text-muted);">Optional. Used once to fill your details from the KVB register; never stored. You can always fill the form in yourself.</small>
+                    <?php else: ?>
                     <label for="dob">Date of Birth</label>
                     <input type="date" id="dob" autocomplete="bday">
                     <small style="color:var(--text-muted);">Optional. Used once to fill your details from the KVB register; never stored.</small>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-ghost" id="dob-fetch" style="margin-top:.5rem;">Fill my details</button>
                 </div>
     
@@ -336,19 +347,21 @@ const dobGroup  = document.getElementById('dob-group');
 
     const dobMessages = {
         mismatch: 'We could not match those details. Fill in the form yourself.',
+        invalid: 'Please check the number and the four characters, or fill in the form yourself.',
         not_found: 'Number not found on the KVB register. Fill in the form yourself.',
         limited: 'Too many attempts. Please fill in the form yourself.',
     };
 
     document.getElementById('dob-fetch').addEventListener('click', () => {
-        if (!dobInput.value) { return; }
+        const idMode = <?= json_encode($idMode ?? null) ?>;
+        if (!dobInput.value || (idMode && dobInput.value.replace(/[^A-Za-z0-9]/g, '').length !== 4)) { return; }
 
         lookupStatus.textContent = 'Checking the KVB register\u2026';
         lookupStatus.style.color = 'var(--text-muted)';
 
         fetch('/events/pms_lookup.php', {
             method: 'POST',
-            body: new URLSearchParams({ csrf_token: csrfToken, reg_no: regNoEl.value.trim(), dob: dobInput.value }),
+            body: new URLSearchParams(idMode ? { csrf_token: csrfToken, reg_no: regNoEl.value.trim(), id_part: dobInput.value } : { csrf_token: csrfToken, reg_no: regNoEl.value.trim(), dob: dobInput.value }),
         })
             .then(r => r.json())
             .then(d => {
