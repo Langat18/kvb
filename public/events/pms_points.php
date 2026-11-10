@@ -373,7 +373,7 @@ $pmsTitleDiffers = $activity !== '' && $normTitle($activity) !== $normTitle((str
             <h1>PMS Points</h1>
             <p class="pp-lead">Points for this event, matched against the KVB register and sent to PMS once you confirm.</p>
         </div>
-        <a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">Back to event</a>
+        <div class="pp-actions"><a href="/reports/pms_unsent.php" class="pp-btn">Not-uploaded report</a><a href="/events/view.php?token=<?= $viewToken ?>" class="pp-btn">Back to event</a></div>
     </div>
 
     <section class="pp-card pp-summary" aria-label="Summary">

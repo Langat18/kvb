@@ -81,6 +81,9 @@ final class PmsPointsSender
             }
 
             $found = $r['status'] === PmsClient::FOUND && !empty($r['data']['reg_number']);
+            if ($found) {
+                (new PmsAutofill($this->client, $this->pdo))->noteIdField($r['data']);
+            }
             $save->execute([
                 ':r' => $reg,
                 ':p' => $found ? strtoupper(trim((string) $r['data']['reg_number'])) : null,
@@ -180,6 +183,15 @@ final class PmsPointsSender
     {
         $failed = [];
         $unsure = [];
+
+        if (in_array($reply['http'], [401, 403], true)) {
+            // The token was refused, so nothing was credited and a retry is safe once the token is fixed.
+            foreach (array_keys($rowOf) as $reg) {
+                $failed[(string) $reg] = 'PMS refused the access token (HTTP ' . $reply['http'] . ')';
+            }
+
+            return [[], $failed, $unsure, 'PMS refused the access token. Ask KVB for a current token.'];
+        }
 
         if ($reply['status'] !== PmsClient::FOUND) {
             // No clear answer: PMS may or may not have credited these, so they are held, never retried blindly.

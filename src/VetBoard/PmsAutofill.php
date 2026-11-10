@@ -42,10 +42,32 @@ final class PmsAutofill
             $stmt = $this->pdo->prepare('SELECT setting_value FROM integration_settings WHERE setting_key = :k');
             $stmt->execute([':k' => 'pms_id_check']);
             $v = $stmt->fetchColumn();
+            $v = $v === false ? 'first4' : $v;
 
-            return $v === 'last4' ? 'last' : ($v === 'first4' ? 'first' : null);
+            // Used only once PMS has been seen to return an ID number, so it switches itself on.
+            return ($v === 'last4' || $v === 'first4') && $this->idSeen() ? ($v === 'last4' ? 'last' : 'first') : null;
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    private function idSeen(): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT 1 FROM integration_settings WHERE setting_key = :k');
+        $stmt->execute([':k' => 'pms_id_seen']);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /** Remembers that PMS now returns ID numbers, which turns the ID check on. Nothing about the ID is kept. */
+    public function noteIdField(array $data): void
+    {
+        foreach (['id_number', 'national_id', 'id_no'] as $k) {
+            if (trim((string) ($data[$k] ?? '')) !== '' && !$this->idSeen()) {
+                $this->pdo->prepare("INSERT INTO integration_settings (setting_key, setting_value) VALUES ('pms_id_seen', '1') ON CONFLICT (setting_key) DO NOTHING")->execute();
+
+                return;
+            }
         }
     }
 
@@ -88,6 +110,7 @@ final class PmsAutofill
             return ['status' => 'not_found'];
         }
 
+        $this->noteIdField((array) $r['data']);
         $id = '';
         foreach (['id_number', 'national_id', 'id_no'] as $k) {
             $id = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($r['data'][$k] ?? '')));
@@ -152,6 +175,7 @@ final class PmsAutofill
             return ['status' => 'not_found'];
         }
 
+        $this->noteIdField((array) $r['data']);
         $pmsDob = self::normalizeDate((string) ($r['data']['dob'] ?? ''));
 
         if ($pmsDob === null) {
