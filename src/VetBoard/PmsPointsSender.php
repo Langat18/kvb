@@ -98,11 +98,12 @@ final class PmsPointsSender
             $alt = $want ? $this->client->registrations(array_map('strval', array_keys($want))) : [];
         }
 
-        $suggest = $this->pdo->prepare(
+        $ready   = $this->suggestionsReady();
+        $suggest = $ready ? $this->pdo->prepare(
             'INSERT INTO pms_suggestions (reg_no, candidate, pms_name, name_match, id_state) VALUES (:r, :c, :n, :m, :i)
              ON CONFLICT (reg_no, candidate) DO UPDATE SET pms_name = EXCLUDED.pms_name, name_match = EXCLUDED.name_match, id_state = EXCLUDED.id_state'
-        );
-        $approved = $this->pdo->prepare("SELECT candidate FROM pms_suggestions WHERE reg_no = :r AND status = 'approved' LIMIT 1");
+        ) : null;
+        $approved = $ready ? $this->pdo->prepare("SELECT candidate FROM pms_suggestions WHERE reg_no = :r AND status = 'approved' LIMIT 1") : null;
 
         $saved = 0;
         foreach ($replies as $reg => $r) {
@@ -118,15 +119,17 @@ final class PmsPointsSender
                 // PMS answered for this number; if it does not echo one back, the number we asked for is the one to send.
                 $pmsReg = strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim($reg));
             } else {
-                $approved->execute([':r' => $reg]);
-                if (($c = $approved->fetchColumn()) !== false) {
+                if ($approved) {
+                    $approved->execute([':r' => $reg]);
+                }
+                if ($approved && ($c = $approved->fetchColumn()) !== false) {
                     $pmsReg = (string) $c;
                     $detail = 'Approved by staff';
                 } else {
                     $n = 0;
                     foreach (self::spellings($reg) as $c) {
                         $a = $alt[$c] ?? null;
-                        if ($a && $a['status'] === PmsClient::FOUND) {
+                        if ($suggest && $a && $a['status'] === PmsClient::FOUND) {
                             $d = (array) $a['data'];
                             $suggest->execute([
                                 ':r' => $reg,
@@ -149,6 +152,14 @@ final class PmsPointsSender
         return count($pending) - $saved;
     }
 
+    /** False until the suggestions table (migration 044) exists, so the page still works without it. */
+    private function suggestionsReady(): bool
+    {
+        static $ready = null;
+
+        return $ready ??= (bool) $this->pdo->query("SELECT to_regclass('public.pms_suggestions') IS NOT NULL")->fetchColumn();
+    }
+
     private static function idState(string $local, string $pms): string
     {
         $local = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $local));
@@ -163,7 +174,7 @@ final class PmsPointsSender
     /** @return array<string, list<array{candidate: string, pms_name: string, name_match: bool, id_state: string}>> pending suggestions by local reg_no */
     public function suggestions(array $regNos): array
     {
-        if (!$regNos) {
+        if (!$regNos || !$this->suggestionsReady()) {
             return [];
         }
 
@@ -185,6 +196,10 @@ final class PmsPointsSender
      */
     public function approve(array $pairs, ?int $staffId): int
     {
+        if (!$this->suggestionsReady()) {
+            return 0;
+        }
+
         $n   = 0;
         $get = $this->pdo->prepare("SELECT 1 FROM pms_suggestions WHERE reg_no = :r AND candidate = :c AND status = 'pending'");
         $set = $this->pdo->prepare("UPDATE pms_suggestions SET status = 'approved', decided_by = :s, decided_at = now() WHERE reg_no = :r AND candidate = :c");
@@ -251,7 +266,9 @@ final class PmsPointsSender
         if ($regNos) {
             $in = implode(',', array_fill(0, count($regNos), '?'));
             $this->pdo->prepare("DELETE FROM pms_resolutions WHERE status = 'not_found' AND reg_no IN ($in)")->execute(array_values($regNos));
-            $this->pdo->prepare("DELETE FROM pms_suggestions WHERE status = 'pending' AND reg_no IN ($in)")->execute(array_values($regNos));
+            if ($this->suggestionsReady()) {
+                $this->pdo->prepare("DELETE FROM pms_suggestions WHERE status = 'pending' AND reg_no IN ($in)")->execute(array_values($regNos));
+            }
         }
     }
 
