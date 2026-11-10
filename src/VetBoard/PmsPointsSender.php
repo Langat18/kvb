@@ -58,31 +58,107 @@ final class PmsPointsSender
     /**
      * Looks up the next few practitioners not yet checked. Returns how many still remain.
      * Called repeatedly by the page so no single request runs long.
+     * A number PMS does not know is tried again in the other ways PMS may spell it (for example 0908 as 908 or VTA00908),
+     * and a different spelling is accepted only when the name PMS holds matches ours.
      */
     public function resolve(array $regNos, int $limit = 30): int
     {
         $known   = $this->resolutions($regNos);
         $pending = array_values(array_diff($regNos, array_keys($known)));
-        $replies = $this->client->registrations(array_slice($pending, 0, $limit));
+        $batch   = array_slice($pending, 0, $limit);
+        $replies = $this->client->registrations($batch);
         $save    = $this->pdo->prepare(
             'INSERT INTO pms_resolutions (reg_no, pms_reg_no, status, detail, checked_at) VALUES (:r, :p, :s, :d, now())
              ON CONFLICT (reg_no) DO UPDATE SET pms_reg_no = EXCLUDED.pms_reg_no, status = EXCLUDED.status, detail = EXCLUDED.detail, checked_at = now()'
         );
-        $saved = 0;
 
+        $missing = [];
         foreach ($replies as $reg => $r) {
+            if ($r['status'] === PmsClient::NOT_FOUND) {
+                $missing[] = (string) $reg;
+            }
+        }
+
+        $alt = [];
+        $names = [];
+        if ($missing) {
+            $in = implode(',', array_fill(0, count($missing), '?'));
+            $st = $this->pdo->prepare("SELECT reg_no, name FROM participants WHERE reg_no IN ($in)");
+            $st->execute($missing);
+            $names = array_column($st->fetchAll(), 'name', 'reg_no');
+
+            $want = [];
+            foreach ($missing as $reg) {
+                foreach (self::spellings($reg) as $c) {
+                    $want[$c] = true;
+                }
+            }
+            $alt = $want ? $this->client->registrations(array_map('strval', array_keys($want))) : [];
+        }
+
+        $saved = 0;
+        foreach ($replies as $reg => $r) {
+            $reg = (string) $reg;
             if ($r['status'] === PmsClient::UNAVAILABLE) {
                 continue;
             }
 
-            $found = $r['status'] === PmsClient::FOUND;
-            // PMS answered for this number; if it does not echo one back, the number we asked for is the one to send.
-            $pmsReg = $found ? (strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim((string) $reg))) : null;
-            $save->execute([':r' => $reg, ':p' => $pmsReg, ':s' => $found ? 'found' : 'not_found', ':d' => $found ? null : substr((string) ($r['message'] ?? 'Not found') . ' (HTTP ' . $r['http'] . ')', 0, 200)]);
+            $pmsReg = null;
+            $detail = null;
+
+            if ($r['status'] === PmsClient::FOUND) {
+                // PMS answered for this number; if it does not echo one back, the number we asked for is the one to send.
+                $pmsReg = strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim((string) $reg));
+            } else {
+                $tried = [];
+                foreach (self::spellings((string) $reg) as $c) {
+                    $a = $alt[$c] ?? null;
+                    $tried[] = $c;
+                    if ($a && $a['status'] === PmsClient::FOUND && self::sameName((string) ($names[$reg] ?? ''), $a['data'])) {
+                        $pmsReg = strtoupper(trim((string) ($a['data']['reg_number'] ?? ''))) ?: $c;
+                        $detail = 'Matched by name';
+                        break;
+                    }
+                }
+                if ($pmsReg === null) {
+                    $detail = substr((string) ($r['message'] ?? 'Not found') . '. Also tried ' . implode(', ', $tried), 0, 200);
+                }
+            }
+
+            $save->execute([':r' => $reg, ':p' => $pmsReg, ':s' => $pmsReg !== null ? 'found' : 'not_found', ':d' => $detail]);
             $saved++;
         }
 
         return count($pending) - $saved;
+    }
+
+    /** Other ways PMS may hold the same number. */
+    private static function spellings(string $reg): array
+    {
+        $reg = strtoupper(trim($reg));
+        if (!preg_match('/^(?:VT[ABC])?(\d{1,5})$/', $reg, $m)) {
+            return [];
+        }
+
+        $d   = ltrim($m[1], '0') ?: '0';
+        $out = [$d, str_pad($d, 4, '0', STR_PAD_LEFT), 'VTA' . str_pad($d, 5, '0', STR_PAD_LEFT), 'VTB' . str_pad($d, 5, '0', STR_PAD_LEFT), 'VTC' . str_pad($d, 5, '0', STR_PAD_LEFT)];
+
+        return array_values(array_diff(array_unique($out), [$reg]));
+    }
+
+    private static function sameName(string $local, array $pms): bool
+    {
+        $tok = static fn(string $v): array => array_values(array_filter(preg_split('/[^a-z0-9]+/', strtolower($v)) ?: [], static fn($t) => strlen($t) > 1));
+        $a   = $tok($local);
+        $b   = $tok(trim(($pms['first_name'] ?? '') . ' ' . ($pms['last_name'] ?? '') . ' ' . ($pms['surname'] ?? '')));
+
+        if (!$a || !$b) {
+            return false;
+        }
+
+        $common = count(array_intersect($a, $b));
+
+        return $common >= min(2, count($a), count($b));
     }
 
     /** Forgets "not found" answers for these people so they are looked up again. */

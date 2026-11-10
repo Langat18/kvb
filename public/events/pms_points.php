@@ -359,10 +359,8 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <?php else: ?>
         <div class="pp-bar-t">
             <div class="pp-chips" id="pp-chips">
-                <button type="button" class="pp-chip on" data-f="all">All <?= $total ?></button>
-                <?php foreach (['ready', 'sent', 'excluded', 'unchecked', 'held'] as $k): if ($k === 'ready' || $cnt[$k] > 0): ?>
-                <button type="button" class="pp-chip" data-f="<?= $k ?>"><?= $h($labels[$k]) ?> <?= $cnt[$k] ?></button>
-                <?php endif; endforeach; ?>
+                <button type="button" class="pp-chip on" data-f="ready">Ready <?= $total - $cnt['excluded'] ?></button>
+                <button type="button" class="pp-chip" data-f="excluded">Not in PMS <?= $cnt['excluded'] ?></button>
             </div>
             <input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off">
         </div>
@@ -378,7 +376,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <td class="n"><b><?= $h($fmtPoints((float) $r['points'])) ?></b></td>
                 <td><span class="pp-badge st-<?= $h($r['state']) ?>"><?= $h($labels[$r['state']]) ?></span><?php
                     if ($r['pms_reg'] && $r['pms_reg'] !== $r['reg_no']) { echo ' <span class="pp-note">as ' . $h($r['pms_reg']) . '</span>'; }
-                    if ($r['state'] === 'excluded' && $r['detail']) { echo ' <span class="pp-note">' . $h($r['detail']) . '</span>'; }
+                    if ($r['detail']) { echo ' <span class="pp-note">' . $h($r['detail']) . '</span>'; }
                     if (!empty($r['note'])) { echo ' <span class="pp-note">last try: ' . $h($r['note']) . '</span>'; }
                 ?></td>
             </tr>
@@ -423,15 +421,16 @@ require __DIR__ . '/../templates/sidebar_data.php';
 
     var q = document.getElementById('pp-q');
     if (!q) { return; }
-    var rows = Array.prototype.slice.call(document.querySelectorAll('#pp-body tr')), none = document.getElementById('pp-none'), f = 'all';
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#pp-body tr')), none = document.getElementById('pp-none'), f = 'ready';
     function apply() {
         var term = q.value.trim().toLowerCase(), n = 0;
         rows.forEach(function (tr) {
-            var hit = (f === 'all' || tr.getAttribute('data-st') === f) && (term === '' || tr.getAttribute('data-s').indexOf(term) !== -1);
+            var st = tr.getAttribute('data-st'), hit = (f === 'excluded' ? st === 'excluded' : st !== 'excluded') && (term === '' || tr.getAttribute('data-s').indexOf(term) !== -1);
             tr.hidden = !hit; if (hit) { n++; }
         });
         none.hidden = n !== 0;
     }
+    apply();
     q.addEventListener('input', apply);
     document.getElementById('pp-chips').addEventListener('click', function (e) {
         var b = e.target.closest('.pp-chip'); if (!b) { return; }

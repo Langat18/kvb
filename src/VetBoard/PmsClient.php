@@ -59,7 +59,7 @@ final class PmsClient
         curl_multi_setopt($mh, CURLMOPT_MAX_HOST_CONNECTIONS, max(1, $concurrency));
         $hs = [];
 
-        foreach (array_values(array_unique($regNos)) as $reg) {
+        foreach (array_map('strval', array_values(array_unique($regNos))) as $reg) {
             $ch = curl_init($this->base . '/registration/search?' . http_build_query(['reg_number' => strtoupper(trim($reg))]));
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
