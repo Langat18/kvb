@@ -14,7 +14,6 @@ use PDO;
 final class PmsPointsSender
 {
     private const CHUNK         = 50;
-    private const RESOLVE_STALE = '7 days';
 
     private PDO $pdo;
     private PmsClient $client;
@@ -45,7 +44,7 @@ final class PmsPointsSender
         }
 
         $in   = implode(',', array_fill(0, count($regNos), '?'));
-        $stmt = $this->pdo->prepare("SELECT reg_no, pms_reg_no, status FROM pms_resolutions WHERE reg_no IN ($in) AND checked_at > now() - interval '" . self::RESOLVE_STALE . "'");
+        $stmt = $this->pdo->prepare("SELECT reg_no, pms_reg_no, status, detail FROM pms_resolutions WHERE reg_no IN ($in) AND checked_at > now() - CASE WHEN status = 'found' THEN interval '7 days' ELSE interval '1 day' END");
         $stmt->execute(array_values($regNos));
 
         $out = [];
@@ -57,38 +56,42 @@ final class PmsPointsSender
     }
 
     /**
-     * Looks up practitioners not yet checked, within a time budget. Returns how many remain unchecked.
+     * Looks up the next few practitioners not yet checked. Returns how many still remain.
+     * Called repeatedly by the page so no single request runs long.
      */
-    public function resolve(array $regNos, int $budgetSeconds = 100): int
+    public function resolve(array $regNos, int $limit = 12): int
     {
         $known   = $this->resolutions($regNos);
         $pending = array_values(array_diff($regNos, array_keys($known)));
-        $deadline = microtime(true) + $budgetSeconds;
+        $replies = $this->client->registrations(array_slice($pending, 0, $limit));
         $save    = $this->pdo->prepare(
-            'INSERT INTO pms_resolutions (reg_no, pms_reg_no, status, checked_at) VALUES (:r, :p, :s, now())
-             ON CONFLICT (reg_no) DO UPDATE SET pms_reg_no = EXCLUDED.pms_reg_no, status = EXCLUDED.status, checked_at = now()'
+            'INSERT INTO pms_resolutions (reg_no, pms_reg_no, status, detail, checked_at) VALUES (:r, :p, :s, :d, now())
+             ON CONFLICT (reg_no) DO UPDATE SET pms_reg_no = EXCLUDED.pms_reg_no, status = EXCLUDED.status, detail = EXCLUDED.detail, checked_at = now()'
         );
+        $saved = 0;
 
-        foreach ($pending as $i => $reg) {
-            if (microtime(true) > $deadline) {
-                return count($pending) - $i;
-            }
-
-            $r = $this->client->registration($reg);
-
+        foreach ($replies as $reg => $r) {
             if ($r['status'] === PmsClient::UNAVAILABLE) {
-                return count($pending) - $i;
+                continue;
             }
 
-            $found = $r['status'] === PmsClient::FOUND && !empty($r['data']['reg_number']);
-            $save->execute([
-                ':r' => $reg,
-                ':p' => $found ? strtoupper(trim((string) $r['data']['reg_number'])) : null,
-                ':s' => $found ? 'found' : 'not_found',
-            ]);
+            $found = $r['status'] === PmsClient::FOUND;
+            // PMS answered for this number; if it does not echo one back, the number we asked for is the one to send.
+            $pmsReg = $found ? (strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim((string) $reg))) : null;
+            $save->execute([':r' => $reg, ':p' => $pmsReg, ':s' => $found ? 'found' : 'not_found', ':d' => $found ? null : substr((string) ($r['message'] ?? 'Not found') . ' (HTTP ' . $r['http'] . ')', 0, 200)]);
+            $saved++;
         }
 
-        return 0;
+        return count($pending) - $saved;
+    }
+
+    /** Forgets "not found" answers for these people so they are looked up again. */
+    public function recheck(array $regNos): void
+    {
+        if ($regNos) {
+            $in = implode(',', array_fill(0, count($regNos), '?'));
+            $this->pdo->prepare("DELETE FROM pms_resolutions WHERE status = 'not_found' AND reg_no IN ($in)")->execute(array_values($regNos));
+        }
     }
 
     /** @return array<string, array{status: string, response: ?string, created_at: string}> latest live row per reg_no */
