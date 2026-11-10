@@ -178,7 +178,10 @@ class Provider
 
     /**
      * Imports providers from an uploaded CSV file. Expects up to five
-     * columns per row, in order: No (accreditation number).
+     * columns per row, in order: No (accreditation number), Name,
+     * Contact Person, Phone No, Email. Only the first two are required.
+     * A header row is auto-detected and skipped if the first cell
+     * doesn't look like an accreditation number.
      */
     public function importFromCsv(string $filePath): array
     {
