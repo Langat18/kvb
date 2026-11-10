@@ -81,9 +81,6 @@ final class PmsPointsSender
             }
 
             $found = $r['status'] === PmsClient::FOUND && !empty($r['data']['reg_number']);
-            if ($found) {
-                (new PmsAutofill($this->client, $this->pdo))->noteIdField($r['data']);
-            }
             $save->execute([
                 ':r' => $reg,
                 ':p' => $found ? strtoupper(trim((string) $r['data']['reg_number'])) : null,

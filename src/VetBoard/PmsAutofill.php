@@ -8,6 +8,7 @@ use PDO;
 
 final class PmsAutofill
 {
+    private const ID_KEYS = ['id_number', 'national_id', 'id_no', 'idno', 'national_id_number', 'identification_number', 'id_card_number'];
     private const IP_FAILS_PER_10_MIN  = 30;
     private const REG_FAILS_PER_HOUR   = 5;
 
@@ -44,35 +45,14 @@ final class PmsAutofill
             $v = $stmt->fetchColumn();
             $v = $v === false ? 'first4' : $v;
 
-            // Used only once PMS has been seen to return an ID number, so it switches itself on.
-            return ($v === 'last4' || $v === 'first4') && $this->idSeen() ? ($v === 'last4' ? 'last' : 'first') : null;
+            return $v === 'last4' ? 'last' : ($v === 'first4' ? 'first' : null);
         } catch (\Throwable) {
             return null;
         }
     }
 
-    private function idSeen(): bool
-    {
-        $stmt = $this->pdo->prepare('SELECT 1 FROM integration_settings WHERE setting_key = :k');
-        $stmt->execute([':k' => 'pms_id_seen']);
-
-        return (bool) $stmt->fetchColumn();
-    }
-
-    /** Remembers that PMS now returns ID numbers, which turns the ID check on. Nothing about the ID is kept. */
-    public function noteIdField(array $data): void
-    {
-        foreach (['id_number', 'national_id', 'id_no'] as $k) {
-            if (trim((string) ($data[$k] ?? '')) !== '' && !$this->idSeen()) {
-                $this->pdo->prepare("INSERT INTO integration_settings (setting_key, setting_value) VALUES ('pms_id_seen', '1') ON CONFLICT (setting_key) DO NOTHING")->execute();
-
-                return;
-            }
-        }
-    }
-
     /**
-     * Same as verify(), but the person proves who they are with four characters of their ID number.
+     * The person proves who they are with four characters of their ID number.
      * The ID itself is never returned. A missing ID on the register and a wrong one give the same reply.
      * @return array{status: string, data?: array{name: string, email: string, phone: string}}
      */
@@ -110,9 +90,8 @@ final class PmsAutofill
             return ['status' => 'not_found'];
         }
 
-        $this->noteIdField((array) $r['data']);
         $id = '';
-        foreach (['id_number', 'national_id', 'id_no'] as $k) {
+        foreach (self::ID_KEYS as $k) {
             $id = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($r['data'][$k] ?? '')));
             if ($id !== '') {
                 break;
@@ -136,83 +115,6 @@ final class PmsAutofill
             'email' => self::email((string) ($d['email'] ?? '')),
             'phone' => trim((string) ($d['phone_number'] ?? '')),
         ]];
-    }
-
-    /**
-     * Returns the details of a person on the KVB register once the date of birth they typed matches.
-     * @return array{status: string, data?: array{name: string, email: string, phone: string}}
-     */
-    public function verify(string $regNo, string $dob, string $ip): array
-    {
-        $regNo = strtoupper(trim($regNo));
-        $dob   = self::normalizeDate($dob);
-
-        if (!Participant::isValidNewRegNo($regNo) || $dob === null) {
-            return ['status' => 'invalid'];
-        }
-
-        if ($this->exists($regNo)) {
-            return ['status' => 'local'];
-        }
-
-        if ($this->limited($regNo, $ip)) {
-            $this->log($ip, $regNo, 'limited');
-
-            return ['status' => 'limited'];
-        }
-
-        $r = $this->client->registration($regNo);
-
-        if ($r['status'] === PmsClient::UNAVAILABLE) {
-            $this->log($ip, $regNo, 'unavailable');
-
-            return ['status' => 'unavailable'];
-        }
-
-        if ($r['status'] === PmsClient::NOT_FOUND) {
-            $this->log($ip, $regNo, 'not_found');
-
-            return ['status' => 'not_found'];
-        }
-
-        $this->noteIdField((array) $r['data']);
-        $pmsDob = self::normalizeDate((string) ($r['data']['dob'] ?? ''));
-
-        if ($pmsDob === null) {
-            $this->log($ip, $regNo, 'unverifiable');
-
-            return ['status' => 'unverifiable'];
-        }
-
-        if (!hash_equals($pmsDob, $dob)) {
-            $this->log($ip, $regNo, 'bad_dob');
-
-            return ['status' => 'mismatch'];
-        }
-
-        $this->log($ip, $regNo, 'ok');
-        $d = $r['data'];
-
-        return ['status' => 'ok', 'data' => [
-            'name'  => self::fullName($d),
-            'email' => self::email((string) ($d['email'] ?? '')),
-            'phone' => trim((string) ($d['phone_number'] ?? '')),
-        ]];
-    }
-
-    public static function normalizeDate(string $v): ?string
-    {
-        $v = trim($v);
-
-        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $v, $m)) {
-            [$y, $mo, $d] = [(int) $m[1], (int) $m[2], (int) $m[3]];
-        } elseif (preg_match('#^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})#', $v, $m)) {
-            [$d, $mo, $y] = [(int) $m[1], (int) $m[2], (int) $m[3]];
-        } else {
-            return null;
-        }
-
-        return checkdate($mo, $d, $y) && $y > 1900 ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
     }
 
     public static function fullName(array $d): string

@@ -12,7 +12,7 @@ use VetBoard\Database;
 Auth::startSession();
 Auth::requirePermission('manage_events');
 
-// Events are due for upload this many days after they end (the agreed 72 hours).
+// Points are due this many days after the event ends (ends 12th, due by the 15th); overdue from the day after.
 const PMS_UPLOAD_DUE_DAYS = 3;
 
 $pdo = Database::getInstance()->getPdo();
@@ -41,7 +41,7 @@ $stmt = $pdo->prepare(
          FROM pms_points_sends ORDER BY event_id, reg_no, (status <> 'failed') DESC, id DESC
      ) s ON s.event_id = e.id AND s.reg_no = ppl.reg_no
      LEFT JOIN pms_resolutions pr ON pr.reg_no = ppl.reg_no
-     WHERE e.end_date + CAST(:due AS integer) <= CURRENT_DATE
+     WHERE e.end_date + CAST(:due AS integer) < CURRENT_DATE
      ORDER BY e.end_date DESC, e.id, p.name NULLS LAST, ppl.reg_no"
 );
 $stmt->execute([':due' => PMS_UPLOAD_DUE_DAYS]);
@@ -80,7 +80,7 @@ foreach ($stmt->fetchAll() as $r) {
         $why = 'No points earned (attendance requirement not met)';
     }
 
-    $items[]          = ['event_id' => $r['event_id'], 'event' => $r['title'], 'code' => $code, 'end' => $r['end_date'], 'token' => $r['view_token'], 'reg_no' => $r['reg_no'], 'name' => (string) $r['name'], 'points' => $points, 'why' => $why];
+    $items[]          = ['event_id' => $r['event_id'], 'event' => $r['title'], 'code' => $code, 'end' => $r['end_date'], 'due' => date('Y-m-d', strtotime($r['end_date'] . ' +' . PMS_UPLOAD_DUE_DAYS . ' days')), 'token' => $r['view_token'], 'reg_no' => $r['reg_no'], 'name' => (string) $r['name'], 'points' => $points, 'why' => $why];
     $byReason[$why]   = ($byReason[$why] ?? 0) + 1;
     $events[$r['event_id']] = true;
 }
@@ -89,9 +89,9 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="pms-not-uploaded-' . date('Y-m-d') . '.csv"');
     $o = fopen('php://output', 'w');
-    fputcsv($o, ['Event', 'Activity number', 'Event ended', 'Reg No', 'Name', 'Points', 'Why not uploaded']);
+    fputcsv($o, ['Event', 'Activity number', 'Event ended', 'Was due', 'Reg No', 'Name', 'Points', 'Why not uploaded']);
     foreach ($items as $i) {
-        fputcsv($o, [$i['event'], $i['code'], $i['end'], $i['reg_no'], $i['name'], $i['points'], $i['why']]);
+        fputcsv($o, [$i['event'], $i['code'], $i['end'], $i['due'], $i['reg_no'], $i['name'], $i['points'], $i['why']]);
     }
     fclose($o);
     exit;
@@ -133,7 +133,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
 <div class="page-with-sidebar">
 <div class="uf">
     <h1>PMS upload follow-up</h1>
-    <p class="lead">Practitioners from events that ended more than <?= PMS_UPLOAD_DUE_DAYS * 24 ?> hours ago whose points have not reached PMS, with the reason for each.</p>
+    <p class="lead">Practitioners from events whose upload deadline (<?= PMS_UPLOAD_DUE_DAYS ?> days after the event ends) has passed and whose points have not reached PMS, with the reason for each.</p>
 
     <?php if (!$items): ?>
     <div class="card"><div class="empty">Nothing outstanding. Every attendee of an event past the upload window has been sent, or earned no points.</div></div>
@@ -155,7 +155,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <tbody>
             <?php foreach ($items as $i): ?>
             <tr>
-                <td><a href="/events/pms_points.php?token=<?= $h(urlencode((string) $i['token'])) ?>"><?= $h($i['event']) ?></a><br><span class="mono" style="color:#64748b;font-size:.78rem"><?= $h($i['code'] !== '' ? $i['code'] : 'no activity number') ?> &middot; ended <?= $h($i['end']) ?></span></td>
+                <td><a href="/events/pms_points.php?token=<?= $h(urlencode((string) $i['token'])) ?>"><?= $h($i['event']) ?></a><br><span class="mono" style="color:#64748b;font-size:.78rem"><?= $h($i['code'] !== '' ? $i['code'] : 'no activity number') ?> &middot; ended <?= $h($i['end']) ?> &middot; was due <?= $h($i['due']) ?></span></td>
                 <td class="mono"><?= $h($i['reg_no']) ?></td>
                 <td><?= $h($i['name']) ?></td>
                 <td class="n"><?= $h(rtrim(rtrim(number_format($i['points'], 2), '0'), '.')) ?></td>
