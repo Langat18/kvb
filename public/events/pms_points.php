@@ -49,72 +49,44 @@ $stmt = $pdo->prepare(
 $stmt->execute([':event' => $eventId]);
 $people = $stmt->fetchAll();
 
-$stmt = $pdo->prepare(
-    "SELECT pl.reg_no, ROUND((SUM(EXTRACT(EPOCH FROM (es.end_time - es.start_time))) / 3600)::numeric, 1) AS hours
-     FROM points_ledger pl
-     JOIN attendance a ON a.id = pl.attendance_id
-     JOIN event_sessions es ON es.id = a.session_id
-     WHERE pl.event_id = :event AND pl.kind = 'attendance' AND pl.points > 0
-     GROUP BY pl.reg_no"
-);
-$stmt->execute([':event' => $eventId]);
-$hoursBy = array_column($stmt->fetchAll(), 'hours', 'reg_no');
+// The progress calls made while checking only need the list of people, so the rest is skipped for them.
+$polling        = $_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['resolve', 'recheck'], true);
+$flaggedPending = 0;
+$formatOk       = (bool) preg_match('#^REG/CPD-A/\d{4}/\d{4}$#', $code);
+$pms            = null;
+$pmsData        = [];
 
-$stmt = $pdo->prepare(
-    'SELECT COUNT(*)
-     FROM attendance a
-     JOIN registrations r ON r.id = a.registration_id
-     WHERE r.event_id = :event AND a.flagged AND NOT a.points_denied'
-);
-$stmt->execute([':event' => $eventId]);
-$flaggedPending = (int) $stmt->fetchColumn();
+if (!$polling) {
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*)
+         FROM attendance a
+         JOIN registrations r ON r.id = a.registration_id
+         WHERE r.event_id = :event AND a.flagged AND NOT a.points_denied'
+    );
+    $stmt->execute([':event' => $eventId]);
+    $flaggedPending = (int) $stmt->fetchColumn();
 
-$formatOk = (bool) preg_match('#^REG/CPD-A/\d{4}/\d{4}$#', $code);
-// The nightly copy of PMS activities answers this without a live call; PMS is asked only if the copy has no match.
-$stmt = $pdo->prepare('SELECT title, activity_type, provider_name AS name_of_provider, schedules FROM pms_activities WHERE upper(trim(activity_number)) = upper(:c) AND removed_at IS NULL LIMIT 1');
-$stmt->execute([':c' => $code]);
-$local = $code !== '' ? $stmt->fetch() : false;
+    // The nightly copy of PMS activities answers this without a live call; PMS is asked only if the copy has no match.
+    $stmt = $pdo->prepare('SELECT title, activity_type, provider_name AS name_of_provider, schedules FROM pms_activities WHERE upper(trim(activity_number)) = upper(:c) AND removed_at IS NULL LIMIT 1');
+    $stmt->execute([':c' => $code]);
+    $local = $code !== '' ? $stmt->fetch() : false;
 
-if ($local) {
-    $local['schedules'] = json_decode((string) $local['schedules'], true) ?: [];
-    $pms     = ['status' => PmsClient::FOUND, 'data' => $local];
-} else {
-    $pms     = $code !== '' ? (new PmsClient(null, null, 6, 3))->activity($code) : null;
+    if ($local) {
+        $local['schedules'] = json_decode((string) $local['schedules'], true) ?: [];
+        $pms     = ['status' => PmsClient::FOUND, 'data' => $local];
+    } else {
+        $pms     = $code !== '' ? (new PmsClient(null, null, 6, 3))->activity($code) : null;
+    }
+    $pmsData = $pms !== null && $pms['status'] === PmsClient::FOUND ? $pms['data'] : [];
 }
-$pmsData = $pms !== null && $pms['status'] === PmsClient::FOUND ? $pms['data'] : [];
 
-$num = static fn(float $v) => fmod($v, 1.0) === 0.0 ? (int) $v : round($v, 1);
-
-$records    = [];
-$rows       = [];
-$totalPts   = 0.0;
-$totalHrs   = 0.0;
+$rows     = [];
+$totalPts = 0.0;
 
 foreach ($people as $p) {
-    $points = (float) $p['points'];
-    $hours  = (float) ($hoursBy[$p['reg_no']] ?? 0);
-
-    $totalPts += $points;
-    $totalHrs += $hours;
-
-    $record = [
-        'record_sn'           => 'CPD-' . $eventId . '-' . $p['reg_no'],
-        'kvb_reg_number'      => $p['reg_no'],
-        'activity_number'     => $code,
-        'date_of_activity'    => $endDate,
-        'activity_title'      => $pmsData['title'] ?? $title,
-        'cpd_hours'           => $num($hours),
-        'cpd_points'          => $num($points),
-    ];
-
-    if (!empty($pmsData['activity_type'])) {
-        $record['activity_type'] = $pmsData['activity_type'];
-    }
-
-    $records[] = $record;
-    $rows[]    = ['reg_no' => $p['reg_no'], 'name' => $p['name'], 'hours' => $hours, 'points' => $points];
+    $totalPts += (float) $p['points'];
+    $rows[]    = ['reg_no' => $p['reg_no'], 'name' => $p['name'], 'points' => (float) $p['points']];
 }
-
 
 // ---- Matching against PMS, sending and the ledger of what was sent ----
 $sender   = new PmsPointsSender();
@@ -153,10 +125,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res  = $sender->resolutions($regList);
         $done = $sender->sentFor($eventId);
         $items = [];
+        $hoursBy = [];
+        // Hours are required by PMS but not shown, so they are worked out only here, for the people being sent.
+        if (!$canSend || !$activityOk || empty($_POST['confirm'])) {
+            $rows = [];
+        } else {
+            $st = $pdo->prepare(
+                "SELECT pl.reg_no, ROUND((SUM(EXTRACT(EPOCH FROM (es.end_time - es.start_time))) / 3600)::numeric, 1) AS hours
+                 FROM points_ledger pl JOIN attendance a ON a.id = pl.attendance_id JOIN event_sessions es ON es.id = a.session_id
+                 WHERE pl.event_id = :event AND pl.kind = 'attendance' AND pl.points > 0 GROUP BY pl.reg_no"
+            );
+            $st->execute([':event' => $eventId]);
+            $hoursBy = array_column($st->fetchAll(), 'hours', 'reg_no');
+        }
         foreach ($rows as $r) {
             $x = $res[$r['reg_no']] ?? null;
             if ($x && $x['status'] === 'found' && (!isset($done[$r['reg_no']]) || $done[$r['reg_no']]['status'] === 'failed')) {
-                $items[] = ['reg_no' => $r['reg_no'], 'pms_reg_no' => (string) $x['pms_reg_no'], 'points' => (float) $r['points'], 'hours' => (float) $r['hours']];
+                $items[] = ['reg_no' => $r['reg_no'], 'pms_reg_no' => (string) $x['pms_reg_no'], 'points' => (float) $r['points'], 'hours' => (float) ($hoursBy[$r['reg_no']] ?? 0)];
             }
         }
 
@@ -212,10 +197,10 @@ if (($_GET['export'] ?? '') === 'excluded') {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="pms-not-matched-' . preg_replace('/[^A-Za-z0-9_-]/', '', $code) . '.csv"');
     $o = fopen('php://output', 'w');
-    fputcsv($o, ['Reg No', 'Name', 'Hours', 'Points', 'Reason']);
+    fputcsv($o, ['Reg No', 'Name', 'Points', 'Reason']);
     foreach ($rows as $r) {
         if ($r['state'] === 'excluded') {
-            fputcsv($o, [$r['reg_no'], $r['name'], $r['hours'], $r['points'], 'Not found in PMS']);
+            fputcsv($o, [$r['reg_no'], $r['name'], $r['points'], 'Not found in PMS']);
         }
     }
     fclose($o);
@@ -231,7 +216,6 @@ if ($cnt['ready'] === 0) { $sendBlockers[] = 'There is nothing left to send.'; }
 
 $h = static fn($s): string => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 $fmtPoints = static fn(float $v): string => number_format($v, fmod($v, 1.0) === 0.0 ? 0 : 1);
-$fmtHours  = static fn(float $v): string => number_format($v, 1);
 $viewToken = urlencode((string) $event['view_token']);
 $activity  = (string) ($pmsData['title'] ?? '');
 $total     = count($rows);
@@ -386,13 +370,12 @@ require __DIR__ . '/../templates/sidebar_data.php';
         </form>
         <div class="pp-scroll">
         <table class="pp-table">
-            <thead><tr><th>Reg No</th><th>Name</th><th class="n">Hours</th><th class="n">Points</th><th>Status</th></tr></thead>
+            <thead><tr><th>Reg No</th><th>Name</th><th class="n">Points</th><th>Status</th></tr></thead>
             <tbody id="pp-body">
             <?php foreach ($rows as $r): ?>
             <tr data-st="<?= $h($r['state']) ?>" data-s="<?= $h(strtolower($r['reg_no'] . ' ' . $r['name'])) ?>">
                 <td class="pp-mono"><?= $h($r['reg_no']) ?></td>
                 <td><?= $h($r['name']) ?></td>
-                <td class="n"><?= $h($fmtHours((float) $r['hours'])) ?></td>
                 <td class="n"><b><?= $h($fmtPoints((float) $r['points'])) ?></b></td>
                 <td><span class="pp-badge st-<?= $h($r['state']) ?>"><?= $h($labels[$r['state']]) ?></span><?php
                     if ($r['pms_reg'] && $r['pms_reg'] !== $r['reg_no']) { echo ' <span class="pp-note">as ' . $h($r['pms_reg']) . '</span>'; }
