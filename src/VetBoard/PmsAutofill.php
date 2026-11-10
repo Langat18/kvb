@@ -139,6 +139,19 @@ final class PmsAutofill
         return filter_var($v, FILTER_VALIDATE_EMAIL) ? $v : '';
     }
 
+    /** The ID or passport number in a PMS registration record, letters and digits only, upper case. */
+    public static function idFrom(array $data): string
+    {
+        foreach (self::ID_KEYS as $k) {
+            $id = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', (string) ($data[$k] ?? '')));
+            if ($id !== '') {
+                return $id;
+            }
+        }
+
+        return '';
+    }
+
     private function exists(string $regNo): bool
     {
         $stmt = $this->pdo->prepare('SELECT 1 FROM participants WHERE reg_no = :r');

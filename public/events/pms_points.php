@@ -142,6 +142,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $left = $sender->resolve($regList);
         echo json_encode(['left' => $left, 'total' => count($regList)]);
         exit;
+    } elseif ($act === 'approve') {
+        $pairs = array_filter((array) ($_POST['pair'] ?? []), 'is_string');
+        $n = $pairs ? $sender->approve(array_slice($pairs, 0, 300), (int) ($_SESSION['user_id'] ?? 0) ?: null) : 0;
+        $_SESSION['pp_flash'] = $n > 0 ? ['ok', $n . ' practitioner(s) approved and now ready to send.'] : ['warn', 'Nothing was selected.'];
     } elseif ($act === 'release') {
         $n = $sender->releaseUncertain($eventId);
         $_SESSION['pp_flash'] = ['ok', $n . ' record(s) released for retry.'];
@@ -176,6 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $res  = $sender->resolutions($regList);
 $done = $sender->sentFor($eventId);
+$sugg = $sender->suggestions($regList);
 $cnt  = ['ready' => 0, 'sent' => 0, 'excluded' => 0, 'unchecked' => 0, 'held' => 0, 'failed' => 0];
 
 foreach ($rows as &$r) {
@@ -183,6 +188,7 @@ foreach ($rows as &$r) {
     $d = $done[$r['reg_no']] ?? null;
     $r['pms_reg'] = $x['pms_reg_no'] ?? null;
     $r['detail']  = $x['detail'] ?? null;
+    $r['sugg']    = $sugg[$r['reg_no']] ?? [];
 
     if ($d && $d['status'] === 'sent') {
         $r['state'] = 'sent';  $cnt['sent']++;
@@ -231,6 +237,8 @@ $activity  = (string) ($pmsData['title'] ?? '');
 $total     = count($rows);
 $readyPts  = array_sum(array_map(static fn($r) => $r['state'] === 'ready' ? (float) $r['points'] : 0.0, $rows));
 $checked   = $total - $cnt['unchecked'];
+$withSugg  = count(array_filter($rows, static fn($r) => $r['state'] === 'excluded' && $r['sugg']));
+$idLabel   = ['match' => 'ID matches', 'partial' => 'ID starts the same', 'differs' => 'ID differs', 'none' => 'no ID to compare'];
 $labels    = ['sent' => 'Sent', 'held' => 'Outcome unclear', 'unchecked' => 'Not checked', 'excluded' => 'Not in PMS', 'ready' => 'Ready'];
 
 $breadcrumbs = [
@@ -291,6 +299,12 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .pp-mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
 .pp-badge { display:inline-block; padding:.1rem .55rem; border-radius:99px; font-size:.72rem; font-weight:600; background:var(--warn-bg); color:var(--warn); }
 .pp-badge.st-ready, .pp-badge.st-sent { background:var(--ok-bg); color:var(--ok); } .pp-badge.st-excluded { background:var(--bad-bg); color:var(--bad); }
+.pp-cands { margin-top:.35rem; display:flex; flex-direction:column; gap:.3rem; }
+.pp-cand { display:flex; gap:.5rem; align-items:flex-start; font-weight:400; font-size:.82rem; cursor:pointer; }
+.pp-cand input { width:auto; margin-top:.2rem; flex:none; }
+.pp-cand em { font-style:normal; font-size:.72rem; font-weight:600; padding:.05rem .45rem; border-radius:99px; background:var(--warn-bg); color:var(--warn); margin-left:.25rem; }
+.pp-cand em.g { background:var(--ok-bg); color:var(--ok); } .pp-cand em.r { background:var(--bad-bg); color:var(--bad); }
+.pp-approve { display:flex; gap:.75rem; align-items:center; padding:.7rem 1.1rem; border-bottom:1px solid var(--line); background:#fffbeb; }
 .pp-empty { padding:2rem; text-align:center; color:var(--muted); }
 @media (max-width:760px) { .pp-steps { grid-template-columns:1fr; } .pp-step { border-right:0; border-bottom:1px solid var(--line); } .pp-table th:nth-child(3), .pp-table td:nth-child(3) { display:none; } }
 @media print { .pp-steps, .pp-search, .pp-chips, .pp-head a { display:none; } .pp-scroll { max-height:none; } }
@@ -332,6 +346,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <span class="k">2 &middot; Review</span>
                 <span class="big"><?= $cnt['ready'] ?> ready</span>
                 <span class="pp-note"><?= $cnt['sent'] ?> already sent &middot; <?= $cnt['excluded'] ?> not in PMS<?= $cnt['held'] ? ' &middot; ' . $cnt['held'] . ' unclear' : '' ?></span>
+                <?php if ($withSugg > 0): ?><span class="pp-note" style="color:var(--warn)"><?= $withSugg ?> not-in-PMS have possible matches to review</span><?php endif; ?>
                 <?php if ($flaggedPending > 0): ?><span class="pp-note" style="color:var(--warn)"><?= $flaggedPending ?> flagged sign-in(s) still unreviewed, not included</span><?php endif; ?>
                 <div class="actions">
                     <?php if ($cnt['excluded'] > 0): ?><a class="pp-btn" href="<?= $h($self) ?>&amp;export=excluded">Download not-in-PMS list</a><?php endif; ?>
@@ -364,6 +379,11 @@ require __DIR__ . '/../templates/sidebar_data.php';
             </div>
             <input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off">
         </div>
+        <form method="post" id="pp-approve" class="pp-approve" hidden>
+            <input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>"><input type="hidden" name="action" value="approve">
+            <button class="pp-btn primary">Approve selected</button>
+            <span class="pp-note">Tick the possible matches you are satisfied are the same person. Ticked ones move to Ready.</span>
+        </form>
         <div class="pp-scroll">
         <table class="pp-table">
             <thead><tr><th>Reg No</th><th>Name</th><th class="n">Hours</th><th class="n">Points</th><th>Status</th></tr></thead>
@@ -376,6 +396,16 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <td class="n"><b><?= $h($fmtPoints((float) $r['points'])) ?></b></td>
                 <td><span class="pp-badge st-<?= $h($r['state']) ?>"><?= $h($labels[$r['state']]) ?></span><?php
                     if ($r['pms_reg'] && $r['pms_reg'] !== $r['reg_no']) { echo ' <span class="pp-note">as ' . $h($r['pms_reg']) . '</span>'; }
+                    if ($r['state'] === 'excluded') {
+                        echo '<div class="pp-cands">';
+                        foreach ($r['sugg'] as $c) {
+                            $pair = $r['reg_no'] . '>' . $c['candidate'];
+                            echo '<label class="pp-cand"><input type="checkbox" name="pair[]" form="pp-approve" value="' . $h($pair) . '"> <span><b class="pp-mono">' . $h($c['candidate']) . '</b> ' . $h($c['pms_name'])
+                                . ' <em class="' . ($c['name_match'] ? 'g' : 'a') . '">' . ($c['name_match'] ? 'name matches' : 'name differs') . '</em>'
+                                . ' <em class="' . ($c['id_state'] === 'match' ? 'g' : ($c['id_state'] === 'differs' ? 'r' : 'a')) . '">' . $h($idLabel[$c['id_state']]) . '</em></span></label>';
+                        }
+                        echo '</div>';
+                    }
                     if ($r['detail']) { echo ' <span class="pp-note">' . $h($r['detail']) . '</span>'; }
                     if (!empty($r['note'])) { echo ' <span class="pp-note">last try: ' . $h($r['note']) . '</span>'; }
                 ?></td>
@@ -429,6 +459,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             tr.hidden = !hit; if (hit) { n++; }
         });
         none.hidden = n !== 0;
+        var ap = document.getElementById('pp-approve'); if (ap) { ap.hidden = f !== 'excluded' || !document.querySelector('.pp-cand'); }
     }
     apply();
     q.addEventListener('input', apply);

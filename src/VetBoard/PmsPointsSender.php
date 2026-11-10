@@ -79,13 +79,15 @@ final class PmsPointsSender
             }
         }
 
-        $alt = [];
-        $names = [];
+        $alt   = [];
+        $local = [];
         if ($missing) {
             $in = implode(',', array_fill(0, count($missing), '?'));
-            $st = $this->pdo->prepare("SELECT reg_no, name FROM participants WHERE reg_no IN ($in)");
+            $st = $this->pdo->prepare("SELECT reg_no, name, id_number FROM participants WHERE reg_no IN ($in)");
             $st->execute($missing);
-            $names = array_column($st->fetchAll(), 'name', 'reg_no');
+            foreach ($st->fetchAll() as $p) {
+                $local[$p['reg_no']] = $p;
+            }
 
             $want = [];
             foreach ($missing as $reg) {
@@ -95,6 +97,12 @@ final class PmsPointsSender
             }
             $alt = $want ? $this->client->registrations(array_map('strval', array_keys($want))) : [];
         }
+
+        $suggest = $this->pdo->prepare(
+            'INSERT INTO pms_suggestions (reg_no, candidate, pms_name, name_match, id_state) VALUES (:r, :c, :n, :m, :i)
+             ON CONFLICT (reg_no, candidate) DO UPDATE SET pms_name = EXCLUDED.pms_name, name_match = EXCLUDED.name_match, id_state = EXCLUDED.id_state'
+        );
+        $approved = $this->pdo->prepare("SELECT candidate FROM pms_suggestions WHERE reg_no = :r AND status = 'approved' LIMIT 1");
 
         $saved = 0;
         foreach ($replies as $reg => $r) {
@@ -108,20 +116,29 @@ final class PmsPointsSender
 
             if ($r['status'] === PmsClient::FOUND) {
                 // PMS answered for this number; if it does not echo one back, the number we asked for is the one to send.
-                $pmsReg = strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim((string) $reg));
+                $pmsReg = strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim($reg));
             } else {
-                $tried = [];
-                foreach (self::spellings((string) $reg) as $c) {
-                    $a = $alt[$c] ?? null;
-                    $tried[] = $c;
-                    if ($a && $a['status'] === PmsClient::FOUND && self::sameName((string) ($names[$reg] ?? ''), $a['data'])) {
-                        $pmsReg = strtoupper(trim((string) ($a['data']['reg_number'] ?? ''))) ?: $c;
-                        $detail = 'Matched by name';
-                        break;
+                $approved->execute([':r' => $reg]);
+                if (($c = $approved->fetchColumn()) !== false) {
+                    $pmsReg = (string) $c;
+                    $detail = 'Approved by staff';
+                } else {
+                    $n = 0;
+                    foreach (self::spellings($reg) as $c) {
+                        $a = $alt[$c] ?? null;
+                        if ($a && $a['status'] === PmsClient::FOUND) {
+                            $d = (array) $a['data'];
+                            $suggest->execute([
+                                ':r' => $reg,
+                                ':c' => strtoupper(trim((string) ($d['reg_number'] ?? ''))) ?: $c,
+                                ':n' => substr(PmsAutofill::fullName($d), 0, 255),
+                                ':m' => self::sameName((string) ($local[$reg]['name'] ?? ''), $d) ? 'true' : 'false',
+                                ':i' => self::idState((string) ($local[$reg]['id_number'] ?? ''), PmsAutofill::idFrom($d)),
+                            ]);
+                            $n++;
+                        }
                     }
-                }
-                if ($pmsReg === null) {
-                    $detail = substr((string) ($r['message'] ?? 'Not found') . '. Also tried ' . implode(', ', $tried), 0, 200);
+                    $detail = substr((string) ($r['message'] ?? 'Not found') . ($n ? '. ' . $n . ' possible match(es) to review' : ''), 0, 200);
                 }
             }
 
@@ -130,6 +147,73 @@ final class PmsPointsSender
         }
 
         return count($pending) - $saved;
+    }
+
+    private static function idState(string $local, string $pms): string
+    {
+        $local = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $local));
+
+        if ($pms === '' || $local === '') {
+            return 'none';
+        }
+
+        return $local === $pms ? 'match' : (substr($local, 0, 4) === substr($pms, 0, 4) ? 'partial' : 'differs');
+    }
+
+    /** @return array<string, list<array{candidate: string, pms_name: string, name_match: bool, id_state: string}>> pending suggestions by local reg_no */
+    public function suggestions(array $regNos): array
+    {
+        if (!$regNos) {
+            return [];
+        }
+
+        $in = implode(',', array_fill(0, count($regNos), '?'));
+        $st = $this->pdo->prepare("SELECT reg_no, candidate, pms_name, name_match, id_state FROM pms_suggestions WHERE status = 'pending' AND reg_no IN ($in) ORDER BY reg_no, candidate");
+        $st->execute(array_values($regNos));
+
+        $out = [];
+        foreach ($st->fetchAll() as $r) {
+            $out[$r['reg_no']][] = ['candidate' => $r['candidate'], 'pms_name' => (string) $r['pms_name'], 'name_match' => (bool) $r['name_match'], 'id_state' => $r['id_state']];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Accepts the chosen suggestions ("local>candidate"). Only suggestions that exist and are still pending are applied.
+     * @return int how many were approved
+     */
+    public function approve(array $pairs, ?int $staffId): int
+    {
+        $n   = 0;
+        $get = $this->pdo->prepare("SELECT 1 FROM pms_suggestions WHERE reg_no = :r AND candidate = :c AND status = 'pending'");
+        $set = $this->pdo->prepare("UPDATE pms_suggestions SET status = 'approved', decided_by = :s, decided_at = now() WHERE reg_no = :r AND candidate = :c");
+        $res = $this->pdo->prepare(
+            "INSERT INTO pms_resolutions (reg_no, pms_reg_no, status, detail, checked_at) VALUES (:r, :c, 'found', 'Approved by staff', now())
+             ON CONFLICT (reg_no) DO UPDATE SET pms_reg_no = EXCLUDED.pms_reg_no, status = 'found', detail = 'Approved by staff', checked_at = now()"
+        );
+
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($pairs as $pair) {
+                [$r, $c] = array_pad(explode('>', (string) $pair, 2), 2, '');
+                $get->execute([':r' => $r, ':c' => $c]);
+                if ($get->fetchColumn() === false) {
+                    continue;
+                }
+                // Only one candidate can stand for a person.
+                $this->pdo->prepare("UPDATE pms_suggestions SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE reg_no = :r AND status = 'approved'")->execute([':r' => $r]);
+                $set->execute([':s' => $staffId, ':r' => $r, ':c' => $c]);
+                $res->execute([':r' => $r, ':c' => $c]);
+                $n++;
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+
+        return $n;
     }
 
     /** Other ways PMS may hold the same number. */
@@ -167,6 +251,7 @@ final class PmsPointsSender
         if ($regNos) {
             $in = implode(',', array_fill(0, count($regNos), '?'));
             $this->pdo->prepare("DELETE FROM pms_resolutions WHERE status = 'not_found' AND reg_no IN ($in)")->execute(array_values($regNos));
+            $this->pdo->prepare("DELETE FROM pms_suggestions WHERE status = 'pending' AND reg_no IN ($in)")->execute(array_values($regNos));
         }
     }
 
