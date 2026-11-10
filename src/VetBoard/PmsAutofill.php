@@ -8,7 +8,7 @@ use PDO;
 
 final class PmsAutofill
 {
-    private const ID_KEYS = ['id_number', 'national_id', 'id_no', 'idno', 'national_id_number', 'identification_number', 'id_card_number'];
+    private const ID_KEYS = ['id_passport_number', 'id_number', 'national_id', 'id_no', 'idno', 'national_id_number', 'identification_number', 'id_card_number'];
     private const IP_FAILS_PER_10_MIN  = 30;
     private const REG_FAILS_PER_HOUR   = 5;
 
