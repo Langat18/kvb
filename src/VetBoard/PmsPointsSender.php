@@ -13,7 +13,7 @@ use PDO;
  */
 final class PmsPointsSender
 {
-    private const CHUNK         = 50;
+    public const CHUNK          = 25;
 
     private PDO $pdo;
     private PmsClient $client;
@@ -192,15 +192,17 @@ final class PmsPointsSender
 
     /**
      * Accepts the chosen suggestions ("local>candidate"). Only suggestions that exist and are still pending are applied.
-     * @return int how many were approved
+     * @return array{approved: int, skipped: int} skipped = the PMS number already stands for another practitioner
      */
-    public function approve(array $pairs, ?int $staffId): int
+    public function approve(array $pairs, ?int $staffId): array
     {
         if (!$this->suggestionsReady()) {
-            return 0;
+            return ['approved' => 0, 'skipped' => 0];
         }
 
         $n   = 0;
+        $skip = 0;
+        $taken = $this->pdo->prepare("SELECT 1 FROM pms_resolutions WHERE pms_reg_no = :c AND reg_no <> :r AND status = 'found' LIMIT 1");
         $get = $this->pdo->prepare("SELECT 1 FROM pms_suggestions WHERE reg_no = :r AND candidate = :c AND status = 'pending'");
         $set = $this->pdo->prepare("UPDATE pms_suggestions SET status = 'approved', decided_by = :s, decided_at = now() WHERE reg_no = :r AND candidate = :c");
         $res = $this->pdo->prepare(
@@ -216,6 +218,11 @@ final class PmsPointsSender
                 if ($get->fetchColumn() === false) {
                     continue;
                 }
+                $taken->execute([':c' => $c, ':r' => $r]);
+                if ($taken->fetchColumn() !== false) {
+                    $skip++;
+                    continue;
+                }
                 // Only one candidate can stand for a person.
                 $this->pdo->prepare("UPDATE pms_suggestions SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE reg_no = :r AND status = 'approved'")->execute([':r' => $r]);
                 $set->execute([':s' => $staffId, ':r' => $r, ':c' => $c]);
@@ -228,7 +235,56 @@ final class PmsPointsSender
             throw $e;
         }
 
-        return $n;
+        return ['approved' => $n, 'skipped' => $skip];
+    }
+
+    /**
+     * Staff type a PMS number for someone not found. If PMS has it, it is listed as a possible match with the evidence.
+     * @return array{ok: bool, message: string}
+     */
+    public function suggestOne(string $reg, string $candidate): array
+    {
+        $candidate = strtoupper(trim($candidate));
+
+        if (!$this->suggestionsReady()) {
+            return ['ok' => false, 'message' => 'The database update for this feature has not been applied yet.'];
+        }
+
+        if (!preg_match('/^[A-Z0-9\-]{3,12}$/', $candidate)) {
+            return ['ok' => false, 'message' => 'That does not look like a registration number.'];
+        }
+
+        $st = $this->pdo->prepare("SELECT p.name, p.id_number FROM pms_resolutions r JOIN participants p ON p.reg_no = r.reg_no WHERE r.reg_no = :r AND r.status = 'not_found'");
+        $st->execute([':r' => $reg]);
+        $me = $st->fetch();
+
+        if (!$me) {
+            return ['ok' => false, 'message' => 'This practitioner is not on the not-in-PMS list.'];
+        }
+
+        $reply = $this->client->registration($candidate);
+
+        if ($reply['status'] === PmsClient::UNAVAILABLE) {
+            return ['ok' => false, 'message' => 'PMS did not answer. Try again in a moment.'];
+        }
+
+        if ($reply['status'] === PmsClient::NOT_FOUND) {
+            return ['ok' => false, 'message' => 'PMS has no registration ' . $candidate . '.'];
+        }
+
+        $d = (array) $reply['data'];
+        $this->pdo->prepare(
+            'INSERT INTO pms_suggestions (reg_no, candidate, pms_name, name_match, id_state) VALUES (:r, :c, :n, :m, :i)
+             ON CONFLICT (reg_no, candidate) DO UPDATE SET pms_name = EXCLUDED.pms_name, name_match = EXCLUDED.name_match, id_state = EXCLUDED.id_state'
+        )->execute([
+            ':r' => $reg,
+            ':c' => strtoupper(trim((string) ($d['reg_number'] ?? ''))) ?: $candidate,
+            ':n' => substr(PmsAutofill::fullName($d), 0, 255),
+            ':m' => self::sameName((string) $me['name'], $d) ? 'true' : 'false',
+            ':i' => self::idState((string) $me['id_number'], PmsAutofill::idFrom($d)),
+        ]);
+
+        return ['ok' => true, 'message' => 'Found. Review it below.'];
     }
 
     /** Other ways PMS may hold the same number. */
@@ -298,6 +354,19 @@ final class PmsPointsSender
         $batch  = date('YmdHis') . '-' . bin2hex(random_bytes(3));
         $result = ['sent' => 0, 'failed' => 0, 'uncertain' => 0, 'message' => ''];
         $num    = static fn(float $v) => fmod($v, 1.0) === 0.0 ? (int) $v : round($v, 2);
+
+        // Two practitioners must never end up on the same PMS number: PMS does not de-duplicate and would credit it twice.
+        $live = $this->pdo->prepare("SELECT pms_reg_no FROM pms_points_sends WHERE event_id = :e AND status <> 'failed'");
+        $live->execute([':e' => $eventId]);
+        $used  = array_flip($live->fetchAll(\PDO::FETCH_COLUMN));
+        $items = array_values(array_filter($items, static function ($it) use (&$used) {
+            if (isset($used[$it['pms_reg_no']])) {
+                return false;
+            }
+            $used[$it['pms_reg_no']] = true;
+
+            return true;
+        }));
 
         foreach (array_chunk($items, self::CHUNK) as $chunk) {
             // Reserve the rows first. The unique index refuses anyone already sent or of unknown outcome.

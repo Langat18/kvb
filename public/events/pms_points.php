@@ -106,30 +106,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if ($act === 'resolve' || $act === 'recheck') {
+    $staffId = (int) ($_SESSION['user_id'] ?? 0) ?: null;
+
+    // Calls made by the page's own script. Each does one small step, so no request runs long.
+    if (in_array($act, ['resolve', 'recheck', 'suggest', 'send_step'], true)) {
         header('Content-Type: application/json');
+
         if ($act === 'recheck') {
             $sender->recheck($regList);
         }
-        $left = $sender->resolve($regList);
-        echo json_encode(['left' => $left, 'total' => count($regList)]);
-        exit;
-    } elseif ($act === 'approve') {
-        $pairs = array_filter((array) ($_POST['pair'] ?? []), 'is_string');
-        $n = $pairs ? $sender->approve(array_slice($pairs, 0, 300), (int) ($_SESSION['user_id'] ?? 0) ?: null) : 0;
-        $_SESSION['pp_flash'] = $n > 0 ? ['ok', $n . ' practitioner(s) approved and now ready to send.'] : ['warn', 'Nothing was selected.'];
-    } elseif ($act === 'release') {
-        $n = $sender->releaseUncertain($eventId);
-        $_SESSION['pp_flash'] = ['ok', $n . ' record(s) released for retry.'];
-    } elseif ($act === 'send') {
+
+        if ($act === 'resolve' || $act === 'recheck') {
+            echo json_encode(['left' => $sender->resolve($regList), 'total' => count($regList)]);
+            exit;
+        }
+
+        if ($act === 'suggest') {
+            $reg = (string) ($_POST['reg_no'] ?? '');
+            echo json_encode(in_array($reg, $regList, true) ? $sender->suggestOne($reg, (string) ($_POST['candidate'] ?? '')) : ['ok' => false, 'message' => 'Unknown practitioner.']);
+            exit;
+        }
+
+        // send_step: one batch of the people still ready, then report how many are left.
+        $stop = static function (string $why) {
+            echo json_encode(['done' => true, 'message' => $why, 'left' => 0]);
+            exit;
+        };
+
+        if (!$canSend) { $stop('Sending to PMS is switched off.'); }
+        if (!$activityOk) { $stop('The activity number has not been confirmed with PMS, so nothing was sent.'); }
+        if ($today < $endDate) { $stop('The event has not ended yet.'); }
+        if (empty($_POST['confirm'])) { $stop('Tick the confirmation box before sending.'); }
+
+        if (!empty($_POST['first'])) {
+            $_SESSION['pp_tally'] = ['sent' => 0, 'failed' => 0, 'uncertain' => 0, 'note' => '', 'tried' => []];
+        }
+        $tally = $_SESSION['pp_tally'] ?? ['sent' => 0, 'failed' => 0, 'uncertain' => 0, 'note' => '', 'tried' => []];
+
         $res  = $sender->resolutions($regList);
         $done = $sender->sentFor($eventId);
-        $items = [];
-        $hoursBy = [];
-        // Hours are required by PMS but not shown, so they are worked out only here, for the people being sent.
-        if (!$canSend || !$activityOk || empty($_POST['confirm'])) {
-            $rows = [];
-        } else {
+        $todo = [];
+        foreach ($people as $p) {
+            $x = $res[$p['reg_no']] ?? null;
+            // Someone rejected in this run is not sent again in the same run.
+            if ($x && $x['status'] === 'found' && !in_array($p['reg_no'], $tally['tried'], true) && (!isset($done[$p['reg_no']]) || $done[$p['reg_no']]['status'] === 'failed')) {
+                $todo[] = ['reg_no' => $p['reg_no'], 'pms_reg_no' => (string) $x['pms_reg_no'], 'points' => (float) $p['points'], 'hours' => 0.0];
+            }
+        }
+
+        $step = array_slice($todo, 0, PmsPointsSender::CHUNK);
+        $out  = ['sent' => 0, 'failed' => 0, 'uncertain' => 0, 'message' => ''];
+
+        if ($step) {
+            // Hours are required by PMS but not shown, so they are worked out here, for the people being sent.
             $st = $pdo->prepare(
                 "SELECT pl.reg_no, ROUND((SUM(EXTRACT(EPOCH FROM (es.end_time - es.start_time))) / 3600)::numeric, 1) AS hours
                  FROM points_ledger pl JOIN attendance a ON a.id = pl.attendance_id JOIN event_sessions es ON es.id = a.session_id
@@ -137,27 +166,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $st->execute([':event' => $eventId]);
             $hoursBy = array_column($st->fetchAll(), 'hours', 'reg_no');
-        }
-        foreach ($rows as $r) {
-            $x = $res[$r['reg_no']] ?? null;
-            if ($x && $x['status'] === 'found' && (!isset($done[$r['reg_no']]) || $done[$r['reg_no']]['status'] === 'failed')) {
-                $items[] = ['reg_no' => $r['reg_no'], 'pms_reg_no' => (string) $x['pms_reg_no'], 'points' => (float) $r['points'], 'hours' => (float) ($hoursBy[$r['reg_no']] ?? 0)];
+            foreach ($step as &$it) {
+                $it['hours'] = (float) ($hoursBy[$it['reg_no']] ?? 0);
             }
+            unset($it);
+
+            $out = $sender->send($eventId, $code, $endDate, (string) ($pmsData['title'] ?? $title), $provider, $step, $staffId);
         }
 
-        if (!$canSend) {
-            $_SESSION['pp_flash'] = ['warn', 'Sending to PMS is switched off.'];
-        } elseif (!$activityOk) {
-            $_SESSION['pp_flash'] = ['warn', 'The activity number has not been confirmed with PMS, so nothing was sent.'];
-        } elseif (empty($_POST['confirm'])) {
-            $_SESSION['pp_flash'] = ['warn', 'Tick the confirmation box before sending.'];
-        } elseif (!$items) {
-            $_SESSION['pp_flash'] = ['warn', 'There is nothing left to send.'];
-        } else {
-            $out = $sender->send($eventId, $code, $endDate, (string) ($pmsData['title'] ?? $title), $provider, $items, (int) ($_SESSION['user_id'] ?? 0) ?: null);
-            $_SESSION['pp_flash'] = [($out['failed'] + $out['uncertain']) === 0 ? 'ok' : 'warn',
-                'Sent ' . $out['sent'] . ', rejected ' . $out['failed'] . ', outcome unclear ' . $out['uncertain'] . '.' . ($out['message'] !== '' ? ' PMS said: ' . $out['message'] : '')];
+        foreach (['sent', 'failed', 'uncertain'] as $k) {
+            $tally[$k] += $out[$k];
         }
+        $tally['tried'] = array_merge($tally['tried'], array_column($step, 'reg_no'));
+        $tally['note'] = $out['message'] !== '' ? $out['message'] : $tally['note'];
+        $_SESSION['pp_tally'] = $tally;
+
+        // Stop on anything unclear, or when a whole batch was refused, rather than keep sending into a problem.
+        $left     = max(0, count($todo) - count($step));
+        $finished = !$step || $left === 0 || $out['uncertain'] > 0 || ($out['sent'] === 0 && $out['failed'] > 0);
+        $total    = count($todo) + count($tally['tried']) - count($step);
+
+        if ($finished) {
+            $_SESSION['pp_flash'] = [($tally['failed'] + $tally['uncertain']) === 0 ? 'ok' : 'warn',
+                'Sent ' . $tally['sent'] . ', rejected ' . $tally['failed'] . ', outcome unclear ' . $tally['uncertain'] . '.' . ($tally['note'] !== '' ? ' PMS said: ' . $tally['note'] : '')];
+            unset($_SESSION['pp_tally']);
+        }
+
+        echo json_encode(['done' => $finished, 'left' => $left, 'sent' => $tally['sent'], 'total' => $total + count($step)]);
+        exit;
+    }
+
+    if ($act === 'approve') {
+        $pairs = array_filter((array) ($_POST['pair'] ?? []), 'is_string');
+        $out   = $pairs ? $sender->approve(array_slice($pairs, 0, 300), $staffId) : ['approved' => 0, 'skipped' => 0];
+        $_SESSION['pp_flash'] = $out['approved'] > 0 || $out['skipped'] > 0
+            ? [$out['skipped'] ? 'warn' : 'ok', $out['approved'] . ' approved and ready to send.' . ($out['skipped'] ? ' ' . $out['skipped'] . ' skipped because that PMS number already belongs to another practitioner.' : '')]
+            : ['warn', 'Nothing was selected.'];
+    } elseif ($act === 'release') {
+        $n = $sender->releaseUncertain($eventId);
+        $_SESSION['pp_flash'] = ['ok', $n . ' record(s) released for retry.'];
     }
     header('Location: ' . $self);
     exit;
@@ -289,6 +336,11 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .pp-cand em { font-style:normal; font-size:.72rem; font-weight:600; padding:.05rem .45rem; border-radius:99px; background:var(--warn-bg); color:var(--warn); margin-left:.25rem; }
 .pp-cand em.g { background:var(--ok-bg); color:var(--ok); } .pp-cand em.r { background:var(--bad-bg); color:var(--bad); }
 .pp-approve { display:flex; gap:.75rem; align-items:center; padding:.7rem 1.1rem; border-bottom:1px solid var(--line); background:#fffbeb; }
+.pp [hidden] { display:none !important; }
+.pp-man { display:flex; gap:.4rem; margin-top:.4rem; align-items:center; }
+.pp-man input { width:9rem; padding:.3rem .55rem; border:1px solid var(--line); border-radius:6px; font:inherit; font-size:.8rem; }
+.pp-man .pp-btn { padding:.3rem .65rem; font-size:.78rem; }
+.pp-man .pp-note { font-size:.75rem; }
 .pp-empty { padding:2rem; text-align:center; color:var(--muted); }
 @media (max-width:760px) { .pp-steps { grid-template-columns:1fr; } .pp-step { border-right:0; border-bottom:1px solid var(--line); } .pp-table th:nth-child(3), .pp-table td:nth-child(3) { display:none; } }
 @media print { .pp-steps, .pp-search, .pp-chips, .pp-head a { display:none; } .pp-scroll { max-height:none; } }
@@ -340,12 +392,12 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <?php endif; ?>
                 </div>
             </div>
-            <form method="post" class="pp-step">
+            <form method="post" class="pp-step" id="pp-send">
                 <span class="k">3 &middot; Send</span>
                 <span class="big"><?= $fmtPoints($readyPts) ?> points</span>
                 <input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>"><input type="hidden" name="action" value="send">
                 <label class="pp-confirm"><input type="checkbox" name="confirm" value="1"<?= $sendBlockers ? ' disabled' : '' ?>> <span>I have reviewed the list. Send <?= $cnt['ready'] ?> record(s) to PMS. This cannot be undone from here.</span></label>
-                <div class="actions"><button class="pp-btn primary"<?= $sendBlockers ? ' disabled' : '' ?>>Send to PMS</button></div>
+                <div class="actions"><button class="pp-btn primary"<?= $sendBlockers ? ' disabled' : '' ?>>Send to PMS</button><span class="pp-note" id="pp-send-msg"></span></div>
                 <?php if ($sendBlockers): ?><ul class="pp-blockers"><?php foreach ($sendBlockers as $b): ?><li><?= $h($b) ?></li><?php endforeach; ?></ul><?php endif; ?>
             </form>
         </div>
@@ -388,6 +440,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                 . ' <em class="' . ($c['id_state'] === 'match' ? 'g' : ($c['id_state'] === 'differs' ? 'r' : 'a')) . '">' . $h($idLabel[$c['id_state']]) . '</em></span></label>';
                         }
                         echo '</div>';
+                        echo '<div class="pp-man"><input type="text" maxlength="12" placeholder="PMS number" aria-label="Try another PMS registration number for ' . $h($r['reg_no']) . '" data-reg="' . $h($r['reg_no']) . '"><button type="button" class="pp-btn pp-man-go">Look up</button><span class="pp-note"></span></div>';
                     }
                     if ($r['detail']) { echo ' <span class="pp-note">' . $h($r['detail']) . '</span>'; }
                     if (!empty($r['note'])) { echo ' <span class="pp-note">last try: ' . $h($r['note']) . '</span>'; }
@@ -431,6 +484,41 @@ require __DIR__ . '/../templates/sidebar_data.php';
             step();
         });
     }
+
+    // Send in small steps so a long list never runs into the server's time limit.
+    var sendForm = document.getElementById('pp-send');
+    if (sendForm) {
+        sendForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var btn = sendForm.querySelector('button.primary'), msg = document.getElementById('pp-send-msg'), box = sendForm.querySelector('input[name=confirm]'), first = true;
+            if (!box.checked) { msg.textContent = 'Tick the confirmation box first.'; return; }
+            btn.disabled = true; box.disabled = true;
+            (function step() {
+                fetch(location.href, { method: 'POST', body: new URLSearchParams({ csrf_token: csrf, action: 'send_step', confirm: '1', first: first ? '1' : '' }) })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        first = false;
+                        if (d.done) { location.reload(); return; }
+                        msg.textContent = 'Sent ' + d.sent + ' of ' + d.total + '\u2026';
+                        step();
+                    })
+                    .catch(function () { msg.textContent = 'Stopped. Reload to see what was sent before trying again.'; });
+            })();
+        });
+    }
+
+    // Staff can try another PMS number for someone who was not found.
+    Array.prototype.forEach.call(document.querySelectorAll('.pp-man-go'), function (b) {
+        b.addEventListener('click', function () {
+            var box = b.parentNode.querySelector('input'), note = b.parentNode.querySelector('.pp-note');
+            if (!box.value.trim()) { return; }
+            b.disabled = true; note.textContent = 'Looking up\u2026';
+            fetch(location.href, { method: 'POST', body: new URLSearchParams({ csrf_token: csrf, action: 'suggest', reg_no: box.getAttribute('data-reg'), candidate: box.value }) })
+                .then(function (r) { return r.json(); })
+                .then(function (d) { if (d.ok) { location.reload(); } else { note.textContent = d.message; b.disabled = false; } })
+                .catch(function () { note.textContent = 'Could not reach the server.'; b.disabled = false; });
+        });
+    });
 
     var q = document.getElementById('pp-q');
     if (!q) { return; }
