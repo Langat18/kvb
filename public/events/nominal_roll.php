@@ -311,18 +311,6 @@ if ($format === 'excel') {
     $writer->save('php://output');
     exit;
 }
-
-// PDF download: the page below is rendered into a buffer and converted at the end.
-$isPdf   = $format === 'pdf';
-if ($isPdf) {
-    \VetBoard\PdfRenderer::refuseIfTooLarge(count($participants), 450);
-}
-$logoSrc = $isPdf
-    ? \VetBoard\PdfRenderer::dataUri(__DIR__ . '/../assets/img/kvb_logo.png')
-    : '/assets/img/kvb_logo.png';
-if ($isPdf) {
-    ob_start();
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -352,14 +340,6 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
     .no-print { display: none !important; }
     body { padding: .5cm 1cm; }
 }
-<?php if ($isPdf): ?>
-@page { margin: 1cm 1cm 1.4cm 1cm; }
-body { padding: 0; }
-.doc-header { display: block; overflow: hidden; }
-.doc-header img { float: left; margin-right: 14px; }
-.doc-header-text { overflow: hidden; padding-top: 6px; }
-.doc-foot { position: fixed; left: 0; right: 0; bottom: -0.95cm; margin: 0 !important; }
-<?php endif; ?>
 @media screen and (max-width: 900px) {
     body { padding: 1rem !important; }
     table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
@@ -370,13 +350,9 @@ body { padding: 0; }
 </head>
 <body>
 
-<?php if (!$isPdf): ?>
 <div class="no-print">
     <a href="?token=<?= urlencode($_GET['token']) ?>&format=excel" style="padding:.4rem .9rem;background:#1a7b32;color:#fff;text-decoration:none;border-radius:6px;font-size:.85rem;">
         Download Excel
-    </a>
-    <a href="?token=<?= urlencode($_GET['token']) ?>&format=pdf" style="padding:.4rem .9rem;background:#9b1c1c;color:#fff;text-decoration:none;border-radius:6px;font-size:.85rem;">
-        Download PDF
     </a>
     <a href="?token=<?= urlencode($_GET['token']) ?>&format=word" style="padding:.4rem .9rem;background:#1a3a6a;color:#fff;text-decoration:none;border-radius:6px;font-size:.85rem;">
         Download Word
@@ -385,10 +361,9 @@ body { padding: 0; }
         Print
     </button>
 </div>
-<?php endif; ?>
 
 <div class="doc-header">
-    <img src="<?= $logoSrc ?>" alt="KVB Logo">
+    <img src="/assets/img/kvb_logo.png" alt="KVB Logo">
     <div class="doc-header-text">
         <h1>Kenya Veterinary Board</h1>
         <h2>Event Nominal Roll</h2>
@@ -493,14 +468,9 @@ body { padding: 0; }
     </tbody>
 </table>
 
-<div class="doc-foot" style="font-size:7.5pt;color:#777;text-align:center;margin-top:1rem;border-top:1px solid #ccc;padding-top:.5rem;">
+<div style="font-size:7.5pt;color:#777;text-align:center;margin-top:1rem;border-top:1px solid #ccc;padding-top:.5rem;">
     Kenya Veterinary Board &mdash; Printed by <?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?> on <?= date('d M Y') ?>
 </div>
 
 </body>
 </html>
-<?php
-if ($isPdf) {
-    $pdfName = 'Nominal_Roll_' . preg_replace('/[^a-zA-Z0-9]/', '_', $event['title']) . '.pdf';
-    \VetBoard\PdfRenderer::stream((string) ob_get_clean(), $pdfName);
-}

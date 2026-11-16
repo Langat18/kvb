@@ -346,7 +346,7 @@ Staff with the right permission work through these on the event's Pending Approv
 | Correct a registrant's details | Event page, participant Actions menu | edit_attendee_details |
 | Add points by hand | Participant Actions menu | award_manual_points |
 | Remove a registration | Participant Actions menu | delete_registrations |
-| Print or download (PDF, Excel) the attendance register or the nominal roll | Event page | print_attendance_register |
+| Print the attendance register or nominal roll, or download them (register: Excel, PDF; nominal roll: Excel, Word) | Event page | print_attendance_register |
 | Check points against PMS | Event page, PMS Points | manage_events |
 | Review PMS matches and send points to PMS | Event page, PMS Points | send_pms_points |
 | Approve or deny held sign-ins | Pending Approvals | review_flagged_attendance |
@@ -394,9 +394,9 @@ Open an event, then PMS Points. Anyone who manages events can run step 1. Steps 
 
 Sending needs `pms_points_send` set to `on`, an activity number that PMS confirms, and an event that has ended. Points are due in PMS 3 days after the event ends. The page `/reports/pms_unsent.php` lists everyone whose points had not reached PMS by then, with the reason.
 
-### Downloading the attendance register and nominal roll
+### Downloading the attendance register
 
-Both pages have Download Excel, Download PDF and Print. The PDF carries the same layout as the printed page, on A4 landscape with page numbers. The buttons do not appear on a printed page. A PDF is built in memory, so very long lists are refused with a message pointing to Excel or Print: more than 700 attendees on a register, or more than 450 participants on a nominal roll.
+The attendance register has Download Excel, Download PDF and Print. The PDF carries the same layout as the printed page, on A4 landscape with page numbers. The buttons do not appear on a printed page, on the nominal roll either. A PDF is built in memory, so a register of more than 700 attendees is refused with a message pointing to Excel or Print. The nominal roll is available as Excel, Word and Print.
 
 ### Back up the database every night
 
