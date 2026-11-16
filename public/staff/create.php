@@ -18,6 +18,11 @@ $user      = Auth::user();
 $roleModel = new Role();
 $roles     = $roleModel->list(true);
 
+// Only an admin can create another admin.
+if ($user['role'] !== \VetBoard\Staff::ADMIN_ROLE) {
+    $roles = array_values(array_filter($roles, static fn(array $r): bool => $r['item_key'] !== \VetBoard\Staff::ADMIN_ROLE));
+}
+
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => '/index.php'],
     ['label' => 'Staff', 'url' => '/staff/index.php'],
@@ -41,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         $staffModel = new Staff();
-        $result     = $staffModel->createWithInvite($name, $email, $roleId);
+        $result     = $staffModel->createWithInvite($name, $email, $roleId, (string) $user['role']);
 
         if ($result['token'] !== null) {
             $appUrl        = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8000', '/');

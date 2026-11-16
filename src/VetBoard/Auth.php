@@ -20,6 +20,7 @@ class Auth
         'edit_attendee_details'      => ['view_events'],
         'award_manual_points'        => ['view_events'],
         'delete_registrations'       => ['view_events'],
+        'send_pms_points'            => ['view_events'],
     ];
 
     public static function startSession(): void
