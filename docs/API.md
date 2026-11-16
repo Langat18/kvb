@@ -78,7 +78,7 @@ The reply is `{"status": "..."}`. Only `ok` carries data: `{"status": "ok", "dat
 | Address | Returns | Access |
 | --- | --- | --- |
 | `GET /events/calendar.php?token={event token}` | An iCalendar file (`.ics`) with the event's title, dates, venue, mode and coordinator, as a multi-day all-day entry. A missing token gives HTTP 400, an unknown one HTTP 404. | Public. Anyone with the event's token can fetch it. |
-| `/events/print.php`, `/events/nominal_roll.php`, `/points/leaderboard.php`, `/points/print.php` | Excel (`.xlsx`) or Word (`.docx`) files: attendance register, nominal roll, leaderboard, a practitioner's points statement. | Staff login and the matching permission. Meant to be downloaded from the pages, not scripted. |
+| `/events/print.php`, `/events/nominal_roll.php`, `/points/leaderboard.php`, `/points/print.php` | Excel (`.xlsx`), Word (`.docx`) or, for the attendance register only, PDF files (`?format=pdf`): attendance register, nominal roll, leaderboard, a practitioner's points statement. | Staff login and the matching permission. Meant to be downloaded from the pages, not scripted. |
 
 The event token is the one in the registration link, `…/events/register?token=…`. It is long and random, so it works as an unguessable key, but treat it as public once you have shared the link.
 

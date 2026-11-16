@@ -13,7 +13,15 @@ use VetBoard\PmsClient;
 use VetBoard\PmsPointsSender;
 
 Auth::startSession();
-Auth::requirePermission('manage_events');
+Auth::requireLogin();
+
+// Event managers run the checks. Only holders of "Send Points to PMS" (Admin and
+// Director by default) review the matches and send.
+$isReviewer = Auth::can('send_pms_points');
+if (!$isReviewer && !Auth::can('manage_events')) {
+    http_response_code(403);
+    die('Access denied.');
+}
 
 if (empty($_GET['token'])) {
     header('Location: /events/index.php');
@@ -107,6 +115,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $staffId = (int) ($_SESSION['user_id'] ?? 0) ?: null;
+
+    // Reviewing and sending are reserved for staff with the send permission, whatever the page shows.
+    if (!$isReviewer && in_array($act, ['approve', 'release', 'send_step'], true)) {
+        $why = 'Only staff with permission to send points to PMS (Admin and Director) can review matches and send.';
+        if ($act === 'send_step') {
+            header('Content-Type: application/json');
+            echo json_encode(['done' => true, 'message' => $why, 'left' => 0]);
+            exit;
+        }
+        $_SESSION['pp_flash'] = ['warn', $why];
+        header('Location: ' . $self);
+        exit;
+    }
 
     // Calls made by the page's own script. Each does one small step, so no request runs long.
     if (in_array($act, ['resolve', 'recheck', 'suggest', 'send_step'], true)) {
@@ -386,12 +407,19 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <?php if ($flaggedPending > 0): ?><span class="pp-note" style="color:var(--warn)"><?= $flaggedPending ?> flagged sign-in(s) still unreviewed, not included</span><?php endif; ?>
                 <div class="actions">
                     <?php if ($cnt['excluded'] > 0): ?><a class="pp-btn" href="<?= $h($self) ?>&amp;export=excluded">Download not-in-PMS list</a><?php endif; ?>
-                    <?php if ($cnt['held'] > 0): ?>
+                    <?php if ($cnt['held'] > 0 && $isReviewer): ?>
                     <form method="post"><input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>"><input type="hidden" name="action" value="release">
                     <button class="pp-btn" onclick="return confirm('Only do this after checking in PMS that these points were not credited. Continue?')">Release <?= $cnt['held'] ?> unclear</button></form>
                     <?php endif; ?>
                 </div>
             </div>
+            <?php if (!$isReviewer): ?>
+            <div class="pp-step">
+                <span class="k">3 &middot; Send</span>
+                <span class="big"><?= $fmtPoints($readyPts) ?> points</span>
+                <span class="pp-note">An Admin or Director reviews and sends these once the checks are done.</span>
+            </div>
+            <?php else: ?>
             <form method="post" class="pp-step" id="pp-send">
                 <span class="k">3 &middot; Send</span>
                 <span class="big"><?= $fmtPoints($readyPts) ?> points</span>
@@ -400,6 +428,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 <div class="actions"><button class="pp-btn primary"<?= $sendBlockers ? ' disabled' : '' ?>>Send to PMS</button><span class="pp-note" id="pp-send-msg"></span></div>
                 <?php if ($sendBlockers): ?><ul class="pp-blockers"><?php foreach ($sendBlockers as $b): ?><li><?= $h($b) ?></li><?php endforeach; ?></ul><?php endif; ?>
             </form>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -415,11 +444,13 @@ require __DIR__ . '/../templates/sidebar_data.php';
             </div>
             <input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off">
         </div>
+        <?php if ($isReviewer): ?>
         <form method="post" id="pp-approve" class="pp-approve" hidden>
             <input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>"><input type="hidden" name="action" value="approve">
             <button class="pp-btn primary">Approve selected</button>
             <span class="pp-note">Tick the possible matches you are satisfied are the same person. Ticked ones move to Ready.</span>
         </form>
+        <?php endif; ?>
         <div class="pp-scroll">
         <table class="pp-table">
             <thead><tr><th>Reg No</th><th>Name</th><th class="n">Points</th><th>Status</th></tr></thead>
@@ -435,7 +466,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         echo '<div class="pp-cands">';
                         foreach ($r['sugg'] as $c) {
                             $pair = $r['reg_no'] . '>' . $c['candidate'];
-                            echo '<label class="pp-cand"><input type="checkbox" name="pair[]" form="pp-approve" value="' . $h($pair) . '"> <span><b class="pp-mono">' . $h($c['candidate']) . '</b> ' . $h($c['pms_name'])
+                            echo '<label class="pp-cand">' . ($isReviewer ? '<input type="checkbox" name="pair[]" form="pp-approve" value="' . $h($pair) . '"> ' : '') . '<span><b class="pp-mono">' . $h($c['candidate']) . '</b> ' . $h($c['pms_name'])
                                 . ' <em class="' . ($c['name_match'] ? 'g' : 'a') . '">' . ($c['name_match'] ? 'name matches' : 'name differs') . '</em>'
                                 . ' <em class="' . ($c['id_state'] === 'match' ? 'g' : ($c['id_state'] === 'differs' ? 'r' : 'a')) . '">' . $h($idLabel[$c['id_state']]) . '</em></span></label>';
                         }

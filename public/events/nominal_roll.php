@@ -337,7 +337,7 @@ body { font-family: 'Poppins', Arial, sans-serif; font-size: 10pt; color: #0f172
 .ok-badge { color: #0f5132; font-weight: 600; font-size: 7.5pt; }
 .no-print { margin-bottom: 1rem; display: flex; gap: .5rem; }
 @media print {
-    .no-print { display: none; }
+    .no-print { display: none !important; }
     body { padding: .5cm 1cm; }
 }
 @media screen and (max-width: 900px) {

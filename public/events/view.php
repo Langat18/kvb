@@ -119,7 +119,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <a href="/events/nominal_roll.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Nominal Roll</a>
             <a href="/events/print.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Attendance Register</a>
             <a href="/events/points_by_session.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost" target="_blank">Points by Session</a>
-            <?php if (Auth::can('manage_events')): ?>
+            <?php if (Auth::can('manage_events') || Auth::can('send_pms_points')): ?>
                 <a href="/events/pms_points.php?token=<?= urlencode($event['view_token']) ?>" class="btn btn-ghost">PMS Points</a>
             <?php endif; ?>
             <?php if (Auth::can('record_manual_attendance')): ?>

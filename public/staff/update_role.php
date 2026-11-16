@@ -23,7 +23,7 @@ $roleId = (int) ($_POST['role_id'] ?? 0);
 $staffModel = new Staff();
 
 try {
-    $staffModel->updateRole($id, $roleId);
+    $staffModel->updateRole($id, $roleId, (string) Auth::user()['role']);
     $_SESSION['success'] = 'Role updated successfully.';
 } catch (\InvalidArgumentException $e) {
     $_SESSION['error'] = $e->getMessage();

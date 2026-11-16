@@ -32,6 +32,7 @@ $offset      = ($currentPage - 1) * $perPage;
 
 $staffList = $staffModel->list([], $perPage, $offset);
 $roles     = $roleModel->list(true);
+$isAdmin   = $user['role'] === Staff::ADMIN_ROLE;   // only an admin can grant or change the Admin role
 
 require __DIR__ . '/../templates/sidebar_data.php';
 ?>
@@ -88,12 +89,15 @@ require __DIR__ . '/../templates/sidebar_data.php';
                         <?php if ((int) $s['id'] === (int) $user['id']): ?>
                             <?= htmlspecialchars($s['role_label'], ENT_QUOTES, 'UTF-8') ?>
                             <span style="color:var(--text-muted);font-size:.75rem;">(you)</span>
+                        <?php elseif ($s['role'] === Staff::ADMIN_ROLE && !$isAdmin): ?>
+                            <?= htmlspecialchars($s['role_label'], ENT_QUOTES, 'UTF-8') ?>
                         <?php else: ?>
                             <form method="POST" action="/staff/update_role.php" style="display:inline;">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="hidden" name="id" value="<?= (int) $s['id'] ?>">
                                 <select name="role_id" class="role-select" onchange="this.form.submit()">
                                     <?php foreach ($roles as $role): ?>
+                                        <?php if ($role['item_key'] === Staff::ADMIN_ROLE && !$isAdmin) { continue; } ?>
                                         <option value="<?= (int) $role['id'] ?>" <?= (int) $s['role_id'] === (int) $role['id'] ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($role['label'], ENT_QUOTES, 'UTF-8') ?>
                                         </option>
@@ -105,7 +109,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <td><?= $s['last_login_at'] ? date('d M Y H:i', strtotime($s['last_login_at'])) : 'Never' ?></td>
                     <td><?= $s['is_active'] ? 'Active' : 'Deactivated' ?></td>
                     <td>
-                        <?php if ((int) $s['id'] !== (int) $user['id']): ?>
+                        <?php if ((int) $s['id'] !== (int) $user['id'] && ($s['role'] !== Staff::ADMIN_ROLE || $isAdmin)): ?>
                             <a href="/staff/reset_password.php?id=<?= (int) $s['id'] ?>" class="btn btn-ghost btn-sm">Reset Password</a>
                             <form method="POST" action="/staff/toggle_active.php" style="display:inline;">
                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">

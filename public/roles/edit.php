@@ -38,6 +38,10 @@ $permissionGroups = [
         'keys'      => ['manage_departments', 'manage_lookups'],
         'selectAll' => true,
     ],
+    'PMS points' => [
+        'keys'      => ['send_pms_points'],
+        'selectAll' => false,
+    ],
     'Reporting' => [
         'keys'      => ['view_reports', 'view_leaderboard'],
         'selectAll' => true,

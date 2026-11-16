@@ -28,8 +28,13 @@ if ($id === (int) $user['id']) {
 }
 
 $staffModel = new Staff();
-$staffModel->setActive($id, $active);
-$_SESSION['success'] = $active ? 'Account reactivated.' : 'Account deactivated.';
+
+try {
+    $staffModel->setActive($id, $active, (string) $user['role']);
+    $_SESSION['success'] = $active ? 'Account reactivated.' : 'Account deactivated.';
+} catch (\InvalidArgumentException $e) {
+    $_SESSION['error'] = $e->getMessage();
+}
 
 header('Location: /staff/index.php');
 exit;

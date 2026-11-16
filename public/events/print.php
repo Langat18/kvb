@@ -123,6 +123,18 @@ if (($_GET['format'] ?? '') === 'excel') {
     $writer->save('php://output');
     exit;
 }
+
+// PDF download: the page below is rendered into a buffer and converted at the end.
+$isPdf   = ($_GET['format'] ?? '') === 'pdf';
+if ($isPdf) {
+    \VetBoard\PdfRenderer::refuseIfTooLarge(count($register['people']), 700);
+}
+$logoSrc = $isPdf
+    ? \VetBoard\PdfRenderer::dataUri(__DIR__ . '/../assets/img/kvb_logo.png')
+    : '/assets/img/kvb_logo.png';
+if ($isPdf) {
+    ob_start();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -160,7 +172,16 @@ tr { break-inside: avoid; }
 .report-toggle { margin: .75rem 0; }
 .report-toggle > summary { cursor: pointer; font-size: 9.5pt; font-weight: bold; color: #0f5132; padding: .35rem .6rem; border: 1px solid #ccc; border-radius: 4px; background: #f5f9f6; }
 .report-toggle[open] > summary { margin-bottom: .5rem; }
-@media print { .day-selector, .no-print { display: none; } .report-toggle:not([open]) { display: none; } body { padding: .5cm 1cm; } }
+.toolbar { margin-bottom: 1rem; display: flex; gap: .5rem; }
+@media print { .day-selector, .no-print, .toolbar { display: none !important; } .report-toggle:not([open]) { display: none; } body { padding: .5cm 1cm; } }
+<?php if ($isPdf): ?>
+@page { margin: 1cm 1cm 1.4cm 1cm; }
+body { padding: 0; }
+.doc-header { display: block; overflow: hidden; }
+.doc-header img { float: left; margin-right: 14px; }
+.doc-header-text { overflow: hidden; padding-top: 6px; }
+.footer { position: fixed; left: 0; right: 0; bottom: -0.95cm; margin: 0; }
+<?php endif; ?>
 @media screen and (max-width: 900px) {
     body { padding: 1rem !important; }
     table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
@@ -171,13 +192,16 @@ tr { break-inside: avoid; }
 </head>
 <body>
 
-<div class="no-print" style="margin-bottom:1rem;display:flex;gap:.5rem;">
+<?php if (!$isPdf): ?>
+<div class="no-print toolbar">
     <a href="?token=<?= urlencode($event['view_token']) ?>&date=<?= urlencode($selectedDate) ?>&format=excel" style="padding:.4rem .9rem;background:#1a7b32;color:#fff;text-decoration:none;border-radius:6px;font-size:.85rem;">Download Excel</a>
+    <a href="?token=<?= urlencode($event['view_token']) ?>&date=<?= urlencode($selectedDate) ?>&format=pdf" style="padding:.4rem .9rem;background:#9b1c1c;color:#fff;text-decoration:none;border-radius:6px;font-size:.85rem;">Download PDF</a>
     <button onclick="window.print()" style="padding:.4rem .9rem;background:#0f5132;color:#fff;border:none;border-radius:6px;font-size:.85rem;cursor:pointer;">Print</button>
 </div>
+<?php endif; ?>
 
 <div class="doc-header">
-    <img src="/assets/img/kvb_logo.png" alt="KVB Logo">
+    <img src="<?= $logoSrc ?>" alt="KVB Logo">
     <div class="doc-header-text">
         <h1>Kenya Veterinary Board</h1>
         <h2>Event Attendance Register</h2>
@@ -203,12 +227,14 @@ tr { break-inside: avoid; }
     </tr>
 </table>
 
+<?php if (!$isPdf): ?>
 <details class="report-toggle">
     <summary>Report</summary>
     <?php require __DIR__ . '/../templates/event_report.php'; ?>
 </details>
+<?php endif; ?>
 
-<?php if (!empty($dates)): ?>
+<?php if (!empty($dates) && !$isPdf): ?>
 <div class="day-selector no-print">
     <?php foreach ($dates as $d): ?>
         <a href="?token=<?= urlencode($event['view_token']) ?>&date=<?= $d ?>" class="<?= $d === $selectedDate ? 'active' : '' ?>">
@@ -259,3 +285,8 @@ tr { break-inside: avoid; }
 
 </body>
 </html>
+<?php
+if ($isPdf) {
+    $pdfName = 'Attendance_Register_' . preg_replace('/[^a-zA-Z0-9]/', '_', $event['title']) . '_' . preg_replace('/[^0-9-]/', '', $selectedDate) . '.pdf';
+    \VetBoard\PdfRenderer::stream((string) ob_get_clean(), $pdfName);
+}

@@ -56,7 +56,7 @@ class Staff
     }
 
     // Creates a staff account with no usable password 
-    public function createWithInvite(string $name, string $email, int $roleId): array
+    public function createWithInvite(string $name, string $email, int $roleId, string $actorRole): array
     {
         if (empty($name)) {
             throw new \InvalidArgumentException('Name is required.');
@@ -70,8 +70,14 @@ class Staff
             throw new \InvalidArgumentException('An account with this email already exists.');
         }
 
-        if ($roleId <= 0 || !(new Role())->findById($roleId)) {
+        $newRole = $roleId > 0 ? (new Role())->findById($roleId) : null;
+
+        if (!$newRole) {
             throw new \InvalidArgumentException('A valid role is required.');
+        }
+
+        if ($newRole['item_key'] === self::ADMIN_ROLE && $actorRole !== self::ADMIN_ROLE) {
+            throw new \InvalidArgumentException('Only an admin can create another admin.');
         }
 
         $unusablePassword = bin2hex(random_bytes(32));
@@ -188,10 +194,56 @@ class Staff
         return $result ?: null;
     }
 
-    public function updateRole(int $id, int $roleId): bool
+    /** Key of the system Admin role. Only an admin may grant it or change an admin account. */
+    public const ADMIN_ROLE = 'admin';
+
+    public function activeAdminCount(): int
     {
-        if (!(new Role())->findById($roleId)) {
+        $stmt = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM staff s JOIN roles r ON r.id = s.role_id
+             WHERE r.item_key = :k AND s.is_active = TRUE'
+        );
+        $stmt->execute([':k' => self::ADMIN_ROLE]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /** Throws unless the acting role may manage this account (admin accounts are admin-only). */
+    public function assertMayManage(int $targetId, string $actorRole): void
+    {
+        $target = $this->findById($targetId);
+
+        if ($target && $target['role'] === self::ADMIN_ROLE && $actorRole !== self::ADMIN_ROLE) {
+            throw new \InvalidArgumentException('Only an admin can change an admin account.');
+        }
+    }
+
+    /** Throws if the target is the only active admin, since removing them would lock everyone out. */
+    private function assertNotLastAdmin(int $targetId): void
+    {
+        $target = $this->findById($targetId);
+
+        if ($target && $target['role'] === self::ADMIN_ROLE && $target['is_active'] && $this->activeAdminCount() <= 1) {
+            throw new \InvalidArgumentException('There must always be at least one active admin.');
+        }
+    }
+
+    public function updateRole(int $id, int $roleId, string $actorRole): bool
+    {
+        $role = (new Role())->findById($roleId);
+
+        if (!$role) {
             throw new \InvalidArgumentException('Invalid role.');
+        }
+
+        if ($role['item_key'] === self::ADMIN_ROLE && $actorRole !== self::ADMIN_ROLE) {
+            throw new \InvalidArgumentException('Only an admin can make someone an admin.');
+        }
+
+        $this->assertMayManage($id, $actorRole);
+
+        if ($role['item_key'] !== self::ADMIN_ROLE) {
+            $this->assertNotLastAdmin($id);
         }
 
         $stmt = $this->pdo->prepare('UPDATE staff SET role_id = :role_id WHERE id = :id');
@@ -199,8 +251,14 @@ class Staff
         return $stmt->execute([':id' => $id, ':role_id' => $roleId]);
     }
 
-    public function setActive(int $id, bool $active): bool
+    public function setActive(int $id, bool $active, string $actorRole): bool
     {
+        $this->assertMayManage($id, $actorRole);
+
+        if (!$active) {
+            $this->assertNotLastAdmin($id);
+        }
+
         $stmt = $this->pdo->prepare('UPDATE staff SET is_active = :active WHERE id = :id');
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->bindValue(':active', $active, PDO::PARAM_BOOL);

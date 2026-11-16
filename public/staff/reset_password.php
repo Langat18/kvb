@@ -29,6 +29,15 @@ if (!$target) {
     exit;
 }
 
+// An admin's password can only be reset by an admin.
+try {
+    $staffModel->assertMayManage($targetId, (string) $user['role']);
+} catch (\InvalidArgumentException $e) {
+    $_SESSION['error'] = $e->getMessage();
+    header('Location: /staff/index.php');
+    exit;
+}
+
 $breadcrumbs = [
     ['label' => 'Dashboard', 'url' => '/index.php'],
     ['label' => 'Staff', 'url' => '/staff/index.php'],

@@ -12,7 +12,8 @@ A practitioner scans an event's QR code, registers once, and then signs in to ea
 | --- | --- |
 | Practitioner | Registers for an event, signs in to sessions, takes quizzes, looks up their own points. No account needed. |
 | Staff | Creates and edits events, records manual attendance, reviews flagged sign-ins, prints registers. What each person can do is set by their role. |
-| Administrator | Everything staff can do, plus staff accounts, roles, providers, lookups and sign-in settings. |
+| Administrator | Everything staff can do, plus staff accounts, roles, providers, lookups and sign-in settings. An administrator can add other administrators. |
+| Director | Reviews the PMS matches and sends points to PMS, together with administrators. Other permissions are set on the Roles page. |
 
 ### The parts
 
@@ -113,7 +114,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Both `cpd_app` and `cpd_db` should show as running, and the database as healthy. The first build takes a few minutes because it installs the PHP libraries. The site now answers on port 8081 of the server.
+Both `cpd_app` and `cpd_db` should show as running, and the database as healthy. The first build takes a few minutes because it installs the PHP libraries. The site now answers on port 8081 of the server itself. The port is bound to `127.0.0.1` on purpose, so it is not reachable from the internet; only the web server in step 7 is. Docker bypasses the server's firewall for published ports, so do not change this to `8081:80`.
 
 ### 5. Load the database
 
@@ -345,7 +346,9 @@ Staff with the right permission work through these on the event's Pending Approv
 | Correct a registrant's details | Event page, participant Actions menu | edit_attendee_details |
 | Add points by hand | Participant Actions menu | award_manual_points |
 | Remove a registration | Participant Actions menu | delete_registrations |
-| Print the attendance register or the nominal roll | Event page | print_attendance_register |
+| Print the attendance register or nominal roll, or download them (register: Excel, PDF; nominal roll: Excel, Word) | Event page | print_attendance_register |
+| Check points against PMS | Event page, PMS Points | manage_events |
+| Review PMS matches and send points to PMS | Event page, PMS Points | send_pms_points |
 | Approve or deny held sign-ins | Pending Approvals | review_flagged_attendance |
 | Manage providers | Providers | manage_providers |
 | See the leaderboard | Points | view_leaderboard |
@@ -353,7 +356,9 @@ Staff with the right permission work through these on the event's Pending Approv
 | Add staff and set roles | Staff, Roles | manage_staff, manage_roles |
 | Edit event types, cadres and session windows | Lookups | manage_lookups |
 
-Roles are made up of these permissions. An administrator can create a new role on the Roles page and tick exactly what it should be able to do.
+Roles are made up of these permissions. An administrator can create a new role on the Roles page and tick exactly what it should be able to do. A permission added to a role applies the next time its members sign in.
+
+**Administrators.** The Admin role holds every permission. Only an administrator can create another administrator, give someone the Admin role, change or deactivate an administrator, or reset an administrator's password. The system always keeps at least one active administrator: the last one cannot be demoted or deactivated.
 
 ### Reports
 
@@ -381,13 +386,17 @@ WHERE setting_key = 'pms_registration_autofill';
 
 ### Sending points to PMS
 
-Open an event, then PMS Points. The page works in three steps:
+Open an event, then PMS Points. Anyone who manages events can run step 1. Steps 2 and 3 need the `send_pms_points` permission, which the Admin role has and which you can give to the Director role (and any other role) on the Roles page, under PMS points. Without it, the page shows the results of the checks and the number of points waiting, and waits for an administrator or director to review and send. The page works in three steps:
 
 1. **Check with PMS** looks up every practitioner who earned points. A number PMS does not know stays under Not in PMS. For those, the page lists close spellings that PMS does hold (for example `0908` as `VTA00908`), showing whether the name and the ID match. You can also type a PMS number for someone and look it up. Nothing is applied automatically.
 2. **Review.** On the Not in PMS tab, tick the possible matches you are satisfied are the same person and press Approve selected. They move to Ready. The same PMS number cannot be approved for two practitioners. The not-in-PMS list can be downloaded for that event.
 3. **Send.** Tick the confirmation box and press Send to PMS. Points go in batches of 25. Nobody is ever sent twice: each attempt is recorded, and if PMS gives no clear answer the people in that batch are held as outcome unclear until you have checked PMS and released them.
 
 Sending needs `pms_points_send` set to `on`, an activity number that PMS confirms, and an event that has ended. Points are due in PMS 3 days after the event ends. The page `/reports/pms_unsent.php` lists everyone whose points had not reached PMS by then, with the reason.
+
+### Downloading the attendance register
+
+The attendance register has Download Excel, Download PDF and Print. The PDF carries the same layout as the printed page, on A4 landscape with page numbers. The buttons do not appear on a printed page, on the nominal roll either. A PDF is built in memory, so a register of more than 700 attendees is refused with a message pointing to Excel or Print. The nominal roll is available as Excel, Word and Print.
 
 ### Back up the database every night
 
@@ -422,6 +431,8 @@ docker compose up -d --build         # Docker only
 ```
 
 On a server without Docker, run `sudo composer install --no-dev --optimize-autoloader` instead of the last line and reload Apache with `sudo systemctl reload apache2`.
+
+This version adds the PDF library. A Docker server must be rebuilt (`--build` above), not just have its files copied in. On a server without Docker, `composer install` fetches it. The new migration `045_send_pms_points_permission.sql` adds the send permission, makes sure the Admin role is active, and gives the Director role the send permission.
 
 If the update added migration files, apply only the new ones. Migrations are not tracked automatically and some will fail if run twice, so never re-run the whole folder. List what changed since the version you noted:
 
