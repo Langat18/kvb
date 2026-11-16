@@ -114,7 +114,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Both `cpd_app` and `cpd_db` should show as running, and the database as healthy. The first build takes a few minutes because it installs the PHP libraries. The site now answers on port 8081 of the server.
+Both `cpd_app` and `cpd_db` should show as running, and the database as healthy. The first build takes a few minutes because it installs the PHP libraries. The site now answers on port 8081 of the server itself. The port is bound to `127.0.0.1` on purpose, so it is not reachable from the internet; only the web server in step 7 is. Docker bypasses the server's firewall for published ports, so do not change this to `8081:80`.
 
 ### 5. Load the database
 
