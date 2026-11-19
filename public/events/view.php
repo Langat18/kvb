@@ -218,7 +218,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td>
-                        <?php if (empty($p['attendance'])): ?>
+                        <?php if (empty($p['attendance']) && empty($p['extra_points'])): ?>
                             &mdash;
                         <?php else: ?>
                             <div class="session-badges">
@@ -228,6 +228,13 @@ require __DIR__ . '/../templates/sidebar_data.php';
                                     <?php else: ?>
                                         <span class="chip ok" title="Verified"><?= htmlspecialchars($a['session_label'] ?? 'Unknown', ENT_QUOTES, 'UTF-8') ?></span>
                                     <?php endif; ?>
+                                <?php endforeach; ?>
+                                <?php foreach (($p['extra_points'] ?? []) as $x): ?>
+                                    <?php
+                                    $isBonus = $x['kind'] === 'presenter_bonus';
+                                    $label   = $isBonus ? 'Presenter bonus' : (preg_match('/^Manual award: (.+?) \(/', (string) $x['reason'], $m) ? $m[1] . ' (manual)' : 'Manual award');
+                                    ?>
+                                    <span class="chip manual" title="<?= htmlspecialchars(\VetBoard\Points::format((float) $x['points']) . ' points. ' . (string) $x['reason'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
                                 <?php endforeach; ?>
                             </div>
                         <?php endif; ?>

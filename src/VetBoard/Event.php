@@ -650,6 +650,14 @@ class Event
             );
             $ptsStmt->execute([':event_id' => $eventId, ':reg_no' => $participant['reg_no']]);
             $participant['points_earned'] = (float) $ptsStmt->fetchColumn();
+
+            // Points that are not tied to a sign-in (manual awards, presenter bonus), so the roster can explain the total.
+            $extraStmt = $this->pdo->prepare(
+                'SELECT kind, points, reason FROM points_ledger
+                 WHERE event_id = :event_id AND reg_no = :reg_no AND attendance_id IS NULL ORDER BY id'
+            );
+            $extraStmt->execute([':event_id' => $eventId, ':reg_no' => $participant['reg_no']]);
+            $participant['extra_points'] = $extraStmt->fetchAll();
         }
         unset($participant);
 
