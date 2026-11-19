@@ -376,7 +376,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $attendSuccess         = $_SESSION['attend_success']          ?? false;
-$attendSession         = $_SESSION['attend_session']          ?? '';
+$attendSession         = (string) ($_SESSION['attend_session'] ?? '');
 $attendFlagged         = $_SESSION['attend_flagged']          ?? false;
 $attendPointsDenied    = $_SESSION['attend_points_denied']    ?? false;
 $attendMethod          = $_SESSION['attend_method']           ?? '';
