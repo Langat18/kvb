@@ -22,15 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !Auth::validateCsrf((string) ($_POS
 
 $autofill = new PmsAutofill();
 
-if (!$autofill->enabled()) {
+if ($autofill->idMode() === null) {
     echo json_encode(['status' => 'off']);
     exit;
 }
 
-$remote    = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-$forwarded = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
-$viaProxy  = filter_var($remote, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
-$ip        = ($viaProxy && filter_var($forwarded, FILTER_VALIDATE_IP)) ? $forwarded : $remote;
+$ip = PmsAutofill::clientIp();
 
 try {
     $result = $autofill->verifyId((string) ($_POST['reg_no'] ?? ''), (string) ($_POST['id_part'] ?? ''), $ip);
@@ -38,5 +35,12 @@ try {
     error_log('PMS autofill failed: ' . $e->getMessage());
     $result = ['status' => 'unavailable'];
 }
+
+// The verified record stays on the server for this visit, so the full ID is never typed or sent again.
+unset($_SESSION['reg_verified']);
+if ($result['status'] === 'ok') {
+    $_SESSION['reg_verified'] = ['reg_no' => $result['reg_no'], 'id' => $result['id'], 'source' => $result['source'], 'at' => time()];
+}
+unset($result['id']);
 
 echo json_encode($result);
