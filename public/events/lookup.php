@@ -44,22 +44,35 @@ function maskPhone(string $phone): string
 
 $regNo = strtoupper(trim($_GET['reg_no'] ?? ''));
 
-if (empty($regNo) || !Participant::isValidRegNo($regNo)) {
-    echo json_encode(['found' => false]);
+if ($regNo === '' || !Participant::isValidRegNo($regNo)) {
+    echo json_encode(['status' => 'invalid']);
     exit;
 }
 
-$participant = (new Participant())->findByRegNo($regNo);
+// Step one: is this number known, and how is it spelled? Nothing about the person is revealed here.
+$autofill = new PmsAutofill();
 
-if (!$participant) {
-    echo json_encode(['found' => false, 'pms' => Participant::isValidNewRegNo($regNo) && (new PmsAutofill())->enabled()]);
+try {
+    $r = $autofill->resolve($regNo, PmsAutofill::clientIp());
+} catch (\Throwable $e) {
+    error_log('Registration lookup failed: ' . $e->getMessage());
+    $r = ['status' => 'unavailable'];
+}
+
+// The 4-character check is offered whenever it is switched on; otherwise the full ID is asked for.
+$verify = $autofill->idMode() !== null;
+
+if ($r['status'] === 'local') {
+    $p = $r['participant'];
+    echo json_encode([
+        'status' => 'local',
+        'reg_no' => $r['reg_no'],
+        'verify' => $verify,
+        'name'   => maskName((string) $p['name']),
+        'email'  => maskEmail((string) $p['email']),
+        'phone'  => maskPhone((string) ($p['phone'] ?? '')),
+    ]);
     exit;
 }
 
-echo json_encode([
-    'found'  => true,
-    'masked' => true,
-    'name'   => maskName((string) $participant['name']),
-    'email'  => maskEmail((string) $participant['email']),
-    'phone'  => maskPhone((string) ($participant['phone'] ?? '')),
-]);
+echo json_encode(['status' => $r['status'], 'reg_no' => $r['reg_no'] ?? $regNo, 'verify' => $verify && $r['status'] === 'pms']);

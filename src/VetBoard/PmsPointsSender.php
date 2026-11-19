@@ -290,15 +290,7 @@ final class PmsPointsSender
     /** Other ways PMS may hold the same number. */
     private static function spellings(string $reg): array
     {
-        $reg = strtoupper(trim($reg));
-        if (!preg_match('/^(?:VT[ABC])?(\d{1,5})$/', $reg, $m)) {
-            return [];
-        }
-
-        $d   = ltrim($m[1], '0') ?: '0';
-        $out = [$d, str_pad($d, 4, '0', STR_PAD_LEFT), 'VTA' . str_pad($d, 5, '0', STR_PAD_LEFT), 'VTB' . str_pad($d, 5, '0', STR_PAD_LEFT), 'VTC' . str_pad($d, 5, '0', STR_PAD_LEFT)];
-
-        return array_values(array_diff(array_unique($out), [$reg]));
+        return PmsAutofill::variants($reg, true);
     }
 
     private static function sameName(string $local, array $pms): bool

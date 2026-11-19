@@ -28,13 +28,19 @@ These serve the registration and event forms. They are listed so you know what t
 
 No login. Used by the registration form as the practitioner types. It never returns full personal details: names, emails and phone numbers come back partly hidden.
 
-| Situation | Response |
-| --- | --- |
-| Number missing or not a valid format | `{"found": false}` |
-| Valid number, not in the local list | `{"found": false, "pms": true}`. The `pms` flag is true when PMS autofill is switched on and the number is in the newer format. |
-| Number in the local list | `{"found": true, "masked": true, "name": "J*** K*****", "email": "j***@example.org", "phone": "07*****678"}` |
+This is step one of registration: is the number known, and how is it spelled? Spelling variants (padding, and a number typed without its VTA, VTB or VTC prefix) are tried against the KVB register, and the register's own spelling is returned as `reg_no`. The form then puts that spelling in the number box.
 
-Accepted number formats are 4 or 5 digits, or `VTA`, `VTB` or `VTC` followed by 5 digits. Older formats are also recognised.
+| `status` | Meaning |
+| --- | --- |
+| `invalid` | Missing or not a valid format. |
+| `local` | Already in this system. Carries `reg_no`, `verify` and a partly hidden `name`, `email` and `phone`. |
+| `pms` | Held by the KVB register. Carries `reg_no` (for example `VTC0857`) and `verify`. No personal details. |
+| `not_found` | Not on the register. The person fills the form in with their full ID. |
+| `ambiguous` | More than one register number matches what was typed. They must type it exactly as on their certificate. |
+| `unavailable` | The register could not be reached. |
+| `limited` | Too many lookups from this address (400 per 10 minutes). |
+
+`verify` is true when the 4-character check is on (`pms_id_check` is not `off`). Accepted formats are 4 or 5 digits, or `VTA`, `VTB` or `VTC` followed by 4 or 5 digits.
 
 #### Look up a provider by accreditation number
 
@@ -64,14 +70,14 @@ The reply is `{"status": "..."}`. Only `ok` carries data: `{"status": "ok", "dat
 
 | Status | Meaning |
 | --- | --- |
-| `ok` | The ID digits matched the PMS record. Details returned. |
+| `ok` | The 4 characters matched the KVB register, or the ID already on file for someone in this system. Details returned, with `source` (`pms` or `local`) and the confirmed `reg_no`. The full ID stays on the server for the visit, so registering does not ask for it again. |
 | `mismatch` | The ID digits did not match, or PMS holds no ID for that number. The two are not told apart. |
 | `not_found` | PMS has no such registration number. |
-| `local` | The person is already in the local list. Nothing is fetched. |
 | `limited` | Too many failed attempts. Repeated failures are limited per visitor address and per registration number. |
 | `unavailable` | PMS could not be reached or answered badly. |
-| `invalid` | The number or digits were malformed, or the CSRF token was wrong (HTTP 403). |
-| `off` | The autofill setting is switched off. |
+| `ambiguous` | More than one register number matches. |
+| `invalid` | The number or characters were malformed, or the CSRF token was wrong (HTTP 403). |
+| `off` | The 4-character check is switched off (`pms_id_check` is `off`). |
 
 ### Files the system produces
 

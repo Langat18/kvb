@@ -371,7 +371,7 @@ The PMS page lists approved CPD activities and providers copied from the Board's
 Optional settings control how PMS is used. They live in the `integration_settings` table:
 
 - `pms_registration_check` set to `observe` quietly compares each registration with the PMS record and stores the result in the pms_checks table. There is no screen for it yet, so read it with a query. It never blocks anyone.
-- `pms_registration_autofill` set to `on` lets a practitioner fill their details from the register by entering the first 4 characters of their ID number. The rest of the number is shown as dots and is never sent back. If the ID does not match, or PMS holds no ID for that number, the person fills the form in themselves.
+- `pms_registration_autofill` set to `on` makes the registration form check the registration number against the register first, trying the usual spellings, and record the register's own spelling (for example `VTC0857`). The person then confirms with 4 characters of their ID number, and their details are filled in. The same 4-character box is used for someone already in this system, checked against the ID on file. The full ID is not asked for again. If the characters do not match, or the number is not found, the person types their full ID and details; for someone already in the system the typed ID must match the one on file. Needs migration 047, which allows 4-digit VT numbers.
 - `pms_id_check` chooses which 4 characters are asked for: `first4` (the default when the row is absent), `last4`, or `off`.
 - `pms_points_send` set to `on` lets staff send an event's points to PMS from the event's PMS Points page. It is off by default.
 

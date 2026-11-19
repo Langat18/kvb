@@ -30,11 +30,12 @@ class Participant
         return (bool) preg_match('/^(\d{4,5}|VT[ABC]\d{5})$/', $regNo);
     }
 
-    public function create(array $data): string
+    // $pmsConfirmed: the KVB register holds this exact number, so its own spelling (for example VTC0857) is accepted.
+    public function create(array $data, bool $pmsConfirmed = false): string
     {
         $regNo = strtoupper(trim($data['reg_no'] ?? ''));
 
-        if (!self::isValidNewRegNo($regNo)) {
+        if (!($pmsConfirmed ? self::isValidRegNo($regNo) : self::isValidNewRegNo($regNo))) {
             throw new \InvalidArgumentException('Invalid registration number format.');
         }
 

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../config/database.php';
 use VetBoard\Auth;
 use VetBoard\Event;
 use VetBoard\Participant;
+use VetBoard\PmsAutofill;
 use VetBoard\Registration;
 
 Auth::startSession();
@@ -49,13 +50,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone    = trim($_POST['phone']              ?? '');
     $signature = trim($_POST['signature']         ?? '');
 
+    // Someone who passed the 4-character check keeps that result on the server: the full ID is taken from it.
+    $v = $_SESSION['reg_verified'] ?? null;
+    $verified = is_array($v) && ($v['reg_no'] ?? null) === $regNo && (int) ($v['at'] ?? 0) > time() - 1800 ? $v : null;
+
+    if ($verified) {
+        $idNumber = (string) $verified['id'];
+    }
+
     if (empty($regNo) || empty($idNumber) || empty($name) || empty($email) || empty($phone)) {
         $_SESSION['reg_error'] = 'All fields are required.';
         header('Location: /events/register.php?token=' . urlencode($token));
         exit;
     }
 
-    if (!Participant::isValidNewRegNo($regNo)) {
+    // A number that the KVB register holds in its own spelling (for example VTC0857) is accepted as it is.
+    $pmsSpelling = $verified !== null;
+
+    if (!($pmsSpelling ? Participant::isValidRegNo($regNo) : Participant::isValidNewRegNo($regNo))) {
         $_SESSION['reg_error'] = 'Check the registration number. Use 4 or 5 digits, or VTA, VTB or VTC followed by 5 digits.';
         header('Location: /events/register.php?token=' . urlencode($token));
         exit;
@@ -89,14 +101,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $existing = $participantModel->findByRegNo($regNo);
 
-        if (!$existing) {
+        if ($existing) {
+            // Someone already in the system: the details on file are used, and a hand-typed ID must match the one on file.
+            if (!$verified) {
+                $autofill = new PmsAutofill();
+                $ip       = PmsAutofill::clientIp();
+
+                if ($autofill->tooManyTries($regNo, $ip) || !PmsAutofill::sameId($idNumber, (string) $existing['id_number'])) {
+                    $autofill->failedTry($regNo, $ip);
+                    $_SESSION['reg_error'] = 'We could not match those details. Check your registration number and ID number.';
+                    header('Location: /events/register.php?token=' . urlencode($token));
+                    exit;
+                }
+            }
+
+            $name  = (string) $existing['name'];
+            $email = (string) $existing['email'];
+            $phone = (string) ($existing['phone'] ?? '');
+        } else {
             $participantModel->create([
                 'reg_no'    => $regNo,
                 'name'      => $name,
                 'id_number' => $idNumber,
                 'email'     => $email,
                 'phone'     => $phone,
-            ]);
+            ], $pmsSpelling);
         }
 
         $registrationModel = new Registration();
@@ -113,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Registration confirms interest, not presence 
         // It persists on reload (queried fresh from $event each
         // time), not a one-time session flash.
+        unset($_SESSION['reg_verified']);
         $_SESSION['reg_success']       = 'Registration successful.';
         $_SESSION['reg_success_regno'] = $regNo;
         header('Location: /events/register.php?token=' . urlencode($token) . '&done=1');
@@ -219,10 +249,10 @@ $isOnsite  = $event['event_mode'] === 'onsite';
             <div class="form-grid">
                 <div class="form-group">
                     <label for="reg_no">Registration Number <span class="required">*</span></label>
-                    <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234 or VTA1234">
+                    <input type="text" id="reg_no" name="reg_no" required placeholder="e.g. 1234, VTA00123 or VTC0857">
                     <small id="lookup-status" style="color:var(--text-muted);"></small>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="id-group">
                     <label for="id_number">ID Number <span class="required">*</span></label>
                     <input type="text" id="id_number" name="id_number" required>
                 </div>
@@ -230,14 +260,14 @@ $isOnsite  = $event['event_mode'] === 'onsite';
 
             <?php $idMode = (new \VetBoard\PmsAutofill())->idMode(); ?>
             <div class="form-group" id="dob-group" hidden>
-                <label for="dob">Fill my details from my ID</label>
+                <label for="dob">Confirm it is you</label>
                 <div class="idv">
                     <div class="idv-box">
                         <?php if ($idMode === 'last'): ?><span class="idv-mask" aria-hidden="true">&bull;&bull;&bull;&bull;</span><?php endif; ?>
                         <input type="text" id="dob" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234" aria-label="<?= $idMode === 'last' ? 'Last' : 'First' ?> 4 digits of your ID number">
                         <?php if ($idMode !== 'last'): ?><span class="idv-mask" aria-hidden="true">&bull;&bull;&bull;&bull;</span><?php endif; ?>
                     </div>
-                    <button type="button" class="btn btn-ghost" id="dob-fetch">Fill</button>
+                    <button type="button" class="btn btn-ghost" id="dob-fetch">Confirm</button>
                 </div>
             </div>
 
@@ -316,88 +346,119 @@ const lookupStatus = document.getElementById('lookup-status');
 let lookupTimer;
 
 let lookupFilled = false;
+let lookupSeq   = 0;
 
-function lockFields(data) {
-    lookupFilled = true;
-    document.getElementById('name').value  = data.name  ?? '';
-    document.getElementById('email').value = data.email ?? '';
-    document.getElementById('phone').value = data.phone ?? '';
-    ['name', 'email', 'phone'].forEach(id => {
-        document.getElementById(id).setAttribute('readonly', true);
-    });
-    lookupStatus.textContent = 'Please enter your ID number to confirm.';
-    lookupStatus.style.color = 'var(--kvb-green-dark)';
+const idMode    = <?= json_encode((new \VetBoard\PmsAutofill())->idMode()) ?>;
+const dobGroup  = document.getElementById('dob-group');
+const dobInput  = document.getElementById('dob');
+const idGroup   = document.getElementById('id-group');
+const idInput   = document.getElementById('id_number');
+const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+const person    = ['name', 'email', 'phone'];
+
+function say(text, colour) { lookupStatus.textContent = text; lookupStatus.style.color = colour || 'var(--text-muted)'; }
+const GOOD = 'var(--kvb-green-dark)', BAD = 'var(--kvb-red-dark)';
+
+// The full ID is asked for only when the 4-character check is not used or did not work.
+function needFullId(yes) {
+    idGroup.hidden = !yes;
+    idInput.disabled = !yes;
+    idInput.required = yes;
+    if (!yes) { idInput.value = ''; }
 }
+
+function showDob() { dobGroup.hidden = false; }
+function hideDob() { dobGroup.hidden = true; dobInput.value = ''; }
 
 function unlockFields() {
-    ['name', 'email', 'phone'].forEach(id => {
-        document.getElementById(id).removeAttribute('readonly');
-    });
+    person.forEach(id => document.getElementById(id).removeAttribute('readonly'));
     if (lookupFilled) {
-        ['name', 'email', 'phone'].forEach(id => { document.getElementById(id).value = ''; });
+        person.forEach(id => { document.getElementById(id).value = ''; });
         lookupFilled = false;
     }
-    lookupStatus.textContent = '';
+    say('');
     hideDob();
+    needFullId(true);
 }
 
-const idMode = <?= json_encode($idMode ?? null) ?>;
-const dobGroup  = document.getElementById('dob-group');
-    const dobInput  = document.getElementById('dob');
-    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-
-    function showDob() { dobGroup.hidden = false; }
-    function hideDob() { dobGroup.hidden = true; dobInput.value = ''; }
-
-    const dobMessages = {
-        mismatch: 'We could not match those details. Fill in the form yourself.',
-        invalid: 'Check the number and the 4 digits, or fill in the form yourself.',
-        not_found: 'Number not found on the KVB register. Fill in the form yourself.',
-        limited: 'Too many attempts. Please fill in the form yourself.',
-    };
-
-    document.getElementById('dob-fetch').addEventListener('click', () => {
-        if (dobInput.value.replace(/[^A-Za-z0-9]/g, '').length !== 4) { return; }
-
-        lookupStatus.textContent = 'Checking the KVB register\u2026';
-        lookupStatus.style.color = 'var(--text-muted)';
-
-        fetch('/events/pms_lookup.php', {
-            method: 'POST',
-            body: new URLSearchParams({ csrf_token: csrfToken, reg_no: regNoEl.value.trim(), id_part: dobInput.value }),
-        })
-            .then(r => r.json())
-            .then(d => {
-                if (d.status === 'ok') {
-                    document.getElementById('name').value  = d.data.name;
-                    document.getElementById('email').value = d.data.email;
-                    document.getElementById('phone').value = d.data.phone;
-                    lookupFilled = true;
-                    lookupStatus.textContent = 'Details filled from the KVB register. Please check them.';
-                    lookupStatus.style.color = 'var(--kvb-green-dark)';
-                    hideDob();
-                    return;
-                }
-                lookupStatus.textContent = dobMessages[d.status] || 'The KVB register is unavailable right now. Fill in the form yourself.';
-                lookupStatus.style.color = 'var(--kvb-red-dark)';
-            })
-            .catch(() => {
-                lookupStatus.textContent = 'The KVB register is unavailable right now. Fill in the form yourself.';
-                lookupStatus.style.color = 'var(--kvb-red-dark)';
-            });
+function fill(data, lock) {
+    lookupFilled = true;
+    person.forEach(id => {
+        const el = document.getElementById(id);
+        el.value = data[id] ?? '';
+        if (lock) { el.setAttribute('readonly', true); }
     });
+}
 
-    
+const checkMessages = {
+    mismatch:  'Those characters do not match. Try again, or enter your full ID number.',
+    invalid:   'Check the number and the 4 characters, or enter your full ID number.',
+    not_found: 'Number not found. Enter your full ID number and your details.',
+    ambiguous: 'More than one number matches. Type it exactly as on your registration certificate.',
+    limited:   'Too many attempts. Enter your full ID number and your details.',
+};
+
+function confirmId() {
+    if (dobInput.value.replace(/[^A-Za-z0-9]/g, '').length !== 4) { return; }
+    say('Checking\u2026');
+
+    fetch('/events/pms_lookup.php', {
+        method: 'POST',
+        body: new URLSearchParams({ csrf_token: csrfToken, reg_no: regNoEl.value.trim(), id_part: dobInput.value }),
+    })
+        .then(r => r.json())
+        .then(d => {
+            if (d.status === 'ok') {
+                regNoEl.value = d.reg_no;
+                fill(d.data, d.source === 'local');
+                hideDob();
+                needFullId(false);
+                say('Confirmed. Please check your details below.', GOOD);
+                return;
+            }
+            needFullId(true);
+            say(checkMessages[d.status] || 'The check is unavailable right now. Enter your full ID number and your details.', BAD);
+        })
+        .catch(() => { needFullId(true); say('The check is unavailable right now. Enter your full ID number and your details.', BAD); });
+}
+
+document.getElementById('dob-fetch').addEventListener('click', confirmId);
+dobInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); confirmId(); } });
+
+function handleLookup(d) {
+    if (d.status === 'local' || d.status === 'pms') {
+        if (d.reg_no) { regNoEl.value = d.reg_no; }
+        const who = d.status === 'local' ? ' (' + d.name + ')' : '';
+        if (d.verify && idMode) {
+            say('Found: ' + d.reg_no + who + '. Enter ' + (idMode === 'last' ? 'the last' : 'the first') + ' 4 characters of your ID number to continue.', GOOD);
+            needFullId(false);
+            showDob();
+        } else {
+            say('Found: ' + d.reg_no + who + '. Enter your ID number to continue.', GOOD);
+        }
+        return;
+    }
+    const m = {
+        not_found:   'This number was not found on the KVB register. Check it, or fill in the form yourself.',
+        ambiguous:   'More than one number matches. Type it exactly as on your registration certificate.',
+        unavailable: 'The KVB register could not be reached just now. Fill in the form yourself.',
+        limited:     'Too many lookups from this connection. Please wait a few minutes.',
+    };
+    if (m[d.status]) { say(m[d.status], d.status === 'not_found' ? 'var(--text-muted)' : BAD); }
+}
+
 regNoEl.addEventListener('input', () => {
     clearTimeout(lookupTimer);
     unlockFields();
+    const seq = ++lookupSeq;
     lookupTimer = setTimeout(() => {
         const regNo = regNoEl.value.trim();
         if (regNo.length < 4) return;
+        say('Checking the registration number\u2026');
         fetch('/events/lookup.php?reg_no=' + encodeURIComponent(regNo))
             .then(r => r.json())
-            .then(d => { if (d.found) { lockFields(d); } else if (d.pms && idMode) { showDob(); } })
-            .catch(() => {});
+            .then(d => { if (seq === lookupSeq) { say(''); handleLookup(d); } })
+            .catch(() => { if (seq === lookupSeq) { say(''); } });
     }, 500);
 });
 
