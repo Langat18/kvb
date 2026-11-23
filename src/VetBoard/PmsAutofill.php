@@ -258,6 +258,31 @@ final class PmsAutofill
         return strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $v));
     }
 
+    /**
+     * True when the KVB register holds exactly this registration number for a different ID than the one typed.
+     * Used to refuse a hand-typed registration that would put someone else's number against the wrong ID.
+     * Unreachable or not found on the register: false, so registering by hand still works.
+     */
+    public function registerHoldsDifferentId(string $regNo, string $typedId, string $ip): bool
+    {
+        $regNo = strtoupper(trim($regNo));
+
+        if (!$this->enabled() || $this->probeLimited($ip)) {
+            return false;
+        }
+
+        $r = $this->client->registrations([$regNo])[$regNo] ?? ['status' => PmsClient::UNAVAILABLE];
+        $this->log($ip, $regNo, 'probe');
+
+        if ($r['status'] !== PmsClient::FOUND || !is_array($r['data'])) {
+            return false;
+        }
+
+        $held = self::idFrom($r['data']);
+
+        return $held !== '' && !self::sameId($typedId, $held);
+    }
+
     /** Counts a failed try for a number typed by hand against an ID on file, so it cannot be guessed. */
     public function failedTry(string $regNo, string $ip): void
     {
