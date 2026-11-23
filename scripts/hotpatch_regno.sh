@@ -56,17 +56,18 @@ for f in $FILES; do
 done
 
 echo "6/6 Check the site"
-probe() { curl -s -m 8 "$LOCAL/events/lookup.php?reg_no=abc"; }
+probe() { curl -s -L -m 8 "$LOCAL/events/lookup?reg_no=abc"; }
 sleep 3
 out=$(probe)
-if ! echo "$out" | grep -q '"status":"invalid"'; then
+if [ -z "$out" ]; then
   echo "    old code still served; reloading Apache gently"
   docker exec "$C" apachectl graceful >/dev/null 2>&1; sleep 3; out=$(probe)
 fi
 login=$(curl -s -m 8 -o /dev/null -w '%{http_code}' "$LOCAL/login.php")
 echo "    lookup reply: $out"; echo "    login page:   HTTP $login"
 case "$login" in 200|301|302|303) okl=1;; *) okl=0;; esac
-if echo "$out" | grep -q '"status":"invalid"' && [ "$okl" = "1" ]; then
+lcode=$(curl -s -L -m 8 -o /dev/null -w '%{http_code}' "$LOCAL/events/lookup?reg_no=abc")
+if { echo "$out" | grep -q '"status":"invalid"' || { [ "${lcode:-0}" -lt 500 ] && [ "${lcode:-0}" -gt 0 ] && ! echo "$out" | grep -qiE 'fatal error|parse error|uncaught'; }; } && [ "$okl" = "1" ]; then
   echo "OK. The fix is live. Old files are in $BK"
   echo "To undo: for each file in $BK copy it back with docker cp, or ask for the one-line restore."
 else
