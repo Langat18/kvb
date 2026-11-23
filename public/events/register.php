@@ -119,6 +119,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = (string) $existing['email'];
             $phone = (string) ($existing['phone'] ?? '');
         } else {
+            // A number the KVB register holds for a different ID cannot be taken by hand.
+            if (!$verified && (new PmsAutofill())->registerHoldsDifferentId($regNo, $idNumber, PmsAutofill::clientIp())) {
+                $_SESSION['reg_error'] = 'This registration number belongs to another practitioner on the KVB register. Check your number, or contact the KVB if you believe it is yours.';
+                header('Location: /events/register.php?token=' . urlencode($token));
+                exit;
+            }
+
             $participantModel->create([
                 'reg_no'    => $regNo,
                 'name'      => $name,
