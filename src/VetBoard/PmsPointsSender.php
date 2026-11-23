@@ -79,6 +79,17 @@ final class PmsPointsSender
             }
         }
 
+        // Who we hold under each number, so a number PMS knows for a different person is not trusted blindly.
+        $mine = [];
+        if ($batch) {
+            $inB = implode(',', array_fill(0, count($batch), '?'));
+            $stB = $this->pdo->prepare("SELECT reg_no, name, id_number FROM participants WHERE reg_no IN ($inB)");
+            $stB->execute(array_values($batch));
+            foreach ($stB->fetchAll() as $p) {
+                $mine[$p['reg_no']] = $p;
+            }
+        }
+
         $alt   = [];
         $local = [];
         if ($missing) {
@@ -118,6 +129,31 @@ final class PmsPointsSender
             if ($r['status'] === PmsClient::FOUND) {
                 // PMS answered for this number; if it does not echo one back, the number we asked for is the one to send.
                 $pmsReg = strtoupper(trim((string) ($r['data']['reg_number'] ?? ''))) ?: strtoupper(trim($reg));
+
+                // PMS knows this number, but for a person whose ID (or name, when PMS holds no ID) is not ours.
+                // Nothing is sent until staff review it: the points may belong to someone who typed a wrong number.
+                $me = $mine[$reg] ?? null;
+                if ($me && self::conflicts((string) $me['name'], (string) $me['id_number'], (array) $r['data'])) {
+                    if ($approved) {
+                        $approved->execute([':r' => $reg]);
+                    }
+                    if ($approved && ($c = $approved->fetchColumn()) !== false) {
+                        $pmsReg = (string) $c;
+                        $detail = 'Approved by staff';
+                    } else {
+                        if ($suggest) {
+                            $suggest->execute([
+                                ':r' => $reg,
+                                ':c' => $pmsReg,
+                                ':n' => substr(PmsAutofill::fullName((array) $r['data']), 0, 255),
+                                ':m' => self::sameName((string) $me['name'], (array) $r['data']) ? 'true' : 'false',
+                                ':i' => self::idState((string) $me['id_number'], PmsAutofill::idFrom((array) $r['data'])),
+                            ]);
+                        }
+                        $pmsReg = null;
+                        $detail = 'PMS holds this number for a different person (ID does not match). Review before sending';
+                    }
+                }
             } else {
                 if ($approved) {
                     $approved->execute([':r' => $reg]);
@@ -158,6 +194,19 @@ final class PmsPointsSender
         static $ready = null;
 
         return $ready ??= (bool) $this->pdo->query("SELECT to_regclass('public.pms_suggestions') IS NOT NULL")->fetchColumn();
+    }
+
+    /** True when PMS's record for this number is not the person we hold: both IDs known and different, or no PMS ID and a different name. */
+    private static function conflicts(string $localName, string $localId, array $pms): bool
+    {
+        $theirs = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', PmsAutofill::idFrom($pms)));
+        $ours   = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $localId));
+
+        if ($theirs !== '' && $ours !== '') {
+            return $theirs !== $ours;
+        }
+
+        return !self::sameName($localName, $pms);
     }
 
     private static function idState(string $local, string $pms): string
