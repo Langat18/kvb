@@ -369,6 +369,20 @@ final class PmsPointsSender
         }
     }
 
+    /**
+     * Serial PMS stores for each upload line. Its column is short (10 characters is known to work), so the usual
+     * CPD-<event>-<number> is kept only when it fits; otherwise the VT prefix is dropped (VTA00617 becomes A00617).
+     */
+    public static function recordSn(int $eventId, string $reg): string
+    {
+        $long = 'CPD-' . $eventId . '-' . $reg;
+        if (strlen($long) <= 10) {
+            return $long;
+        }
+
+        return $eventId . '-' . (str_starts_with($reg, 'VT') ? substr($reg, 2) : $reg);
+    }
+
     /** @return array<string, array{status: string, response: ?string, created_at: string}> latest live row per reg_no */
     public function sentFor(int $eventId): array
     {
@@ -433,7 +447,7 @@ final class PmsPointsSender
                 $ids[]                    = (int) $id;
                 $rowOf[$it['pms_reg_no']] = (int) $id;
                 $records[]                = [
-                    'record_sn'        => 'CPD-' . $eventId . '-' . $it['reg_no'],
+                    'record_sn'        => self::recordSn($eventId, (string) $it['reg_no']),
                     'kvb_reg_number'   => $it['pms_reg_no'],
                     'activity_number'  => $activityNumber,
                     'activity_title'   => $title,
