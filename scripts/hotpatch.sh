@@ -73,12 +73,13 @@ for f in $FILES; do
   docker cp "$SRC/$f" "$C:/var/www/html/$f" >/dev/null || { restore; die "copy of $f failed"; }
   docker exec "$C" chown www-data:www-data "/var/www/html/$f"
 done
-docker exec "$C" apachectl graceful >/dev/null 2>&1; sleep 3
+# Gentle reload by signal (the in-container apachectl call has been seen to hang); never waits more than 15 seconds.
+timeout 15 docker kill -s USR1 "$C" >/dev/null 2>&1; sleep 3
 
 echo "6/6 Check the site"
 login=$(curl -s -m 8 -o /dev/null -w '%{http_code}' "$LOCAL/login.php")
 look=$(curl -s -L -m 8 -o /dev/null -w '%{http_code}' "$LOCAL/events/lookup?reg_no=abc")
-errs=$(docker logs --since 1m "$C" 2>&1 | grep -ciE "PHP (Fatal|Parse) error" || true)
+errs=$(timeout 20 docker logs --since 1m "$C" 2>&1 | grep -ciE "PHP (Fatal|Parse) error" || true)
 echo "    login page: HTTP $login | lookup: HTTP $look | PHP fatal errors in the last minute: $errs"
 case "$login" in 200|301|302|303) okl=1;; *) okl=0;; esac
 if [ "$okl" = "1" ] && [ "${look:-0}" -lt 500 ] && [ "${look:-0}" -gt 0 ] && [ "${errs:-0}" = "0" ]; then

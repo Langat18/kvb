@@ -64,6 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+$user = Auth::user();
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => $config['label'], 'url' => '/lookups/' . urlencode($type)], ['label' => 'New item', 'url' => null]];
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -74,15 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
-<style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 480px; margin: 0 auto; }
-.container h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-</style>
 </head>
-<body>
-<div class="container">
-    <h1>New <?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?> Item</h1>
+<body class="has-app-sidebar">
+<?php require __DIR__ . '/../templates/nav.php'; ?>
+<div class="page-with-sidebar">
+<div class="form-page">
+    <div class="app-page-hero"><div><h1>New <?= htmlspecialchars($config['label'], ENT_QUOTES, 'UTF-8') ?> Item</h1></div></div>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
@@ -133,6 +133,7 @@ body { display: block; padding: 2.5rem; }
     <div style="margin-top:1rem;">
         <a href="/lookups/<?= urlencode($type) ?>" class="btn btn-secondary">Back</a>
     </div>
+</div>
 </div>
 </body>
 </html>
