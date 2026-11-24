@@ -58,7 +58,13 @@ if ($regs) {
     $in = implode(',', array_fill(0, count($regs), '?'));
     $pdo->prepare("DELETE FROM pms_resolutions WHERE reg_no IN ($in)")->execute($regs);
 }
-for ($i = 0; $i < 200 && $sender->resolve($regs, 20) > 0; $i++) { sleep(1); }
+fwrite(STDERR, 'Checking ' . count($regs) . " practitioners against the register...\n");
+for ($i = 0; $i < 200; $i++) {
+    $left = $sender->resolve($regs, 20);
+    fwrite(STDERR, '  still to check: ' . $left . "\n");
+    if ($left <= 0) { break; }
+    sleep(1);
+}
 $res  = $sender->resolutions($regs);
 $done = $sender->sentFor($eventId);
 
