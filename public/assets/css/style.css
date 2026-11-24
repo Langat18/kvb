@@ -991,8 +991,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--k
 @media (max-width: 640px) {
     table.data-table.rt-cards, .rt-cards thead, .rt-cards tbody, .rt-cards tr, .rt-cards td { display: block; width: 100%; }
     .rt-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    .rt-cards tr { padding: .75rem 1rem; border-bottom: 1px solid var(--line); }
-    .rt-cards tr:last-child { border-bottom: 0; }
+    .rt-cards tr { width: auto; padding: .75rem 1rem; margin: .6rem .75rem; border: 1px solid #eee; border-radius: 10px; background: #fff; }
+    .rt-cards tr:last-child { border-bottom: 1px solid #eee; }
     .rt-cards td { display: flex; justify-content: space-between; gap: 1rem; padding: .3rem 0; border: 0; text-align: right; }
     .rt-cards td::before { content: attr(data-label); flex: 0 0 38%; text-align: left; font-size: .72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; padding-top: .15rem; }
     .rt-cards td[data-label=""]::before, .rt-cards td:not([data-label])::before { display: none; }
@@ -1259,3 +1259,20 @@ input, select, textarea { border-radius: 10px; }
 .ef .quiz-clear-label { white-space: nowrap; }
 .ef .quiz-clear-label input { width: auto; min-height: 0; margin: 0; }
 .ef .form-group select { background-color: #fff; }
+
+/* Admin form pages (roles, departments, providers, lookups): one narrow card inside the sidebar layout */
+.form-page { max-width: 520px; }
+.form-page.wide { max-width: 720px; }
+.perm-group { margin-bottom: 1.25rem; }
+.perm-group-header {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-muted); margin-bottom: .5rem; padding-bottom: .3rem;
+    border-bottom: 1px solid #eee;
+}
+.perm-group-header input { width: auto; margin: 0; }
+.perm-list { display: flex; flex-direction: column; gap: .6rem; }
+.perm-item { display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .75rem; border: 1px solid #eee; border-radius: 10px; }
+.perm-item input { width: auto; margin-top: .2rem; }
+.perm-item .perm-label { font-weight: 600; font-size: .87rem; }
+.perm-item .perm-desc { font-size: .78rem; color: var(--text-muted); margin-top: .1rem; }

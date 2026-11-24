@@ -102,6 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+$user = Auth::user();
+$breadcrumbs = [['label' => 'Dashboard', 'url' => '/index.php'], ['label' => 'Roles', 'url' => '/roles/index.php'], ['label' => 'Edit Role', 'url' => null]];
+require __DIR__ . '/../templates/sidebar_data.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -112,28 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/style.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/css/style.css') ?>">
-<style>
-body { display: block; padding: 2.5rem; }
-.container { max-width: 560px; margin: 0 auto; }
-.container h1 { font-size: 1.2rem; font-weight: 700; color: var(--kvb-green-dark); margin-bottom: 1rem; }
-.perm-group { margin-bottom: 1.25rem; }
-.perm-group-header {
-    display: flex; align-items: center; gap: .5rem;
-    font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
-    color: var(--text-muted); margin-bottom: .5rem; padding-bottom: .3rem;
-    border-bottom: 1px solid #eee;
-}
-.perm-group-header input { width: auto; margin: 0; }
-.perm-list { display: flex; flex-direction: column; gap: .6rem; }
-.perm-item { display: flex; align-items: flex-start; gap: .6rem; padding: .6rem .75rem; border: 1px solid #eee; border-radius: 10px; }
-.perm-item input { width: auto; margin-top: .2rem; }
-.perm-item .perm-label { font-weight: 600; font-size: .87rem; }
-.perm-item .perm-desc { font-size: .78rem; color: var(--text-muted); margin-top: .1rem; }
-</style>
 </head>
-<body>
-<div class="container">
-    <h1>Edit Role: <?= htmlspecialchars($role['label'], ENT_QUOTES, 'UTF-8') ?></h1>
+<body class="has-app-sidebar">
+<?php require __DIR__ . '/../templates/nav.php'; ?>
+<div class="page-with-sidebar">
+<div class="form-page wide">
+    <div class="app-page-hero"><div><h1>Edit Role: <?= htmlspecialchars($role['label'], ENT_QUOTES, 'UTF-8') ?></h1></div></div>
 
     <?php if ($error): ?>
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
@@ -207,6 +194,7 @@ body { display: block; padding: 2.5rem; }
     <div style="margin-top:1rem;">
         <a href="/roles/index.php" class="btn btn-secondary">Back to Roles</a>
     </div>
+</div>
 </div>
 
 <script>
