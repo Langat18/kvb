@@ -20,7 +20,7 @@ $apply   = ($argv[3] ?? '') === 'apply' && $reg !== '';
 if ($eventId <= 0) { fwrite(STDERR, "Usage: php pms_send_one.php EVENT_ID [REG apply]\n"); exit(1); }
 
 $pdo = Database::getInstance()->getPdo();
-$ev  = $pdo->prepare('SELECT id, title, end_date, event_code, provider_name FROM events WHERE id = :e');
+$ev  = $pdo->prepare('SELECT e.id, e.title, e.end_date, e.event_code, pr.name AS provider_name FROM events e LEFT JOIN providers pr ON pr.id = e.provider_id WHERE e.id = :e');
 $ev->execute([':e' => $eventId]);
 $event = $ev->fetch();
 if (!$event) { fwrite(STDERR, "Event not found.\n"); exit(1); }
