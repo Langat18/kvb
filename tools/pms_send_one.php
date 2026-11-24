@@ -56,7 +56,8 @@ $regs   = array_column($people, 'reg_no');
 // Answers saved before the ID-conflict guard may be stale; forget them and ask the register again.
 if ($regs) {
     $in = implode(',', array_fill(0, count($regs), '?'));
-    $pdo->prepare("DELETE FROM pms_resolutions WHERE reg_no IN ($in)")->execute($regs);
+    // Only answers saved before the guard went live (24 Nov 2026, 00:10 Nairobi time) are dropped, so a re-run keeps fresh ones.
+    $pdo->prepare("DELETE FROM pms_resolutions WHERE checked_at < TIMESTAMPTZ '2026-11-24 00:10:00+03' AND reg_no IN ($in)")->execute($regs);
 }
 fwrite(STDERR, 'Checking ' . count($regs) . " practitioners against the register...\n");
 for ($i = 0; $i < 200; $i++) {
