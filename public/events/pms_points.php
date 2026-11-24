@@ -10,6 +10,7 @@ use VetBoard\Auth;
 use VetBoard\Database;
 use VetBoard\Event;
 use VetBoard\PmsClient;
+use VetBoard\PmsMessage;
 use VetBoard\PmsPointsSender;
 
 Auth::startSession();
@@ -209,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($finished) {
             $_SESSION['pp_flash'] = [($tally['failed'] + $tally['uncertain']) === 0 ? 'ok' : 'warn',
-                'Sent ' . $tally['sent'] . ', rejected ' . $tally['failed'] . ', outcome unclear ' . $tally['uncertain'] . '.' . ($tally['note'] !== '' ? ' PMS said: ' . $tally['note'] : '')];
+                'Sent ' . $tally['sent'] . ', not accepted ' . $tally['failed'] . ', outcome unclear ' . $tally['uncertain'] . '.' . ($tally['note'] !== '' ? ' ' . $tally['note'] : '')];
             unset($_SESSION['pp_tally']);
         }
 
@@ -254,7 +255,7 @@ foreach ($rows as &$r) {
     } else {
         $r['state'] = 'ready'; $cnt['ready']++;
         if ($d && $d['status'] === 'failed') {
-            $r['note'] = (string) $d['response'];
+            $r['note'] = PmsMessage::forDisplay((string) $d['response']);
             $cnt['failed']++;
         }
     }

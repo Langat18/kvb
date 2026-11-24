@@ -489,38 +489,47 @@ final class PmsPointsSender
         if (in_array($reply['http'], [401, 403], true)) {
             // The token was refused, so nothing was credited and a retry is safe once the token is fixed.
             foreach (array_keys($rowOf) as $reg) {
-                $failed[(string) $reg] = 'PMS refused the access token (HTTP ' . $reply['http'] . ')';
+                $failed[(string) $reg] = PmsMessage::explain((string) ($reply['message'] ?? ''), (int) $reply['http']);
             }
 
-            return [[], $failed, $unsure, 'PMS refused the access token. Ask KVB for a current token.'];
+            return [[], $failed, $unsure, PmsMessage::explain((string) ($reply['message'] ?? ''), (int) $reply['http'])];
         }
 
         if ($reply['status'] !== PmsClient::FOUND) {
             // No clear answer: PMS may or may not have credited these, so they are held, never retried blindly.
+            $why = PmsMessage::explain((string) ($reply['message'] ?? ''), (int) ($reply['http'] ?? 0));
             foreach (array_keys($rowOf) as $reg) {
-                $unsure[(string) $reg] = (string) $reply['message'];
+                $unsure[(string) $reg] = $why;
             }
 
-            return [[], $failed, $unsure, (string) $reply['message']];
+            return [[], $failed, $unsure, $why];
         }
 
         $json = $reply['json'];
         $d    = is_array($json['data'] ?? null) ? $json['data'] : [];
         $errs = $json['errors'] ?? $d['errors'] ?? [];
         $proc = $json['processed'] ?? $d['processed'] ?? null;
-        $note = (string) ($reply['message'] ?? '');
+        $rawNote = (string) ($reply['message'] ?? '');
+        $note    = '';
 
         foreach (is_array($errs) ? $errs : [] as $e) {
             $reg = strtoupper(trim((string) ($e['registration_number'] ?? $e['kvb_reg_number'] ?? '')));
             if ($reg !== '' && isset($rowOf[$reg])) {
-                $failed[$reg] = (string) ($e['message'] ?? 'Rejected by PMS');
+                $failed[$reg] = PmsMessage::explain((string) ($e['message'] ?? 'Rejected by PMS'), (int) $reply['http']);
             }
         }
 
         if (($json['success'] ?? false) !== true && $proc === null && !$failed) {
-            // The whole batch was refused and nothing was credited.
+            // The whole batch was refused. How sure we are that nothing was credited depends on the reason.
+            $note = PmsMessage::explain($rawNote !== '' ? $rawNote : 'Batch refused by PMS', (int) $reply['http']);
+            // If PMS stopped on an internal error part way, some records may already be stored: hold them, never retry blindly.
+            $inside = PmsMessage::failedInsideBatch($rawNote, (int) $reply['http']);
             foreach (array_keys($rowOf) as $reg) {
-                $failed[(string) $reg] = $note !== '' ? $note : 'Batch refused by PMS';
+                if ($inside) {
+                    $unsure[(string) $reg] = $note;
+                } else {
+                    $failed[(string) $reg] = $note;
+                }
             }
 
             return [[], $failed, $unsure, $note];
@@ -530,9 +539,13 @@ final class PmsPointsSender
             // The counts do not add up, so the outcome of the unlisted rows is not certain.
             foreach (array_keys($rowOf) as $reg) {
                 if (!isset($failed[(string) $reg])) {
-                    $unsure[(string) $reg] = 'PMS counts did not match: processed ' . (int) $proc . ' of ' . $count;
+                    $unsure[(string) $reg] = 'PMS did not confirm every record in this batch, so the outcome is not known. Check PMS before sending these again.';
                 }
             }
+        }
+
+        if ($note === '') {
+            $note = (string) (reset($failed) ?: (reset($unsure) ?: ''));
         }
 
         return [[], $failed, $unsure, $note];
