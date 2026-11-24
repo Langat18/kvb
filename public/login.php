@@ -23,8 +23,10 @@ unset($_SESSION['login_error']);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!Auth::validateCsrf($_POST['csrf_token'] ?? '')) {
-        http_response_code(403);
-        die('Invalid security token.');
+        // An old or expired form: start over with a fresh one instead of a blank error page.
+        $_SESSION['login_error'] = 'Your sign-in page had expired. Please sign in again.';
+        header('Location: /login');
+        exit;
     }
 
     $email    = trim($_POST['email']    ?? '');
@@ -35,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($throttle->isLocked($email)) {
         $minutes = $throttle->minutesUntilUnlock($email);
         $_SESSION['login_error'] = "Too many failed login attempts. Please try again in about {$minutes} minute(s).";
-        header('Location: /login.php');
+        header('Location: /login');
         exit;
     }
 
@@ -46,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$staff) {
         $_SESSION['login_error'] = 'Invalid email or password.';
-        header('Location: /login.php');
+        header('Location: /login');
         exit;
     }
 
