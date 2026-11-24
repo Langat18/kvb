@@ -406,8 +406,28 @@ final class PmsPointsSender
      */
     public function send(int $eventId, string $activityNumber, string $date, string $title, string $provider, array $items, ?int $staffId): array
     {
-        $batch  = date('YmdHis') . '-' . bin2hex(random_bytes(3));
         $result = ['sent' => 0, 'failed' => 0, 'uncertain' => 0, 'message' => ''];
+
+        // One send per event at a time, so two staff pressing Send together cannot both pass the duplicate checks.
+        $lock = $this->pdo->prepare('SELECT pg_try_advisory_lock(7301, :e)');
+        $lock->execute([':e' => $eventId]);
+        if (!(bool) $lock->fetchColumn()) {
+            $result['message'] = 'Another send for this event is already running. Wait for it to finish, then check the list again.';
+
+            return $result;
+        }
+
+        try {
+            return $this->sendLocked($eventId, $activityNumber, $date, $title, $provider, $items, $staffId, $result);
+        } finally {
+            $this->pdo->prepare('SELECT pg_advisory_unlock(7301, :e)')->execute([':e' => $eventId]);
+        }
+    }
+
+    /** @return array{sent: int, failed: int, uncertain: int, message: string} */
+    private function sendLocked(int $eventId, string $activityNumber, string $date, string $title, string $provider, array $items, ?int $staffId, array $result): array
+    {
+        $batch  = date('YmdHis') . '-' . bin2hex(random_bytes(3));
         $num    = static fn(float $v) => fmod($v, 1.0) === 0.0 ? (int) $v : round($v, 2);
 
         // Two practitioners must never end up on the same PMS number: PMS does not de-duplicate and would credit it twice.

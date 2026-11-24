@@ -516,7 +516,32 @@ class Registration
         return 'not_applicable';
     }
 
+    /**
+     * Awards the session's points for one sign-in. Runs under a lock for this practitioner and event, so two requests
+     * arriving together can neither award the same sign-in twice nor push the day's total past the cap.
+     */
     private function awardPoints(int $attendanceId, int $registrationId, int $sessionId): void
+    {
+        $own = !$this->pdo->inTransaction();
+        if ($own) {
+            $this->pdo->beginTransaction();
+        }
+
+        try {
+            $this->awardPointsLocked($attendanceId, $registrationId, $sessionId);
+            if ($own) {
+                $this->pdo->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($own && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+
+            throw $e;
+        }
+    }
+
+    private function awardPointsLocked(int $attendanceId, int $registrationId, int $sessionId): void
     {
         $regStmt = $this->pdo->prepare(
             'SELECT r.event_id, r.reg_no FROM registrations r WHERE r.id = :registration_id'
@@ -525,6 +550,16 @@ class Registration
         $row = $regStmt->fetch();
 
         if (!$row) {
+            return;
+        }
+
+        $this->pdo->prepare('SELECT pg_advisory_xact_lock(hashtext(:k))')
+            ->execute([':k' => 'award:' . $row['event_id'] . ':' . $row['reg_no']]);
+
+        // Checked again now that the lock is held: another request may have awarded this sign-in while this one waited.
+        $again = $this->pdo->prepare('SELECT EXISTS(SELECT 1 FROM points_ledger WHERE attendance_id = :a)');
+        $again->execute([':a' => $attendanceId]);
+        if ((bool) $again->fetchColumn()) {
             return;
         }
 
@@ -561,7 +596,8 @@ class Registration
 
         $insertStmt = $this->pdo->prepare(
             'INSERT INTO points_ledger (attendance_id, reg_no, event_id, points, reason)
-             VALUES (:attendance_id, :reg_no, :event_id, :points, :reason)'
+             VALUES (:attendance_id, :reg_no, :event_id, :points, :reason)
+             ON CONFLICT DO NOTHING'
         );
         $insertStmt->execute([
             ':attendance_id' => $attendanceId,
