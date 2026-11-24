@@ -49,5 +49,12 @@ $check('no answer holds records as unclear', count($unsure) === 2);
 [, $failed] = $im->invoke($s, ['status' => 'found', 'http' => 401, 'message' => 'Unauthenticated.', 'json' => null], $rows, 2);
 $check('a refused token marks records not accepted, in plain words', count($failed) === 2 && str_contains(reset($failed), 'access token'));
 
+$mig = (string) file_get_contents(__DIR__ . '/../migrations/048_duplicate_protection.sql');
+$check('migration 048 guards against existing duplicates', str_contains($mig, 'RAISE EXCEPTION') && str_contains($mig, 'IF NOT EXISTS'));
+$award = (string) file_get_contents(__DIR__ . '/../src/VetBoard/Registration.php');
+$check('award runs under a per-practitioner lock', str_contains($award, 'pg_advisory_xact_lock'));
+$send = (string) file_get_contents(__DIR__ . '/../src/VetBoard/PmsPointsSender.php');
+$check('send takes and releases a per-event lock', str_contains($send, 'pg_try_advisory_lock(7301') && str_contains($send, 'pg_advisory_unlock(7301'));
+
 echo $fail === 0 ? "All checks passed.\n" : "$fail check(s) failed.\n";
 exit($fail === 0 ? 0 : 1);
