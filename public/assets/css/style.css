@@ -903,6 +903,15 @@ body.has-app-sidebar .navbar-toggle { display: none; }
 .pagination a:hover { border-color: var(--kvb-green); color: var(--kvb-green-dark); }
 .pagination span.current { background: var(--kvb-green-dark); border-color: var(--kvb-green-dark); color: #fff; }
 .pagination .disabled { opacity: .4; pointer-events: none; }
+.pagination span.disabled {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 32px; height: 32px; padding: 0 .5rem;
+    border-radius: 8px; font-size: var(--fs-sm); font-weight: 600; border: 1px solid #e2e8f0;
+}
+.pagination .gap { display: inline-flex; align-items: center; padding: 0 .15rem; color: var(--text-muted); }
+.pagination-links { flex-wrap: wrap; justify-content: center; }
+.pager-size label { display: inline-flex; align-items: center; gap: .4rem; font-size: var(--fs-sm); color: var(--text-muted); }
+.pager-size select { width: auto; min-width: 4.2rem; padding: .3rem .5rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: var(--fs-sm); }
 
 @media (max-width: 600px) {
     .pagination { flex-direction: column; align-items: stretch; text-align: center; }
@@ -1085,6 +1094,7 @@ input, select, textarea { border-radius: 10px; }
 /* Participant roster, v3: calm table, chips, action menu */
 .roster-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .9rem; }
 .roster-count { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+.roster-find { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
 .roster-search { width: min(280px, 100%); min-height: 38px; padding: .4rem .75rem; border: 1px solid #cbd5e1; border-radius: 8px; font: inherit; font-size: .85rem; background: #fff; }
 .roster-search:focus { outline: 2px solid var(--kvb-green-dark); outline-offset: 1px; border-color: transparent; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

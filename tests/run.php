@@ -56,5 +56,26 @@ $check('award runs under a per-practitioner lock', str_contains($award, 'pg_advi
 $send = (string) file_get_contents(__DIR__ . '/../src/VetBoard/PmsPointsSender.php');
 $check('send takes and releases a per-event lock', str_contains($send, 'pg_try_advisory_lock(7301') && str_contains($send, 'pg_advisory_unlock(7301'));
 
+// ---- Paginator ----
+use VetBoard\Paginator;
+$pg = new Paginator(133, ['page' => '3', 'per_page' => '20', 'search' => 'x y', 'event_mode' => '']);
+$check('pages are counted', $pg->pages === 7 && $pg->page === 3 && $pg->offset === 40 && $pg->from === 41 && $pg->to === 60);
+$check('a page past the end goes to the last page', (new Paginator(133, ['page' => '99']))->page === 7);
+$check('page zero or junk goes to page 1', (new Paginator(133, ['page' => '0']))->page === 1 && (new Paginator(133, ['page' => 'abc']))->page === 1);
+$check('an unlisted page size falls back to 20', (new Paginator(133, ['per_page' => '5000']))->perPage === 20);
+$check('a listed page size is kept', (new Paginator(133, ['per_page' => '50']))->perPage === 50);
+$check('no rows: one empty page, nothing shown', ($z = new Paginator(0, []))->pages === 1 && $z->from === 0 && $z->to === 0 && !$z->needed());
+$check('a short list needs no pager', !(new Paginator(10, []))->needed() && (new Paginator(11, []))->needed());
+$check('last page shows the remainder', (new Paginator(133, ['page' => '7']))->to === 133 && count((new Paginator(133, ['page' => '7']))->slice(range(1, 133))) === 13);
+$check('slice returns the right rows', (new Paginator(133, ['page' => '2']))->slice(range(1, 133))[0] === 21);
+$check('window shows ends and neighbours', (new Paginator(2000, ['page' => '50', 'per_page' => '10']))->window() === [1, null, 49, 50, 51, null, 200]);
+$check('window on page 1 shows the first, the next and the last', (new Paginator(133, []))->window() === [1, 2, null, 7]);
+$check('window does not hide a single page behind a gap', (new Paginator(133, ['page' => '4']))->window() === [1, 2, 3, 4, 5, 6, 7]);
+$check('links keep filters and drop empty page 1', $pg->url(1) === '?search=x+y&event_mode=' && str_contains($pg->url(5), 'page=5') && str_contains($pg->url(5), 'search=x+y'));
+$check('links drop the default page size', !str_contains($pg->url(2), 'per_page'));
+$check('page size form carries filters but not page or size', $pg->carried() === ['search' => 'x y']);
+$ps = new Paginator(900, ['pg' => '2', 'ps' => '50'], 'pg', 'ps');
+$check('custom parameter names work (several lists on one page)', $ps->page === 2 && $ps->perPage === 50 && str_contains($ps->url(3), 'pg=3'));
+
 echo $fail === 0 ? "All checks passed.\n" : "$fail check(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

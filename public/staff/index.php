@@ -23,14 +23,9 @@ $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
 unset($_SESSION['success'], $_SESSION['error']);
 
-$perPage     = 20;
-$currentPage = max(1, (int) ($_GET['page'] ?? 1));
-$totalStaff  = $staffModel->count();
-$totalPages  = max(1, (int) ceil($totalStaff / $perPage));
-$currentPage = min($currentPage, $totalPages);
-$offset      = ($currentPage - 1) * $perPage;
-
-$staffList = $staffModel->list([], $perPage, $offset);
+$totalStaff = $staffModel->count();
+$pager      = new \VetBoard\Paginator($totalStaff, $_GET);
+$staffList  = $staffModel->list([], $pager->perPage, $pager->offset);
 $roles     = $roleModel->list(true);
 $isAdmin   = $user['role'] === Staff::ADMIN_ROLE;   // only an admin can grant or change the Admin role
 
@@ -126,22 +121,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             </tbody>
         </table>
         </div>
-        <?php if ($totalPages > 1): ?>
-            <div class="pagination">
-                <span>Page <?= $currentPage ?> of <?= $totalPages ?> (<?= $totalStaff ?> staff)</span>
-                <div class="pagination-links">
-                    <a href="?page=<?= $currentPage - 1 ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">Previous</a>
-                    <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-                        <?php if ($p === $currentPage): ?>
-                            <span class="current"><?= $p ?></span>
-                        <?php else: ?>
-                            <a href="?page=<?= $p ?>"><?= $p ?></a>
-                        <?php endif; ?>
-                    <?php endfor; ?>
-                    <a href="?page=<?= $currentPage + 1 ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next</a>
-                </div>
-            </div>
-        <?php endif; ?>
+        <?php $pagerNoun = 'staff'; require __DIR__ . '/../templates/pager.php'; ?>
     </div>
 </div>
 </body>

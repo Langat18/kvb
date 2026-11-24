@@ -24,25 +24,11 @@ unset($_SESSION['success'], $_SESSION['error']);
 $search  = trim($_GET['search'] ?? '');
 $filters = $search !== '' ? ['search' => $search] : [];
 
-$perPage     = 20;
-$currentPage = max(1, (int) ($_GET['page'] ?? 1));
-$totalCount  = $providerModel->count($filters);
-$totalPages  = max(1, (int) ceil($totalCount / $perPage));
-$currentPage = min($currentPage, $totalPages);
-$offset      = ($currentPage - 1) * $perPage;
-
-$providers = $providerModel->paginatedList($filters, $perPage, $offset);
+$totalCount = $providerModel->count($filters);
+$pager      = new \VetBoard\Paginator($totalCount, $_GET);
+$providers  = $providerModel->paginatedList($filters, $pager->perPage, $pager->offset);
 
 require __DIR__ . '/../templates/sidebar_data.php';
-
-function pageUrl(int $page, string $search): string
-{
-    $params = ['page' => $page];
-    if ($search !== '') {
-        $params['search'] = $search;
-    }
-    return '?' . http_build_query($params);
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -116,22 +102,7 @@ function pageUrl(int $page, string $search): string
             </tbody>
         </table>
         </div>
-        <?php if ($totalPages > 1): ?>
-            <div class="pagination">
-                <span>Page <?= $currentPage ?> of <?= $totalPages ?> (<?= $totalCount ?> providers)</span>
-                <div class="pagination-links">
-                    <a href="<?= pageUrl($currentPage - 1, $search) ?>" class="<?= $currentPage <= 1 ? 'disabled' : '' ?>">Previous</a>
-                    <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-                        <?php if ($p === $currentPage): ?>
-                            <span class="current"><?= $p ?></span>
-                        <?php else: ?>
-                            <a href="<?= pageUrl($p, $search) ?>"><?= $p ?></a>
-                        <?php endif; ?>
-                    <?php endfor; ?>
-                    <a href="<?= pageUrl($currentPage + 1, $search) ?>" class="<?= $currentPage >= $totalPages ? 'disabled' : '' ?>">Next</a>
-                </div>
-            </div>
-        <?php endif; ?>
+        <?php $pagerNoun = 'providers'; require __DIR__ . '/../templates/pager.php'; ?>
     </div>
 </div>
 </body>

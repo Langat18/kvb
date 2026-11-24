@@ -266,6 +266,18 @@ class Participant
         }
     }
 
+    public function leaderboardCount(string $search = ''): int
+    {
+        if ($search === '') {
+            return (int) $this->pdo->query('SELECT COUNT(*) FROM participants')->fetchColumn();
+        }
+
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM participants p WHERE p.name ILIKE :search OR p.reg_no ILIKE :search');
+        $stmt->execute([':search' => '%' . $search . '%']);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     public function leaderboard(string $search = '', int $limit = 50, int $offset = 0): array
     {
         $where  = '';
@@ -282,7 +294,7 @@ class Participant
              LEFT JOIN points_ledger pl ON pl.reg_no = p.reg_no
              {$where}
              GROUP BY p.reg_no, p.name, p.cadre
-             ORDER BY total_points DESC, p.name ASC
+             ORDER BY total_points DESC, p.name ASC, p.reg_no ASC
              LIMIT :limit OFFSET :offset"
         );
 

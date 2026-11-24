@@ -49,6 +49,18 @@ $endDate      = date('d M Y', strtotime($event['end_date']));
 $participants = $eventModel->getParticipants((int) $event['id']);
 $sessionPointsRows = $eventModel->getSessions((int) $event['id']);
 
+// Search and paging are done here, on the whole list, so a search finds people on every page.
+$rosterAll = count($participants);
+$rosterQ   = trim((string) ($_GET['q'] ?? ''));
+if ($rosterQ !== '') {
+    $needle       = mb_strtolower($rosterQ);
+    $rosterRows   = array_values(array_filter($participants, static fn(array $p): bool => str_contains(mb_strtolower($p['reg_no'] . ' ' . $p['name']), $needle)));
+} else {
+    $rosterRows   = $participants;
+}
+$pager     = new \VetBoard\Paginator(count($rosterRows), $_GET);
+$pageRows  = $pager->slice($rosterRows);
+
 $flaggedTotal = 0;
 foreach ($participants as $p) {
     foreach ($p['attendance'] as $a) {
@@ -190,13 +202,22 @@ require __DIR__ . '/../templates/sidebar_data.php';
         </div>
     </div>
 
-    <div class="app-card">
+    <div class="app-card" id="roster">
         <div class="roster-head">
-            <div class="section-label" style="margin:0;">Registered participants <span class="roster-count">(<span id="rs-shown"><?= count($participants) ?></span> of <?= count($participants) ?>)</span></div>
-            <?php if (!empty($participants)): ?><input type="search" id="rs-q" class="roster-search" placeholder="Search name or reg no" aria-label="Filter participants" autocomplete="off"><?php endif; ?>
+            <div class="section-label" style="margin:0;">Registered participants <span class="roster-count">(<?= $rosterQ !== '' ? count($rosterRows) . ' of ' . $rosterAll : $rosterAll ?>)</span></div>
+            <?php if ($rosterAll > 0): ?>
+                <form method="get" action="#roster" class="roster-find">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars((string) ($_GET['token'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                    <input type="search" name="q" value="<?= htmlspecialchars($rosterQ, ENT_QUOTES, 'UTF-8') ?>" class="roster-search" placeholder="Search name or reg no" aria-label="Search participants" autocomplete="off">
+                    <button type="submit" class="btn btn-sm">Search</button>
+                    <?php if ($rosterQ !== ''): ?><a class="btn btn-ghost btn-sm" href="?token=<?= urlencode((string) ($_GET['token'] ?? '')) ?>#roster">Clear</a><?php endif; ?>
+                </form>
+            <?php endif; ?>
         </div>
         <?php if (empty($participants)): ?>
             <p class="empty-state">No participants have registered yet.</p>
+        <?php elseif (empty($rosterRows)): ?>
+            <p class="empty-state">No participant matches &ldquo;<?= htmlspecialchars($rosterQ, ENT_QUOTES, 'UTF-8') ?>&rdquo;.</p>
         <?php else: ?>
         <div class="table-scroll">
         <table class="data-table roster">
@@ -212,8 +233,8 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 </tr>
             </thead>
             <tbody id="rs-body">
-                <?php foreach ($participants as $p): ?>
-                <tr data-s="<?= htmlspecialchars(strtolower($p['reg_no'] . ' ' . $p['name']), ENT_QUOTES, 'UTF-8') ?>">
+                <?php foreach ($pageRows as $p): ?>
+                <tr>
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -257,6 +278,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             </tbody>
         </table>
         </div>
+        <?php $pagerNoun = $rosterQ !== '' ? 'matches' : 'participants'; $pagerAnchor = '#roster'; require __DIR__ . '/../templates/pager.php'; ?>
         <?php endif; ?>
     </div>
 
@@ -272,22 +294,6 @@ new QRCode(document.getElementById("qrcode"), {
     colorLight: "#ffffff",
     correctLevel: QRCode.CorrectLevel.H
 });
-
-(function () {
-    var q = document.getElementById('rs-q');
-    if (!q) { return; }
-    var rows = Array.prototype.slice.call(document.querySelectorAll('#rs-body tr'));
-    var shown = document.getElementById('rs-shown');
-    q.addEventListener('input', function () {
-        var term = q.value.trim().toLowerCase(), n = 0;
-        rows.forEach(function (tr) {
-            var hit = term === '' || tr.getAttribute('data-s').indexOf(term) !== -1;
-            tr.hidden = !hit;
-            if (hit) { n++; }
-        });
-        shown.textContent = n;
-    });
-})();
 
 function copyLink(btn) {
     navigator.clipboard.writeText(<?= json_encode($choiceUrl) ?>).then(() => {

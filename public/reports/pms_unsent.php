@@ -85,6 +85,8 @@ foreach ($stmt->fetchAll() as $r) {
     $events[$r['event_id']] = true;
 }
 
+$pager = new \VetBoard\Paginator(count($items), $_GET, 'page', 'per_page', 50);
+
 if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="pms-not-uploaded-' . date('Y-m-d') . '.csv"');
@@ -153,7 +155,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <div class="wrap"><table>
             <thead><tr><th>Event</th><th>Reg No</th><th>Name</th><th class="n">Points</th><th>Why</th></tr></thead>
             <tbody>
-            <?php foreach ($items as $i): ?>
+            <?php foreach ($pager->slice($items) as $i): ?>
             <tr>
                 <td><a href="/events/pms_points.php?token=<?= $h(urlencode((string) $i['token'])) ?>"><?= $h($i['event']) ?></a><br><span class="mono" style="color:#64748b;font-size:.78rem"><?= $h($i['code'] !== '' ? $i['code'] : 'no activity number') ?> &middot; ended <?= $h($i['end']) ?> &middot; was due <?= $h($i['due']) ?></span></td>
                 <td class="mono"><?= $h($i['reg_no']) ?></td>
@@ -164,6 +166,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <?php endforeach; ?>
             </tbody>
         </table></div>
+        <?php $pagerNoun = 'people'; require __DIR__ . '/../templates/pager.php'; ?>
     </section>
     <?php endif; ?>
 </div>

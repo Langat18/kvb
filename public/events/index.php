@@ -24,9 +24,6 @@ $eventModeRepo = new EventModeRepository();
 $eventModes    = $eventModeRepo->list(true);
 $modeLabels    = $eventModeRepo->labelMap();
 
-$page       = max(1, (int) ($_GET['page']     ?? 1));
-$perPage    = max(1, min(100, (int) ($_GET['per_page'] ?? 20)));
-$offset     = ($page - 1) * $perPage;
 $search     = trim($_GET['search']      ?? '');
 $modeFilter = trim($_GET['event_mode']  ?? '');
 $dateFilter = trim($_GET['date']        ?? '');
@@ -36,9 +33,9 @@ if ($search !== '')     $filters['search']     = $search;
 if ($modeFilter !== '') $filters['event_mode'] = $modeFilter;
 if ($dateFilter !== '') $filters['date']       = $dateFilter;
 
-$events     = $eventModel->list($filters, $perPage, $offset);
 $total      = $eventModel->count($filters);
-$totalPages = max(1, (int) ceil($total / $perPage));
+$pager      = new \VetBoard\Paginator($total, $_GET);
+$events     = $eventModel->list($filters, $pager->perPage, $pager->offset);
 
 $success = $_SESSION['success'] ?? null;
 $error   = $_SESSION['error']   ?? null;
@@ -138,23 +135,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 </tbody>
             </table>
             </div>
-            <?php if ($totalPages > 1): ?>
-                <div class="pagination">
-                    <span>Page <?= $page ?> of <?= $totalPages ?> (<?= $total ?> events)</span>
-                    <div class="pagination-links">
-                        <?php $baseParams = ['per_page' => $perPage, 'search' => $search, 'event_mode' => $modeFilter, 'date' => $dateFilter]; ?>
-                        <a href="?<?= http_build_query(['page' => $page - 1] + $baseParams) ?>" class="<?= $page <= 1 ? 'disabled' : '' ?>">Previous</a>
-                        <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-                            <?php if ($p === $page): ?>
-                                <span class="current"><?= $p ?></span>
-                            <?php else: ?>
-                                <a href="?<?= http_build_query(['page' => $p] + $baseParams) ?>"><?= $p ?></a>
-                            <?php endif; ?>
-                        <?php endfor; ?>
-                        <a href="?<?= http_build_query(['page' => $page + 1] + $baseParams) ?>" class="<?= $page >= $totalPages ? 'disabled' : '' ?>">Next</a>
-                    </div>
-                </div>
-            <?php endif; ?>
+            <?php $pagerNoun = 'events'; require __DIR__ . '/../templates/pager.php'; ?>
         </div>
     <?php endif; ?>
 </div>
