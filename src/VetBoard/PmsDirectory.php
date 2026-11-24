@@ -43,9 +43,10 @@ final class PmsDirectory
             }
 
             error_log('PMS sync failed: ' . $e->getMessage());
-            $this->finishRun($runId, 'failed', [], mb_substr($e->getMessage(), 0, 255));
+            $plain = 'The sync could not finish. ' . PmsMessage::explain($e->getMessage());
+            $this->finishRun($runId, 'failed', [], mb_substr($plain, 0, 255));
 
-            return ['ok' => false, 'message' => $e->getMessage()];
+            return ['ok' => false, 'message' => $plain];
         } finally {
             $this->pdo->query('SELECT pg_advisory_unlock(' . self::LOCK_KEY . ')');
         }
