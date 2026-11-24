@@ -4,8 +4,9 @@
 #
 #   scripts/migrate.sh --status           list applied and pending files, change nothing
 #   scripts/migrate.sh                    apply the pending files
-#   scripts/migrate.sh --adopt            mark every file as already applied, run nothing
-#                                         (once, on a database that was built by hand)
+#   scripts/migrate.sh --adopt LAST_FILE  mark every file up to and including LAST_FILE as already
+#                                         applied, run nothing (once, on a database built by hand;
+#                                         later files stay pending)
 #
 # Database access (any one of):
 #   PSQL="docker exec -i ksg_db psql -U <user> -d <db>"   (default: psql with the usual PG* variables)
@@ -17,7 +18,8 @@ PSQL=${PSQL:-psql}
 MODE=run
 case "${1:-}" in
     --status) MODE=status ;;
-    --adopt)  MODE=adopt ;;
+    --adopt)  MODE=adopt; UPTO=${2:-}
+              [ -n "$UPTO" ] && [ -f "migrations/$UPTO" ] || { echo "Usage: $0 --adopt LAST_FILE  (e.g. 048_duplicate_protection.sql)"; exit 2; } ;;
     "")       ;;
     *) echo "Usage: $0 [--status|--adopt]"; exit 2 ;;
 esac
@@ -38,7 +40,8 @@ for f in migrations/*.sql; do
     fi
     case $MODE in
         status) echo "  PENDING  $name"; pending=$((pending+1)) ;;
-        adopt)  q -c "INSERT INTO schema_migrations (filename) VALUES ('$name') ON CONFLICT DO NOTHING" >/dev/null; echo "  marked   $name" ;;
+        adopt)  [[ "$name" > "$UPTO" ]] && continue
+                q -c "INSERT INTO schema_migrations (filename) VALUES ('$name') ON CONFLICT DO NOTHING" >/dev/null; echo "  marked   $name" ;;
         run)
             echo "  applying $name"
             if ! $PSQL -v ON_ERROR_STOP=1 -q -f - < "$f" >/dev/null; then
