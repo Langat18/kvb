@@ -262,6 +262,20 @@ foreach ($rows as &$r) {
 }
 unset($r);
 
+// Which records are listed, and which page: display only. Counts, the send list and the CSV all use every row.
+$ppFilter = ($_GET['f'] ?? 'ready') === 'excluded' ? 'excluded' : 'ready';
+$ppQuery  = trim((string) ($_GET['q'] ?? ''));
+$ppNeedle = mb_strtolower($ppQuery);
+$ppRows   = array_values(array_filter($rows, static function (array $r) use ($ppFilter, $ppNeedle): bool {
+    if (($ppFilter === 'excluded') !== ($r['state'] === 'excluded')) {
+        return false;
+    }
+
+    return $ppNeedle === '' || str_contains(mb_strtolower($r['reg_no'] . ' ' . $r['name']), $ppNeedle);
+}));
+$pager    = new \VetBoard\Paginator(count($ppRows), $_GET, 'page', 'per_page', 50);
+$pageRows = $pager->slice($ppRows);
+
 if (($_GET['export'] ?? '') === 'excluded') {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="pms-not-matched-' . preg_replace('/[^A-Za-z0-9_-]/', '', $code) . '.csv"');
@@ -341,8 +355,9 @@ require __DIR__ . '/../templates/sidebar_data.php';
 .pp-blockers { margin:0; padding:0; list-style:none; color:var(--warn); font-size:.8rem; }
 .pp-bar-t { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between; padding:.8rem 1.1rem; border-bottom:1px solid var(--line); background:var(--soft); }
 .pp-chips { display:flex; gap:.4rem; flex-wrap:wrap; }
-.pp-chip { padding:.3rem .7rem; border-radius:99px; border:1px solid var(--line); background:#fff; font:inherit; font-size:.78rem; font-weight:600; color:var(--muted); cursor:pointer; }
+.pp-chip { text-decoration:none; padding:.3rem .7rem; border-radius:99px; border:1px solid var(--line); background:#fff; font:inherit; font-size:.78rem; font-weight:600; color:var(--muted); cursor:pointer; }
 .pp-chip.on { background:var(--brand); border-color:var(--brand); color:#fff; }
+.pp-find { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; }
 .pp-search { width:min(260px,100%); padding:.42rem .7rem; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:.85rem; }
 .pp-scroll { max-height:560px; overflow:auto; }
 .pp-table { width:100%; border-collapse:separate; border-spacing:0; font-size:.86rem; }
@@ -440,13 +455,19 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <?php else: ?>
         <div class="pp-bar-t">
             <div class="pp-chips" id="pp-chips">
-                <button type="button" class="pp-chip on" data-f="ready">Ready <?= $total - $cnt['excluded'] ?></button>
-                <button type="button" class="pp-chip" data-f="excluded">Not in PMS <?= $cnt['excluded'] ?></button>
+                <a class="pp-chip<?= $ppFilter === 'ready' ? ' on' : '' ?>" href="<?= $h($self . '&f=ready' . ($ppQuery !== '' ? '&q=' . urlencode($ppQuery) : '')) ?>">Ready <?= $total - $cnt['excluded'] ?></a>
+                <a class="pp-chip<?= $ppFilter === 'excluded' ? ' on' : '' ?>" href="<?= $h($self . '&f=excluded' . ($ppQuery !== '' ? '&q=' . urlencode($ppQuery) : '')) ?>">Not in PMS <?= $cnt['excluded'] ?></a>
             </div>
-            <input type="search" id="pp-q" class="pp-search" placeholder="Search name or reg no" aria-label="Filter records" autocomplete="off">
+            <form method="get" class="pp-find">
+                <input type="hidden" name="token" value="<?= $h((string) $event['view_token']) ?>">
+                <input type="hidden" name="f" value="<?= $h($ppFilter) ?>">
+                <input type="search" name="q" value="<?= $h($ppQuery) ?>" class="pp-search" placeholder="Search name or reg no" aria-label="Search records" autocomplete="off">
+                <button type="submit" class="pp-btn">Search</button>
+                <?php if ($ppQuery !== ''): ?><a class="pp-note" href="<?= $h($self . '&f=' . $ppFilter) ?>">Clear</a><?php endif; ?>
+            </form>
         </div>
         <?php if ($isReviewer): ?>
-        <form method="post" id="pp-approve" class="pp-approve" hidden>
+        <form method="post" id="pp-approve" class="pp-approve"<?= ($ppFilter !== 'excluded' || !array_filter($pageRows, static fn($r) => !empty($r['sugg']))) ? ' hidden' : '' ?>>
             <input type="hidden" name="csrf_token" value="<?= $h(Auth::csrfToken()) ?>"><input type="hidden" name="action" value="approve">
             <button class="pp-btn primary">Approve selected</button>
             <span class="pp-note">Tick the possible matches you are satisfied are the same person. Ticked ones move to Ready.</span>
@@ -456,8 +477,8 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <table class="pp-table">
             <thead><tr><th>Reg No</th><th>Name</th><th class="n">Points</th><th>Status</th></tr></thead>
             <tbody id="pp-body">
-            <?php foreach ($rows as $r): ?>
-            <tr data-st="<?= $h($r['state']) ?>" data-s="<?= $h(strtolower($r['reg_no'] . ' ' . $r['name'])) ?>">
+            <?php foreach ($pageRows as $r): ?>
+            <tr>
                 <td class="pp-mono"><?= $h($r['reg_no']) ?></td>
                 <td><?= $h($r['name']) ?></td>
                 <td class="n"><b><?= $h($fmtPoints((float) $r['points'])) ?></b></td>
@@ -481,8 +502,9 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <?php endforeach; ?>
             </tbody>
         </table>
-        <div class="pp-empty" id="pp-none" hidden>No records match.</div>
+        <?php if (!$pageRows): ?><div class="pp-empty" id="pp-none"><?= $ppQuery !== '' ? 'No records match.' : ($ppFilter === 'excluded' ? 'Everyone was found in PMS.' : 'Nothing is ready.') ?></div><?php endif; ?>
         </div>
+        <?php $pagerNoun = $ppFilter === 'excluded' ? 'not in PMS' : 'records'; require __DIR__ . '/../templates/pager.php'; ?>
         <?php endif; ?>
     </section>
 
@@ -550,27 +572,6 @@ require __DIR__ . '/../templates/sidebar_data.php';
                 .then(function (d) { if (d.ok) { location.reload(); } else { note.textContent = d.message; b.disabled = false; } })
                 .catch(function () { note.textContent = 'Could not reach the server.'; b.disabled = false; });
         });
-    });
-
-    var q = document.getElementById('pp-q');
-    if (!q) { return; }
-    var rows = Array.prototype.slice.call(document.querySelectorAll('#pp-body tr')), none = document.getElementById('pp-none'), f = 'ready';
-    function apply() {
-        var term = q.value.trim().toLowerCase(), n = 0;
-        rows.forEach(function (tr) {
-            var st = tr.getAttribute('data-st'), hit = (f === 'excluded' ? st === 'excluded' : st !== 'excluded') && (term === '' || tr.getAttribute('data-s').indexOf(term) !== -1);
-            tr.hidden = !hit; if (hit) { n++; }
-        });
-        none.hidden = n !== 0;
-        var ap = document.getElementById('pp-approve'); if (ap) { ap.hidden = f !== 'excluded' || !document.querySelector('.pp-cand'); }
-    }
-    apply();
-    q.addEventListener('input', apply);
-    document.getElementById('pp-chips').addEventListener('click', function (e) {
-        var b = e.target.closest('.pp-chip'); if (!b) { return; }
-        f = b.getAttribute('data-f');
-        Array.prototype.forEach.call(document.querySelectorAll('.pp-chip'), function (c) { c.classList.toggle('on', c === b); });
-        apply();
     });
 })();
 </script>

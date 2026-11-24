@@ -101,6 +101,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $flagged       = $registrationModel->flaggedForEvent((int) $event['id']);
 $quizFailed    = $registrationModel->quizFailedForEvent((int) $event['id']);
 $recentlyReviewed = $registrationModel->recentlyReviewedForEvent((int) $event['id']);
+
+// History and the quiz list have their own page, so moving through one does not move the other.
+// The pending queue above is not paged: it has bulk select/approve/deny, which must always cover every record.
+$reviewedPager = new \VetBoard\Paginator(count($recentlyReviewed), $_GET, 'rp', 'rs', 20);
+$quizPager     = new \VetBoard\Paginator(count($quizFailed), $_GET, 'qp', 'qs', 20);
+$reviewedRows  = $reviewedPager->slice($recentlyReviewed);
+$quizRows      = $quizPager->slice($quizFailed);
 $success       = $_SESSION['success'] ?? null;
 unset($_SESSION['success']);
 
@@ -272,7 +279,7 @@ td.fl-cb, th.fl-cb { width:36px; text-align:center; }
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($recentlyReviewed as $r):
+                    <?php foreach ($reviewedRows as $r):
                         $wasDenied = in_array($r['points_denied'], [true, 't', 1, '1'], true);
                         $hasPoints = in_array($r['has_points'], [true, 't', 1, '1'], true);
                     ?>
@@ -301,6 +308,7 @@ td.fl-cb, th.fl-cb { width:36px; text-align:center; }
                 </tbody>
             </table>
             </div>
+            <?php $pager = $reviewedPager; $pagerNoun = 'reviewed records'; require __DIR__ . '/../templates/pager.php'; ?>
         </div>
     <?php endif; ?>
 
@@ -323,7 +331,7 @@ td.fl-cb, th.fl-cb { width:36px; text-align:center; }
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($quizFailed as $q): ?>
+                    <?php foreach ($quizRows as $q): ?>
                     <tr>
                         <td><?= htmlspecialchars($q['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars($q['name'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -352,6 +360,7 @@ td.fl-cb, th.fl-cb { width:36px; text-align:center; }
                 </tbody>
             </table>
             </div>
+            <?php $pager = $quizPager; $pagerNoun = 'quiz failures'; require __DIR__ . '/../templates/pager.php'; ?>
         </div>
     <?php endif; ?>
 </div>

@@ -24,8 +24,15 @@ $breadcrumbs = [
 $participantModel = new Participant();
 $cadreLabels      = (new CadreRepository())->labelMap();
 $search           = trim($_GET['search'] ?? '');
-$leaderboard      = $participantModel->leaderboard($search, 100, 0);
 $format           = $_GET['format'] ?? '';
+$boardTotal       = $participantModel->leaderboardCount($search);
+$pager            = new \VetBoard\Paginator($boardTotal, $_GET, 'page', 'per_page', 50);
+// The screen shows one page; the Excel file and the print view always carry everyone who matches.
+$whole            = $format === 'excel' || $format === 'print';
+$leaderboard      = $whole
+    ? $participantModel->leaderboard($search, max(1, $boardTotal), 0)
+    : $participantModel->leaderboard($search, $pager->perPage, $pager->offset);
+$rankBase         = $whole ? 0 : $pager->offset;
 
 if ($format === 'excel') {
     $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
@@ -93,7 +100,11 @@ require __DIR__ . '/../templates/sidebar_data.php';
         <div><h1>Points Leaderboard</h1></div>
         <div class="no-print" style="display:flex;gap:.5rem;">
             <a href="?search=<?= urlencode($search) ?>&format=excel" class="btn btn-secondary">Download Excel</a>
-            <button type="button" class="btn btn-secondary" onclick="window.print()">Print / Save as PDF</button>
+            <?php if ($format === 'print'): ?>
+                <button type="button" class="btn btn-secondary" onclick="window.print()">Print / Save as PDF</button>
+            <?php else: ?>
+                <a href="?search=<?= urlencode($search) ?>&format=print" class="btn btn-secondary">Print / Save as PDF</a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -120,7 +131,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             <tbody>
                 <?php foreach ($leaderboard as $i => $p): ?>
                 <tr onclick="window.location='/points/detail.php?reg_no=<?= urlencode($p['reg_no']) ?>'" style="cursor:pointer;">
-                    <td class="rank"><?= $i + 1 ?></td>
+                    <td class="rank"><?= $rankBase + $i + 1 ?></td>
                     <td><?= htmlspecialchars($p['reg_no'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($p['name'], ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($cadreLabels[$p['cadre']] ?? $p['cadre'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -130,6 +141,7 @@ require __DIR__ . '/../templates/sidebar_data.php';
             </tbody>
         </table>
         </div>
+        <?php if (!$whole) { $pagerNoun = 'practitioners'; require __DIR__ . '/../templates/pager.php'; } ?>
         <?php endif; ?>
     </div>
 </div>
