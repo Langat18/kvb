@@ -79,10 +79,14 @@ smoke-tests `http://localhost:8081`.
 sed '/^CREATE DATABASE/,/^\\c /d' database/schema.sql | \
     docker exec -i ksg_db psql -U cpd_user -d cpd_system
 
-for f in migrations/*.sql; do
-    docker exec -i ksg_db psql -U cpd_user -d cpd_system < "$f"
-done
+PSQL="docker exec -i ksg_db psql -U cpd_user -d cpd_system" bash scripts/migrate.sh
 ```
+
+The runner applies each file in `migrations/` once, in file-name order, records it in
+`schema_migrations`, and stops at the first failure. It is safe to run again on every
+deploy: files already applied are skipped. `--status` lists applied and pending files
+without changing anything. On a database that was built by hand before this runner
+existed, run it once with `--adopt` so the existing files are recorded and not re-run.
 
 ## 7. Add the nginx vhost (HTTP only, for now)
 
