@@ -611,21 +611,28 @@ class Registration
     public function attendanceDatesForEvent(int $eventId): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT DISTINCT attendance_date FROM attendance a
-             JOIN registrations r ON r.id = a.registration_id
-             WHERE r.event_id = :event_id
-             ORDER BY attendance_date ASC'
+            "SELECT attendance_date FROM (
+                 SELECT a.attendance_date FROM attendance a
+                 JOIN registrations r ON r.id = a.registration_id
+                 WHERE r.event_id = :event_id
+                 UNION
+                 SELECT bonus_date FROM points_ledger
+                 WHERE event_id = :event_id2 AND kind = 'manual_award' AND bonus_date IS NOT NULL
+             ) d ORDER BY attendance_date ASC"
         );
-        $stmt->execute([':event_id' => $eventId]);
+        $stmt->execute([':event_id' => $eventId, ':event_id2' => $eventId]);
 
         return array_column($stmt->fetchAll(), 'attendance_date');
     }
 
+    // The register for one day: every sign-in, plus any points a staff member
+    // awarded by hand for that day (those have no sign-in, so they are added
+    // here and shown with the method "manual").
     public function attendanceRowsForDate(int $eventId, string $date): array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT p.reg_no, p.name, p.cadre, p.email, p.phone,
-                    a.session_id, es.label AS session_label, a.method, a.flagged, a.points_denied, a.quiz_override_at, a.distance_m,
+            "SELECT p.reg_no, p.name, p.cadre, p.email, p.phone,
+                    a.session_id, es.label AS session_label, a.method::text AS method, a.flagged, a.points_denied, a.quiz_override_at, a.distance_m,
                     COALESCE(pl.points, 0) AS points_awarded
              FROM attendance a
              JOIN registrations r ON r.id = a.registration_id
@@ -633,9 +640,18 @@ class Registration
              LEFT JOIN points_ledger pl ON pl.attendance_id = a.id
              LEFT JOIN event_sessions es ON es.id = a.session_id
              WHERE r.event_id = :event_id AND a.attendance_date = :date
-             ORDER BY p.name ASC'
+             UNION ALL
+             SELECT p.reg_no, p.name, p.cadre, p.email, p.phone,
+                    ml.session_id, es.label AS session_label, 'manual' AS method, FALSE AS flagged, FALSE AS points_denied,
+                    NULL::timestamptz AS quiz_override_at, NULL::numeric AS distance_m,
+                    ml.points AS points_awarded
+             FROM points_ledger ml
+             JOIN participants p ON p.reg_no = ml.reg_no
+             LEFT JOIN event_sessions es ON es.id = ml.session_id
+             WHERE ml.event_id = :event_id2 AND ml.kind = 'manual_award' AND ml.bonus_date = :date2
+             ORDER BY name ASC"
         );
-        $stmt->execute([':event_id' => $eventId, ':date' => $date]);
+        $stmt->execute([':event_id' => $eventId, ':date' => $date, ':event_id2' => $eventId, ':date2' => $date]);
 
         return $stmt->fetchAll();
     }
